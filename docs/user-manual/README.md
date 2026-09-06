@@ -10,13 +10,6 @@
 | [English](./en/README.md) | English User Manual |
 | [日本語](./ja/README.md) | 日本語ユーザーマニュアル |
 
-## Version / 版本 / バージョン
+## 本地构建
 
-- Documentation version: v3.16.0
-- Last updated: 2026-05-29
-- Compatible with CC Switch v3.16.0+
-
-## Links
-
-- [GitHub Issues](https://github.com/farion1231/cc-switch/issues)
-- [GitHub Repository](https://github.com/farion1231/cc-switch)
+安装和更新见[项目说明](../../README.md)。这些手册保留为功能配置与排障参考，具体行为以当前代码为准。

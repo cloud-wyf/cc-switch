@@ -169,12 +169,6 @@ vi.mock("@/components/skills/UnifiedSkillsPanel", async () => {
   return { default: MockUnifiedSkillsPanel };
 });
 
-vi.mock("@/components/UpdateBadge", () => ({
-  UpdateBadge: ({ onClick }: any) => (
-    <button onClick={onClick}>update-badge</button>
-  ),
-}));
-
 vi.mock("@/components/mcp/McpPanel", () => ({
   default: ({ open, onOpenChange }: any) =>
     open ? (

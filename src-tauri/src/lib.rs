@@ -502,18 +502,6 @@ pub fn run() {
             #[cfg(target_os = "windows")]
             set_windows_app_user_model_id(app.handle());
 
-            // 注册 Updater 插件（桌面端）；放在 logger 之后，确保失败可诊断。
-            #[cfg(desktop)]
-            {
-                if let Err(e) = app
-                    .handle()
-                    .plugin(tauri_plugin_updater::Builder::new().build())
-                {
-                    // 若配置不完整（如缺少 pubkey），跳过 Updater 而不中断应用
-                    log::warn!("初始化 Updater 插件失败，已跳过：{e}");
-                }
-            }
-
             // 注入 AppHandle 给 usage_events，让无 AppHandle 持有的写日志路径
             // 也能向前端推送 `usage-log-recorded`。
             // 放在日志系统初始化之后，确保 init 的日志能正常输出。
@@ -1415,9 +1403,6 @@ pub fn run() {
             commands::get_log_config,
             commands::set_log_config,
             commands::restart_app,
-            commands::install_update_and_restart,
-            commands::check_app_update_available,
-            commands::check_for_updates,
             commands::is_portable_mode,
             commands::copy_text_to_clipboard,
             commands::get_claude_plugin_status,
@@ -2250,32 +2235,6 @@ pub fn save_window_state_before_exit(app_handle: &tauri::AppHandle) {
     } else {
         log::info!("已在退出前保存窗口状态");
     }
-}
-
-/// 主动释放 single-instance 锁。
-///
-/// macOS single-instance 使用 `/tmp/{identifier}.sock`。我们有若干路径会直接
-/// `std::process::exit(0)`，不会触发插件挂在 `RunEvent::Exit` 上的清理钩子。
-/// 重启前主动 destroy 可以避免新进程误连旧 listener 后自行退出。
-pub fn destroy_single_instance_lock(app_handle: &tauri::AppHandle) {
-    #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
-    tauri_plugin_single_instance::destroy(app_handle);
-}
-
-/// 清理托盘图标、释放 single-instance 锁后重启当前应用。
-///
-/// 直接走 `tauri::process::restart`（spawn 新进程 + `exit(0)`），不经过事件
-/// 循环退出，因此 Tauri 内部的 `cleanup_before_exit` 和各插件的
-/// `RunEvent::Exit` 钩子都不会执行。需要的清理由调用方与本函数显式补偿：
-/// 窗口状态、代理/Live 恢复（调用方）；托盘图标、single-instance 锁（本函数）。
-///
-/// 有意不调 `AppHandle::cleanup_before_exit()`：它会在调用线程上 Drop 托盘
-/// 图标，而 macOS 的 NSStatusItem 操作要求主线程；`set_visible(false)` 走
-/// `run_item_main_thread` 代理，跨线程安全（见 `remove_tray_icon_before_exit`）。
-pub fn restart_process(app_handle: &tauri::AppHandle) -> ! {
-    remove_tray_icon_before_exit(app_handle);
-    destroy_single_instance_lock(app_handle);
-    tauri::process::restart(&app_handle.env());
 }
 
 #[cfg(test)]
