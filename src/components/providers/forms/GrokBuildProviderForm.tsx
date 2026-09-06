@@ -55,8 +55,7 @@ import { GROKBUILD_OFFICIAL_PROVIDER_ID } from "@/utils/providerCapabilities";
 
 type GrokBuildProviderFormProps = Omit<ProviderFormProps, "appId">;
 
-// 预设列表见 grokBuildProviderPresets.ts：独立维护（与 Codex 预设无联动），
-// 不含官方 / OAuth / 国产官方直连 / 纯开源托管站，默认模型为 Grok 系。
+// 官方登录使用固定 provider id，与后端种子数据保持一致。
 const grokPresetEntries: Array<{
   id: string;
   preset: GrokBuildProviderPreset;
@@ -452,8 +451,6 @@ export function GrokBuildProviderForm({
               category={category}
               shouldShowApiKeyLink={Boolean(websiteUrl)}
               websiteUrl={websiteUrl}
-              isPartner={isPartner}
-              partnerPromotionKey={partnerPromotionKey}
               shouldShowSpeedTest
               codexBaseUrl={baseUrl}
               onBaseUrlChange={(value) => {

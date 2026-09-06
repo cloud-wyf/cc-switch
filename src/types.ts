@@ -187,7 +187,7 @@ export interface ProviderMeta {
   endpointAutoSelect?: boolean;
   // 是否为官方合作伙伴
   isPartner?: boolean;
-  // 合作伙伴促销 key（用于后端识别 PackyCode 等）
+  // 兼容旧版元数据；后端仍用 google-official 标识识别 Gemini OAuth
   partnerPromotionKey?: string;
   // 供应商成本倍率
   costMultiplier?: string;

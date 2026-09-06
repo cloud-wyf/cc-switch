@@ -6,17 +6,6 @@ import {
 import { piProviderPresets } from "@/config/piProviderPresets";
 
 describe("Pi provider presets", () => {
-  it("owns a broad provider catalog without OpenCode-only templates", () => {
-    const names = piProviderPresets.map((preset) => preset.name);
-
-    expect(piProviderPresets.length).toBeGreaterThanOrEqual(50);
-    expect(names).toEqual(
-      expect.arrayContaining(["Kimi", "DeepSeek", "OpenRouter", "AWS Bedrock"]),
-    );
-    expect(names).not.toContain("Oh My OpenCode");
-    expect(names).not.toContain("Oh My OpenCode Slim");
-  });
-
   it("uses distinct managed keys instead of shadowing Pi-native providers", () => {
     const keys = piProviderPresets.map((preset) => preset.providerKey);
 
@@ -67,9 +56,6 @@ describe("Pi provider presets", () => {
 
     expect(requestUrls).toMatchObject({
       "Kimi For Coding": "https://api.kimi.com/coding/v1/messages",
-      PackyCode: "https://www.packyapi.ai/v1/messages",
-      AICodeMirror: "https://api.aicodemirror.ai/api/claudecode/v1/messages",
-      OpenRouter: "https://openrouter.ai/api/v1/messages",
     });
   });
 
@@ -84,20 +70,10 @@ describe("Pi provider presets", () => {
     ).toMatchObject({
       Kimi: "openai-completions",
       "Kimi For Coding": "anthropic-messages",
-      RightCode: "openai-responses",
-      "AWS Bedrock": "bedrock-converse-stream",
+      DeepSeek: "openai-completions",
+      "Zhipu GLM": "openai-completions",
+      MiniMax: "openai-completions",
     });
-  });
-
-  it("uses Pi's 272K context value for every GPT-5.6 Sol preset", () => {
-    const models = piProviderPresets.flatMap((preset) =>
-      preset.settingsConfig.models.filter(
-        (model) => model.id === "gpt-5.6-sol",
-      ),
-    );
-
-    expect(models.length).toBeGreaterThan(0);
-    expect(models.every((model) => model.contextWindow === 272_000)).toBe(true);
   });
 
   it("keeps provider-specific OpenAI compatibility metadata", () => {
@@ -124,28 +100,5 @@ describe("Pi provider presets", () => {
       requiresReasoningContentOnAssistantMessages: true,
       deferredToolsMode: "kimi",
     });
-
-    const openCodeBase = {
-      supportsStore: false,
-      supportsDeveloperRole: false,
-      maxTokensField: "max_tokens",
-    };
-    expect(model("OpenCode Go", "glm-5.2").compat).toEqual(openCodeBase);
-    expect(model("OpenCode Go", "kimi-k2.7-code").compat).toEqual(openCodeBase);
-    expect(model("OpenCode Go", "mimo-v2.5-pro").compat).toEqual(openCodeBase);
-    for (const id of ["deepseek-v4-pro", "deepseek-v4-flash"]) {
-      expect(model("OpenCode Go", id).compat).toEqual({
-        ...openCodeBase,
-        requiresReasoningContentOnAssistantMessages: true,
-        thinkingFormat: "deepseek",
-      });
-    }
-
-    for (const id of ["mimo-v2.5-pro", "mimo-v2.5"]) {
-      expect(model("Xiaomi MiMo", id).compat).toEqual({
-        requiresReasoningContentOnAssistantMessages: true,
-        thinkingFormat: "deepseek",
-      });
-    }
   });
 });

@@ -5,7 +5,7 @@ import {
   OPENCODE_PRESET_MODEL_VARIANTS,
 } from "@/config/opencodeProviderPresets";
 
-describe("AWS Bedrock OpenCode Provider Presets", () => {
+describe("OpenCode provider configuration", () => {
   it("should include @ai-sdk/amazon-bedrock in npm packages", () => {
     const bedrockPkg = opencodeNpmPackages.find(
       (p) => p.value === "@ai-sdk/amazon-bedrock",
@@ -25,41 +25,6 @@ describe("AWS Bedrock OpenCode Provider Presets", () => {
     expect(opusModel).toBeDefined();
   });
 
-  const bedrockPreset = opencodeProviderPresets.find(
-    (p) => p.name === "AWS Bedrock",
-  );
-
-  it("should include AWS Bedrock preset", () => {
-    expect(bedrockPreset).toBeDefined();
-  });
-
-  it("Bedrock preset should use @ai-sdk/amazon-bedrock npm package", () => {
-    expect(bedrockPreset!.settingsConfig.npm).toBe("@ai-sdk/amazon-bedrock");
-  });
-
-  it("Bedrock preset should have region in options", () => {
-    expect(bedrockPreset!.settingsConfig.options).toHaveProperty("region");
-  });
-
-  it("Bedrock preset should have cloud_provider category", () => {
-    expect(bedrockPreset!.category).toBe("cloud_provider");
-  });
-
-  it("Bedrock preset should have template values for AWS credentials", () => {
-    expect(bedrockPreset!.templateValues).toBeDefined();
-    expect(bedrockPreset!.templateValues!.region).toBeDefined();
-    expect(bedrockPreset!.templateValues!.region.editorValue).toBe("us-west-2");
-    expect(bedrockPreset!.templateValues!.accessKeyId).toBeDefined();
-    expect(bedrockPreset!.templateValues!.secretAccessKey).toBeDefined();
-  });
-
-  it("Bedrock preset should include Claude models", () => {
-    const models = bedrockPreset!.settingsConfig.models;
-    expect(models).toBeDefined();
-    const modelIds = Object.keys(models!);
-    expect(modelIds.some((id) => id.includes("anthropic.claude"))).toBe(true);
-  });
-
   it("Kimi For Coding preset should use Anthropic with the coding endpoint", () => {
     const kimiForCodingPreset = opencodeProviderPresets.find(
       (p) => p.name === "Kimi For Coding",
@@ -75,21 +40,23 @@ describe("AWS Bedrock OpenCode Provider Presets", () => {
     );
   });
 
-  it("Xiaomi MiMo presets should include official OpenCode model metadata", () => {
-    const presets = ["Xiaomi MiMo", "Xiaomi MiMo Token Plan (China)"].map(
-      (name) => opencodeProviderPresets.find((preset) => preset.name === name),
+  it("keeps Google OpenCode model ids unique", () => {
+    const googleModels = OPENCODE_PRESET_MODEL_VARIANTS["@ai-sdk/google"];
+    const ids = googleModels.map((model) => model.id);
+    const geminiFlashModels = googleModels.filter(
+      (model) => model.id === "gemini-3.6-flash",
     );
 
-    for (const preset of presets) {
-      expect(preset).toBeDefined();
-      expect(preset!.settingsConfig.models["mimo-v2.5-pro"]).toMatchObject({
-        limit: { context: 1048576, output: 131072 },
-        modalities: { input: ["text"], output: ["text"] },
-      });
-      expect(preset!.settingsConfig.models["mimo-v2.5"]).toMatchObject({
-        limit: { context: 1048576, output: 131072 },
-        modalities: { input: ["text", "image"], output: ["text"] },
-      });
-    }
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(geminiFlashModels).toHaveLength(1);
+    expect(geminiFlashModels[0]).toMatchObject({
+      name: "Gemini 3.6 Flash",
+      variants: {
+        minimal: expect.any(Object),
+        low: expect.any(Object),
+        medium: expect.any(Object),
+        high: expect.any(Object),
+      },
+    });
   });
 });

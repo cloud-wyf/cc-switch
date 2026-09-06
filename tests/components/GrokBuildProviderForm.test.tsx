@@ -21,28 +21,38 @@ vi.mock("@/components/JsonEditor", () => ({
 }));
 
 describe("GrokBuildProviderForm", () => {
-  it("offers curated Grok Build presets and applies one", async () => {
+  it("applies the official preset and submits its empty-config seed", async () => {
     const user = userEvent.setup();
+    const onSubmit = vi.fn();
     const { container } = render(
       <GrokBuildProviderForm
         submitLabel="Save"
-        onSubmit={() => {}}
+        onSubmit={onSubmit}
         onCancel={() => {}}
       />,
     );
 
-    // 国产官方直连（cn_official）不在 Grok Build 预设列表里
-    expect(screen.queryByRole("button", { name: /BytePlus/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: /Kimi/ })).toBeNull();
-
-    await user.click(screen.getByRole("button", { name: /PatewayAI/ }));
+    await user.click(screen.getByRole("button", { name: /Grok Official/ }));
 
     const baseUrlInput =
       container.querySelector<HTMLInputElement>("#codexBaseUrl");
     const nameInput =
       container.querySelector<HTMLInputElement>('input[name="name"]');
-    expect(baseUrlInput?.value).toBe("https://api.pateway.ai/v1");
-    expect(nameInput?.value).toBe("PatewayAI");
+    expect(baseUrlInput).toBeNull();
+    expect(nameInput?.value).toBe("Grok Official");
+    expect(screen.queryByLabelText("API Key")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({
+      name: "Grok Official",
+      presetId: "grokbuild-official",
+      presetCategory: "official",
+    });
+    expect(JSON.parse(onSubmit.mock.calls[0][0].settingsConfig)).toEqual({
+      config: "",
+    });
   });
 
   it("submits a complete config.toml payload with Grok defaults", async () => {

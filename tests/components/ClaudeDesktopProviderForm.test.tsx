@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "@tanstack/react-query";
 import type { ComponentProps } from "react";
@@ -128,18 +134,39 @@ describe("ClaudeDesktopProviderForm", () => {
     expect(screen.queryByText("模型角色")).not.toBeInTheDocument();
   });
 
-  it("直连预设保留预设模型列表", async () => {
+  it("自定义直连供应商保留已有模型列表", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
-    renderForm(undefined, onSubmit);
-
-    await user.click(screen.getByRole("button", { name: /PackyCode/ }));
+    renderForm(
+      {
+        name: "Direct Provider",
+        category: "custom",
+        settingsConfig: {
+          env: {
+            ANTHROPIC_BASE_URL: "https://api.example.com/anthropic",
+          },
+        },
+        meta: {
+          claudeDesktopMode: "direct",
+          apiFormat: "anthropic",
+          claudeDesktopModelRoutes: {
+            "claude-sonnet-5": { model: "claude-sonnet-5" },
+            "claude-opus-5": { model: "claude-opus-5" },
+            "claude-haiku-4-5": { model: "claude-haiku-4-5" },
+          },
+        },
+      },
+      onSubmit,
+    );
 
     expect(screen.getByDisplayValue("claude-sonnet-5")).toBeInTheDocument();
     expect(screen.getByDisplayValue("claude-opus-5")).toBeInTheDocument();
     expect(screen.getByDisplayValue("claude-haiku-4-5")).toBeInTheDocument();
 
-    await user.clear(screen.getByDisplayValue("claude-sonnet-5"));
+    const sonnetRow = screen
+      .getByDisplayValue("claude-sonnet-5")
+      .closest<HTMLDivElement>(".grid")!;
+    await user.click(within(sonnetRow).getByRole("button"));
     await user.type(screen.getByLabelText("API Key"), "sk-test");
     await user.click(screen.getByRole("button", { name: "保存" }));
 

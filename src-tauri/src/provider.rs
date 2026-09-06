@@ -470,7 +470,7 @@ pub struct ProviderMeta {
     /// 合作伙伴标记（前端使用 isPartner，保持字段名一致）
     #[serde(rename = "isPartner", skip_serializing_if = "Option::is_none")]
     pub is_partner: Option<bool>,
-    /// 合作伙伴促销 key，用于识别 PackyCode 等特殊供应商
+    /// 兼容旧版元数据；google-official 标识仍用于识别 Gemini OAuth
     #[serde(
         rename = "partnerPromotionKey",
         skip_serializing_if = "Option::is_none"

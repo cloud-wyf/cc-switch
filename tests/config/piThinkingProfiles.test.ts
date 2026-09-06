@@ -81,16 +81,6 @@ describe("Pi thinking profiles", () => {
           modelId: "deepseek-v4-pro",
           profileId: "deepseekV4",
         }),
-        expect.objectContaining({
-          preset: "OpenCode Go",
-          modelId: "glm-5.2",
-          profileId: "openCodeGoGlm52",
-        }),
-        expect.objectContaining({
-          preset: "AWS Bedrock",
-          modelId: "global.anthropic.claude-opus-5",
-          profileId: "xhighAndMax",
-        }),
       ]),
     );
   });
@@ -102,23 +92,6 @@ describe("Pi thinking profiles", () => {
         expect(model).toHaveProperty("thinkingLevelMap");
         expect(isPiThinkingLevelMap(model.thinkingLevelMap)).toBe(true);
       }
-    }
-  });
-
-  it("pairs Anthropic adaptive maps with Pi's required compatibility flag", () => {
-    const adaptiveModels = piProviderPresets.flatMap((preset) =>
-      preset.settingsConfig.api === "anthropic-messages"
-        ? preset.settingsConfig.models.filter(
-            (model) =>
-              model.compat?.forceAdaptiveThinking === true &&
-              Object.keys(model.thinkingLevelMap ?? {}).length > 0,
-          )
-        : [],
-    );
-
-    expect(adaptiveModels.length).toBeGreaterThan(0);
-    for (const model of adaptiveModels) {
-      expect(model.compat).toMatchObject({ forceAdaptiveThinking: true });
     }
   });
 
