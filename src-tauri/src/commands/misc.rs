@@ -50,6 +50,17 @@ pub async fn copy_text_to_clipboard(text: String) -> Result<bool, String> {
     .map_err(|e| format!("剪贴板任务执行失败: {e}"))?
 }
 
+/// 打开自用仓库的发布列表或指定版本的发布说明。
+#[tauri::command]
+pub async fn check_for_updates(handle: AppHandle, version: Option<String>) -> Result<bool, String> {
+    let url = crate::services::app_updater::releases_url(version.as_deref())?;
+    handle
+        .opener()
+        .open_url(url, None::<String>)
+        .map_err(|error| format!("打开更新页面失败: {error}"))?;
+    Ok(true)
+}
+
 /// 判断是否为便携版（绿色版）运行
 #[tauri::command]
 pub async fn is_portable_mode() -> Result<bool, String> {

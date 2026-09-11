@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import { DatabaseUpgrade } from "./components/DatabaseUpgrade";
+import { UpdateProvider } from "./contexts/UpdateContext";
 import "./index.css";
 // 导入国际化配置
 import i18n from "./i18n";
@@ -42,7 +43,7 @@ try {
 interface ConfigLoadErrorPayload {
   path?: string;
   error?: string;
-  /** "db_version_too_new" 表示数据库版本过新，渲染数据库兼容性提示 */
+  /** "db_version_too_new" 表示数据库版本过新，渲染应用内升级恢复界面 */
   kind?: string;
 }
 
@@ -91,7 +92,7 @@ async function bootstrap() {
       "get_init_error",
     )) as ConfigLoadErrorPayload | null;
     if (initError && initError.kind === "db_version_too_new") {
-      // 数据库版本过新：渲染手动恢复提示，不进入正常 App
+      // 数据库版本过新：渲染应用内升级恢复界面，不进入正常 App
       ReactDOM.createRoot(document.getElementById("root")!).render(
         <React.StrictMode>
           <FrontendErrorBoundary>
@@ -121,8 +122,10 @@ async function bootstrap() {
       <FrontendErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <ThemeProvider defaultTheme="system" storageKey="cc-switch-theme">
-            <App />
-            <Toaster />
+            <UpdateProvider>
+              <App />
+              <Toaster />
+            </UpdateProvider>
           </ThemeProvider>
         </QueryClientProvider>
       </FrontendErrorBoundary>

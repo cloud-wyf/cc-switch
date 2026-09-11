@@ -502,6 +502,12 @@ pub fn run() {
             #[cfg(target_os = "windows")]
             set_windows_app_user_model_id(app.handle());
 
+            // 在数据库初始化前注册，数据库版本过新时也能升级应用。
+            #[cfg(desktop)]
+            if let Err(error) = app.handle().plugin(tauri_plugin_updater::Builder::new().build()) {
+                log::warn!("初始化 Updater 插件失败，已跳过：{error}");
+            }
+
             // 注入 AppHandle 给 usage_events，让无 AppHandle 持有的写日志路径
             // 也能向前端推送 `usage-log-recorded`。
             // 放在日志系统初始化之后，确保 init 的日志能正常输出。
@@ -1403,6 +1409,10 @@ pub fn run() {
             commands::get_log_config,
             commands::set_log_config,
             commands::restart_app,
+            commands::install_update_and_restart,
+            commands::check_app_update,
+            commands::check_app_update_available,
+            commands::check_for_updates,
             commands::is_portable_mode,
             commands::copy_text_to_clipboard,
             commands::get_claude_plugin_status,
@@ -2235,6 +2245,19 @@ pub fn save_window_state_before_exit(app_handle: &tauri::AppHandle) {
     } else {
         log::info!("已在退出前保存窗口状态");
     }
+}
+
+/// 直接退出的更新安装路径需要主动释放 single-instance 锁。
+pub fn destroy_single_instance_lock(app_handle: &tauri::AppHandle) {
+    #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+    tauri_plugin_single_instance::destroy(app_handle);
+}
+
+/// 窗口状态和代理清理由调用方完成，这里清理托盘和实例锁后重启。
+pub fn restart_process(app_handle: &tauri::AppHandle) -> ! {
+    remove_tray_icon_before_exit(app_handle);
+    destroy_single_instance_lock(app_handle);
+    tauri::process::restart(&app_handle.env());
 }
 
 #[cfg(test)]

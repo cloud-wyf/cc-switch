@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Download,
   Copy,
+  ExternalLink,
   Info,
   Loader2,
   RefreshCw,
@@ -28,6 +29,7 @@ import type {
   ToolInstallation,
   ToolInstallationReport,
 } from "@/lib/api/settings";
+import { useUpdate } from "@/contexts/UpdateContext";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import appIcon from "@/assets/icons/app-icon.png";
@@ -224,6 +226,7 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
   const [isLoadingVersion, setIsLoadingVersion] = useState(
     () => appVersionCache === null,
   );
+  const [isDownloading, setIsDownloading] = useState(false);
   const [toolVersions, setToolVersions] = useState<ToolVersion[]>(
     () => toolVersionsCache?.data ?? [],
   );
@@ -239,6 +242,9 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
     null,
   );
   const [showInstallCommands, setShowInstallCommands] = useState(false);
+
+  const { hasUpdate, updateInfo, checkUpdate, resetDismiss, isChecking } =
+    useUpdate();
 
   const [wslShellByTool, setWslShellByTool] = useState<
     Record<string, WslShellPreference>
@@ -425,6 +431,71 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
     // refreshes are handled by refreshToolVersions in the shell/flag handlers.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ... (handlers like handleOpenReleaseNotes, handleCheckUpdate) ...
+
+  const handleOpenReleaseNotes = useCallback(async () => {
+    try {
+      await settingsApi.checkUpdates(
+        updateInfo?.availableVersion ?? version ?? undefined,
+      );
+    } catch (error) {
+      console.error("[AboutSection] Failed to open release notes", error);
+      toast.error(t("settings.openReleaseNotesFailed"));
+    }
+  }, [t, updateInfo?.availableVersion, version]);
+
+  const handleCheckUpdate = useCallback(async () => {
+    if (hasUpdate) {
+      if (isPortable) {
+        try {
+          await settingsApi.checkUpdates();
+        } catch (error) {
+          console.error("[AboutSection] Portable update failed", error);
+        }
+        return;
+      }
+
+      setIsDownloading(true);
+      try {
+        resetDismiss();
+        const installed = await settingsApi.installUpdateAndRestart();
+        if (!installed) {
+          toast.success(t("settings.upToDate"), { closeButton: true });
+        }
+      } catch (error) {
+        console.error("[AboutSection] Update failed", error);
+        toast.error(t("settings.updateFailed"), {
+          description: extractErrorMessage(error) || undefined,
+          closeButton: true,
+        });
+        try {
+          await settingsApi.checkUpdates();
+        } catch (fallbackError) {
+          console.error(
+            "[AboutSection] Failed to open fallback updater",
+            fallbackError,
+          );
+        }
+      } finally {
+        setIsDownloading(false);
+      }
+      return;
+    }
+
+    try {
+      const available = await checkUpdate();
+      if (!available) {
+        toast.success(t("settings.upToDate"), { closeButton: true });
+      }
+    } catch (error) {
+      console.error("[AboutSection] Check update failed", error);
+      toast.error(t("settings.checkUpdateFailed"), {
+        description: extractErrorMessage(error) || undefined,
+        closeButton: true,
+      });
+    }
+  }, [checkUpdate, hasUpdate, isPortable, resetDismiss, t]);
 
   const handleCopyInstallCommands = useCallback(async () => {
     try {
@@ -813,10 +884,70 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
               </div>
             </div>
           </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleOpenReleaseNotes}
+              className="h-8 gap-1.5 text-xs"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              {t("settings.releaseNotes")}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleCheckUpdate}
+              disabled={isChecking || isDownloading}
+              className="h-8 gap-1.5 text-xs"
+            >
+              {isDownloading ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  {t("settings.updating")}
+                </>
+              ) : hasUpdate ? (
+                <>
+                  <Download className="h-3.5 w-3.5" />
+                  {t("settings.updateTo", {
+                    version: updateInfo?.availableVersion ?? "",
+                  })}
+                </>
+              ) : isChecking ? (
+                <>
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  {t("settings.checking")}
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  {t("settings.checkForUpdates")}
+                </>
+              )}
+            </Button>
+          </div>
         </div>
-        <p className="text-sm text-muted-foreground">
-          {t("settings.localBuildHint")}
-        </p>
+
+        {hasUpdate && updateInfo && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            className="rounded-lg bg-primary/10 border border-primary/20 px-4 py-3 text-sm"
+          >
+            <p className="font-medium text-primary mb-1">
+              {t("settings.updateAvailable", {
+                version: updateInfo.availableVersion,
+              })}
+            </p>
+            {updateInfo.notes && (
+              <p className="text-muted-foreground line-clamp-3 leading-relaxed">
+                {updateInfo.notes}
+              </p>
+            )}
+          </motion.div>
+        )}
       </motion.div>
 
       <div className="space-y-3">
