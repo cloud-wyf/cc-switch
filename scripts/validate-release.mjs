@@ -3,6 +3,24 @@ import { appendFileSync, readFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
 
+export const RELEASE_REPOSITORY = "cloud-wyf/cc-switch";
+export const WINDOWS_TARGET = "x86_64-pc-windows-msvc";
+
+export function windowsInstallers(version) {
+  return [
+    {
+      directory: "msi",
+      suffix: `_${version}_x64_en-US.msi`,
+      platforms: ["windows-x86_64", "windows-x86_64-msi"],
+    },
+    {
+      directory: "nsis",
+      suffix: `_${version}_x64-setup.exe`,
+      platforms: ["windows-x86_64-nsis"],
+    },
+  ];
+}
+
 export function validateVersions(tag, versions) {
   const version = versions.package;
   const match =
@@ -28,14 +46,14 @@ export function validateManifest(manifest, version, repository) {
     version,
     "更新清单版本号不一致",
   );
-  for (const platform of [
-    "windows-x86_64",
-    "windows-aarch64",
-    "linux-x86_64",
-    "linux-aarch64",
-    "darwin-x86_64",
-    "darwin-aarch64",
-  ]) {
+  const installers = windowsInstallers(version);
+  const platforms = installers.flatMap((installer) => installer.platforms);
+  assert.deepEqual(
+    Object.keys(manifest.platforms ?? {}).sort(),
+    [...platforms].sort(),
+    "更新清单必须且只能包含 Windows x64 的 MSI、NSIS 安装类型",
+  );
+  for (const platform of platforms) {
     const entry = manifest.platforms?.[platform];
     assert(entry, `更新清单缺少平台 ${platform}`);
     assert(
@@ -55,11 +73,25 @@ export function validateManifest(manifest, version, repository) {
         ),
       `${platform} 的更新包必须指向当前仓库的当前 Release`,
     );
+    const installer = installers.find((item) =>
+      item.platforms.includes(platform),
+    );
+    assert(
+      decodeURIComponent(url.pathname).endsWith(installer.suffix),
+      `${platform} 的安装包类型或架构不匹配`,
+    );
   }
+  assert.deepEqual(
+    manifest.platforms["windows-x86_64"],
+    manifest.platforms["windows-x86_64-msi"],
+    "Windows 默认更新入口必须与 MSI 入口一致",
+  );
 }
 
-function main() {
-  const root = fileURLToPath(new URL("../", import.meta.url));
+export function readReleaseInfo(
+  root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."),
+  tag,
+) {
   const read = (file) => readFileSync(path.join(root, file), "utf8");
   const packageJson = JSON.parse(read("package.json"));
   const tauri = JSON.parse(read("src-tauri/tauri.conf.json"));
@@ -72,7 +104,7 @@ function main() {
   const tomlVersion = (section) =>
     section?.match(/^version\s*=\s*"([^"]+)"/m)?.[1];
   const info = validateVersions(
-    process.env.RELEASE_TAG ?? `v${packageJson.version}`,
+    tag ?? process.env.RELEASE_TAG ?? `v${packageJson.version}`,
     {
       package: packageJson.version,
       tauri: tauri.version,
@@ -81,6 +113,15 @@ function main() {
     },
   );
   assert(tauri.bundle.createUpdaterArtifacts, "必须启用签名更新产物");
+  return {
+    ...info,
+    tag: `v${info.version}`,
+    publicKey: tauri.plugins.updater.pubkey,
+  };
+}
+
+function main() {
+  const info = readReleaseInfo();
   const manifestIndex = process.argv.indexOf("--manifest");
   if (manifestIndex !== -1) {
     const repository = process.env.GITHUB_REPOSITORY;

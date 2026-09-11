@@ -2,7 +2,7 @@
 
 基于 CC Switch 修改的个人维护版本，用于管理本地 AI 工具的供应商配置、代理路由、MCP、Skills 和会话。
 
-本版本从本仓库源码构建；安装版支持从私有仓库获取更新并在应用内安装。使用说明以当前代码行为为准。
+本版本仅构建 Windows x64；安装版支持从私有仓库获取更新并在应用内安装。使用说明以当前代码行为为准。
 
 ## 开发环境
 
@@ -21,18 +21,18 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-| 命令                                                     | 用途                           |
-| -------------------------------------------------------- | ------------------------------ |
-| `pnpm dev`                                               | 启动桌面应用开发模式           |
-| `pnpm dev:renderer`                                      | 启动前端开发服务               |
-| `pnpm typecheck`                                         | 检查 TypeScript 类型           |
-| `pnpm test:unit`                                         | 运行前端测试                   |
-| `pnpm build:renderer`                                    | 构建前端                       |
-| `pnpm build`                                             | 构建本机平台的桌面应用及安装包 |
-| `cargo fmt --check --manifest-path src-tauri/Cargo.toml` | 检查 Rust 格式                 |
-| `cargo test --manifest-path src-tauri/Cargo.toml`        | 运行 Rust 测试                 |
+| 命令                                                     | 用途                              |
+| -------------------------------------------------------- | --------------------------------- |
+| `pnpm dev`                                               | 启动桌面应用开发模式              |
+| `pnpm dev:renderer`                                      | 启动前端开发服务                  |
+| `pnpm typecheck`                                         | 检查 TypeScript 类型              |
+| `pnpm test:unit`                                         | 运行前端测试                      |
+| `pnpm build:renderer`                                    | 构建前端                          |
+| `pnpm build`                                             | 构建 Windows x64 桌面应用及安装包 |
+| `cargo fmt --check --manifest-path src-tauri/Cargo.toml` | 检查 Rust 格式                    |
+| `cargo test --manifest-path src-tauri/Cargo.toml`        | 运行 Rust 测试                    |
 
-桌面应用构建产物位于 `src-tauri/target/release/`，安装包位于其 `bundle/` 子目录。本地打包需要配置下文说明的更新签名私钥。
+桌面应用构建产物位于 `src-tauri/target/x86_64-pc-windows-msvc/release/`，安装包位于其 `bundle/` 子目录。本地打包需要配置下文说明的更新签名私钥。
 
 ## 版本号规则
 
@@ -69,11 +69,20 @@ gh auth login --hostname github.com
 
 应用后端复用本机 GitHub CLI 的登录凭据。也可通过 `CC_SWITCH_GITHUB_TOKEN` 提供仅对该仓库具有 `Contents: read` 权限的令牌；兼容 `GH_TOKEN`、`GITHUB_TOKEN`，优先级依次降低。令牌只在后端用于 GitHub API 请求，不写入源码、安装包或前端存储。
 
-### 构建与发布
+### Windows x64 构建与发布
 
-更新使用本项目自己的签名密钥。`src-tauri/tauri.conf.json` 保存公钥；对应私钥保存在维护者本机 `~/.tauri/cc-switch-updater.key`，需妥善备份并持续使用同一密钥，不提交到仓库。
+云端和本地只构建 Windows x64，保留 MSI、NSIS（EXE）两种安装方式和便携 ZIP。更新清单只包含 Windows x64 的默认、MSI、NSIS 三个入口。两条构建路径使用同一个版本 Tag、签名密钥和发布脚本，已安装应用仍从本私有仓库检查、下载和安装更新。
 
-Windows 本地打包示例：
+更新公钥保存在 `src-tauri/tauri.conf.json`；对应私钥保存在维护者本机 `~/.tauri/cc-switch-updater.key`，必须备份并持续使用同一把密钥。私钥不提交到仓库，不放入安装包。发布脚本上传前会用应用公钥验证安装包签名。
+
+#### 一次性准备
+
+1. 按上文安装 Windows x64 构建环境，并通过 `gh auth login --hostname github.com` 登录具有仓库写入和 Actions 触发权限的维护者账号。发布不需要读取账单的 `user` scope。
+2. 在本仓库 Actions Secrets 中配置 `TAURI_SIGNING_PRIVATE_KEY`，值为同一把私钥的文件内容；有密码时再配置 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。
+3. 在 [GitHub Billing](https://github.com/settings/billing) → **Budgets and alerts** 中，为 **Actions** 设置 **$0 的额外支出预算**，范围选择本仓库 `cloud-wyf/cc-switch`，启用 **Stop usage when budget limit is reached**。这是免费额度之外的付费上限，免费额度仍可使用。已有适用预算则编辑已有项，避免重复设置。仅开启提醒而不停止使用，不能保证额度用完后转本机。参见 [GitHub 官方预算说明](https://docs.github.com/en/billing/how-tos/set-up-budgets)。
+4. 将这套发布脚本和工作流同步到默认分支。用于发版的新 Tag 也必须包含这套脚本；旧版多平台工作流不能与新入口混用。
+
+本机直接构建时，显式使用已有签名密钥：
 
 ```powershell
 $env:TAURI_SIGNING_PRIVATE_KEY = "$env:USERPROFILE/.tauri/cc-switch-updater.key"
@@ -81,16 +90,60 @@ $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ""
 pnpm build
 ```
 
-通过 GitHub Actions 发布：
+`pnpm build` 固定目标为 `x86_64-pc-windows-msvc`，使用锁定依赖，只生成 MSI、NSIS 和对应的 `.sig` 文件。产物位于 `src-tauri/target/x86_64-pc-windows-msvc/release/bundle/`。它只打包，不创建 Release。完整发布命令会再生成便携 ZIP、更新清单并上传。
 
-1. 在本仓库的 Actions Secrets 中，将 `TAURI_SIGNING_PRIVATE_KEY` 设置为对应私钥文件的内容。如果私钥设有密码，再配置 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。
-2. 按上面的版本规则同步四处版本号，运行 `node scripts/validate-release.mjs` 检查一致性。
-3. 推送与应用版本一致的 Tag，例如 `v3.20.2-1`。`Release` 工作流会创建草稿，构建并签名 Windows、macOS、Linux 安装包。所有平台完成后，由 `scripts/generate-updater-manifest.mjs` 根据实际附件和签名统一生成、校验更新清单，再发布。
-4. 已安装本项目构建的应用会在下次启动或手动检查更新时发现新版。首次从已移除更新功能的旧构建迁移时，需要先安装一次包含此更新功能的新构建。
+#### 每次发布：GitHub 优先，额度不足转本机
 
-仓库需要启用 GitHub Actions。如果推送 Tag 时 Actions 尚未启用，可在启用后手动运行 `Release` 工作流并填入已有 Tag；工作流会构建该 Tag 对应的源码，仍只允许发布草稿，不覆盖已发布版本。
+1. 按上文规则同步四处版本号，例如下一个自用修订 `3.20.2-2`；运行 `node scripts/validate-release.mjs` 检查一致性。
+2. 提交发布源码并推送对应 Tag，例如 `v3.20.2-2`。运行发布命令时，当前工作目录必须干净，HEAD 必须与远程 Tag 指向同一提交。
+3. 在本机项目目录执行：
 
-更新签名私钥用于构建，GitHub 访问令牌用于读取私有 Release，二者各自独立。更新前建议备份应用配置目录。
+```powershell
+pnpm release:check --tag v3.20.2-2
+pnpm release --tag v3.20.2-2
+```
+
+`release:check` 只读检查源码、Tag、远程工作流和本机签名配置，不触发构建或上传。它不替代本机工具链的实际打包验证。省略 `--tag` 时，使用当前 `package.json` 的版本号。
+
+正常发布的流程为：
+
+```text
+本机执行 pnpm release
+  → 优先使用 GitHub Windows x64 工作流
+    → 构建成功：GitHub 发布 Release
+    → 明确因额度/账单限制未启动：本机打包、验签并发布同一版本
+    → 编译、测试、网络或认证错误：停止并显示错误
+```
+
+- 推送 Tag 已启动的云端任务会被复用；没有正在运行的任务时，命令会请求一次云端构建。
+- 每次发布都会重新尝试 GitHub，不保存“整月只用本机”的开关，因此额度重置后自动恢复云端优先。
+- 切换依据是 GitHub 返回的明确额度/账单阻塞信息，不用任务时长或账单金额猜剩余额度。零额外支出预算是避免继续付费构建的前提，脚本不会修改你的付款方式或预算。
+- 本机命令需要保持运行并联网。仅推送 Tag 而未运行本机发版命令，不会自动唤醒电脑兜底；恢复时重新运行 `pnpm release`。同一个版本一次只运行一个发布命令。
+- 云端排队超过 90 分钟、主动取消、普通编译失败、权限或网络错误均不会自动转本机，以免同时有两个发布者。
+- 只有安装包、签名、便携包和完整清单上传成功后才正式发布。中途失败会保留草稿；重试复用同一源码的草稿，相同摘要的附件跳过上传。已发布版本不会被覆盖。
+- 本机打包期间不要修改源码或切换分支；打包后会再次核对工作目录和远程 Tag。
+- 发布完成后本机可以关机，其他电脑仍从 GitHub 下载更新。
+
+#### 手动指定构建位置
+
+| 命令                                  | 行为                                     |
+| ------------------------------------- | ---------------------------------------- |
+| `pnpm release --tag v3.20.2-2`        | GitHub 优先，明确额度阻塞后自动转本机    |
+| `pnpm release:github --tag v3.20.2-2` | 只使用 GitHub，额度不足时停止            |
+| `pnpm release:local --tag v3.20.2-2`  | 直接使用本机，完成打包、验签、上传和发布 |
+| `pnpm release:check --tag v3.20.2-2`  | 只读检查，不构建、不发布                 |
+
+手动本机发布前，同一 Tag 的云端任务必须已结束。若因网络或排队问题需要手动切换，先在 Actions 页面取消对应任务并确认结束，再执行 `release:local`。本地发布默认读取 `~/.tauri/cc-switch-updater.key`，也支持上述 `TAURI_SIGNING_PRIVATE_KEY` 和密码环境变量。
+
+完整发布会产生 6 个附件：MSI、MSI 签名、NSIS EXE、EXE 签名、便携 ZIP、`latest.json`。本地便携包和清单保存在已忽略的 `release/<Tag>/` 下；不会上传私钥、访问令牌或构建缓存。
+
+#### CI 和额度
+
+普通 CI 只检查 Windows x64；纯文档改动不触发 CI。原 WSL2 完整测试保留为 **WSL2 Manual Checks**，仅在修改 Windows/WSL 文件系统交互时手动运行，不再每天自动消耗额度。
+
+普通 CI 仍会使用 GitHub 免费额度，额度耗尽后可能停止。发布命令的本机兜底只负责发版，不会冒充通过被跳过的云端 CI。本机可继续执行 `pnpm typecheck`、`pnpm format:check`、`pnpm test:unit`、`cargo clippy --locked --target x86_64-pc-windows-msvc --manifest-path src-tauri/Cargo.toml -- -D warnings` 和 `cargo test --locked --target x86_64-pc-windows-msvc --manifest-path src-tauri/Cargo.toml`。
+
+更新签名负责证明安装包可信，GitHub 凭据负责读取或上传私有 Release；两者用途独立。
 
 ## 目录与文档
 
@@ -102,7 +155,6 @@ pnpm build
 - `docs/pi-*.md`：Pi 功能约束与设计说明。
 - [会话管理设计](session-manager.md)。
 - [深链接生成器](deplink.html)：在本地浏览器打开后生成导入链接。
-- [Flatpak 构建说明](flatpak/README.md)。
 
 ## 许可证
 

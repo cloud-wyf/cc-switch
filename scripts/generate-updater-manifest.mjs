@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { validateManifest } from "./validate-release.mjs";
+import { validateManifest, windowsInstallers } from "./validate-release.mjs";
 
 export function generateUpdaterManifest({
   version,
@@ -13,34 +13,11 @@ export function generateUpdaterManifest({
 }) {
   assert.equal(release.draft, true, "只能为尚未发布的草稿生成更新清单");
   assert.equal(release.tag_name, `v${version}`, "草稿 Tag 与应用版本不一致");
-  const mappings = [
-    [`_${version}_x64_en-US.msi`, ["windows-x86_64", "windows-x86_64-msi"]],
-    [`_${version}_arm64_en-US.msi`, ["windows-aarch64", "windows-aarch64-msi"]],
-    [`_${version}_x64-setup.exe`, ["windows-x86_64-nsis"]],
-    [`_${version}_amd64.AppImage`, ["linux-x86_64", "linux-x86_64-appimage"]],
-    [
-      `_${version}_aarch64.AppImage`,
-      ["linux-aarch64", "linux-aarch64-appimage"],
-    ],
-    [`_${version}_amd64.deb`, ["linux-x86_64-deb"]],
-    [`_${version}_arm64.deb`, ["linux-aarch64-deb"]],
-    [`-${version}-1.x86_64.rpm`, ["linux-x86_64-rpm"]],
-    [`-${version}-1.aarch64.rpm`, ["linux-aarch64-rpm"]],
-    [
-      "_universal.app.tar.gz",
-      [
-        "darwin-x86_64",
-        "darwin-aarch64",
-        "darwin-x86_64-app",
-        "darwin-aarch64-app",
-      ],
-    ],
-  ];
   const platforms = {};
   const prefix = `https://github.com/${repository}/releases/download/v${version}/`;
 
-  // 所有构建结束后，以 Release 的实际附件和签名统一生成，不合并并行任务的旧清单。
-  for (const [suffix, targets] of mappings) {
+  // 云端和本地共用同一套 Windows x64 安装包与签名映射。
+  for (const { suffix, platforms: targets } of windowsInstallers(version)) {
     const assets = release.assets.filter((asset) =>
       asset.name.endsWith(suffix),
     );

@@ -1,5 +1,7 @@
 name: Release
+run-name: Windows x64 ${{ inputs.tag || github.ref_name }} [${{ inputs.request_id || 'tag' }}]
 
+# cc-switch-release: windows-x64-v1
 on:
   push:
     tags:
@@ -7,8 +9,12 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing version tag to build and publish, for example v3.20.2-1"
+        description: "Existing version tag, for example v3.20.2-2"
         required: true
+        type: string
+      request_id:
+        description: "Filled automatically by pnpm release; leave empty for manual runs"
+        required: false
         type: string
 
 permissions:
@@ -18,223 +24,35 @@ concurrency:
   group: release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
-env:
-  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
-
 jobs:
-  prepare:
-    runs-on: ubuntu-22.04
-    outputs:
-      release_id: ${{ steps.release.outputs.release_id }}
+  windows-x64:
+    name: Build and publish Windows x64
+    runs-on: windows-2022
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ env.RELEASE_TAG }}
-      - uses: actions/setup-node@v6
-        with:
-          node-version-file: .node-version
-      - name: Validate application versions
-        id: version
-        run: node scripts/validate-release.mjs
-      - name: Check signing configuration
-        env:
-          SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-        run: |
-          if [ -z "$SIGNING_KEY" ]; then
-            echo "Configure the TAURI_SIGNING_PRIVATE_KEY repository secret before releasing."
-            exit 1
-          fi
-      - name: Prepare draft release
-        id: release
-        uses: actions/github-script@v8
-        env:
-          PRERELEASE: ${{ steps.version.outputs.prerelease }}
-          UPSTREAM_VERSION: ${{ steps.version.outputs.upstream_version }}
-        with:
-          script: |
-            const tag = process.env.RELEASE_TAG;
-            // The tag endpoint may omit drafts. List authenticated releases so retries reuse them.
-            const releases = await github.paginate(github.rest.repos.listReleases, {
-              ...context.repo,
-              per_page: 100,
-            });
-            const matching = releases.filter(release => release.tag_name === tag);
-            if (matching.some(release => !release.draft)) {
-              throw new Error("A published release must not be overwritten. Use a new version.");
-            }
-            if (matching.length > 1) throw new Error("Resolve duplicate drafts for this tag before releasing.");
-            let release = matching[0];
-            if (!release) {
-              ({ data: release } = await github.rest.repos.createRelease({
-                ...context.repo,
-                tag_name: tag,
-                name: `CC Switch ${tag}`,
-                body: `个人自用版本，基于上游 v${process.env.UPSTREAM_VERSION} 构建。`,
-                draft: true,
-                prerelease: process.env.PRERELEASE === "true",
-              }));
-            }
-            core.setOutput("release_id", release.id);
-
-  build:
-    needs: prepare
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-2022
-            target: x86_64-pc-windows-msvc
-            bundles: msi,nsis
-          - os: windows-11-arm
-            target: aarch64-pc-windows-msvc
-            bundles: msi
-          - os: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            bundles: appimage,deb,rpm
-          - os: ubuntu-22.04-arm
-            target: aarch64-unknown-linux-gnu
-            bundles: appimage,deb,rpm
-          - os: macos-14
-            target: universal-apple-darwin
-            bundles: app,dmg
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: ${{ env.RELEASE_TAG }}
+          ref: ${{ inputs.tag || github.ref_name }}
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
           node-version-file: .node-version
           cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
-      - name: Configure LLVM for Windows ARM64
-        if: matrix.target == 'aarch64-pc-windows-msvc'
-        shell: pwsh
-        run: |
-          $llvmDirectory = "C:/Program Files/LLVM/bin"
-          if (-not (Test-Path -LiteralPath "$llvmDirectory/libclang.dll")) {
-            throw "LLVM is required for the Windows ARM64 build."
-          }
-          "LIBCLANG_PATH=$llvmDirectory" | Out-File -FilePath "$env:GITHUB_ENV" -Append -Encoding utf8
-          "CLANG_PATH=$llvmDirectory/clang.exe" | Out-File -FilePath "$env:GITHUB_ENV" -Append -Encoding utf8
-          $llvmDirectory | Out-File -FilePath "$env:GITHUB_PATH" -Append -Encoding utf8
-      - name: Add build targets
-        shell: bash
-        env:
-          BUILD_TARGET: ${{ matrix.target }}
-        run: |
-          if [ "$BUILD_TARGET" = "universal-apple-darwin" ]; then
-            rustup target add aarch64-apple-darwin x86_64-apple-darwin
-          else
-            rustup target add "$BUILD_TARGET"
-          fi
-      - name: Install Linux dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential pkg-config libssl-dev libgtk-3-dev \
-            librsvg2-dev libayatana-appindicator3-dev libwebkit2gtk-4.1-dev \
-            patchelf rpm xdg-utils libfuse2
+        with:
+          toolchain: "1.95"
+          targets: x86_64-pc-windows-msvc
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          key: ${{ matrix.target }}
+          key: windows-x64-release
           cache-on-failure: true
-      - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Build and sign release assets
-        uses: tauri-apps/tauri-action@v0
+      - name: Build, verify signatures, and publish
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        with:
-          releaseId: ${{ needs.prepare.outputs.release_id }}
-          tagName: ${{ env.RELEASE_TAG }}
-          tauriScript: pnpm exec tauri
-          args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} -- --locked
-          includeUpdaterJson: false
-          retryAttempts: 3
-      - name: Package Windows portable build
-        if: runner.os == 'Windows'
         shell: pwsh
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BUILD_TARGET: ${{ matrix.target }}
-          RELEASE_ID: ${{ needs.prepare.outputs.release_id }}
-        run: |
-          $portableDirectory = Join-Path $env:RUNNER_TEMP "cc-switch-portable"
-          New-Item -ItemType Directory -Path $portableDirectory -Force | Out-Null
-          Copy-Item -LiteralPath "src-tauri/target/$env:BUILD_TARGET/release/cc-switch.exe" -Destination $portableDirectory
-          Set-Content -LiteralPath (Join-Path $portableDirectory "portable.ini") -Value "" -NoNewline
-          $archive = Join-Path $env:RUNNER_TEMP "cc-switch-$env:RELEASE_TAG-$env:BUILD_TARGET-portable.zip"
-          Compress-Archive -Path "$portableDirectory/*" -DestinationPath $archive -Force
-          $archiveName = [System.IO.Path]::GetFileName($archive)
-          $assets = gh api "repos/$env:GITHUB_REPOSITORY/releases/$env:RELEASE_ID/assets" | ConvertFrom-Json
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $existingAsset = $assets | Where-Object name -eq $archiveName
-          if ($existingAsset) {
-            gh api --method DELETE "repos/$env:GITHUB_REPOSITORY/releases/assets/$($existingAsset.id)"
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          }
-          $uploadUrl = "https://uploads.github.com/repos/$env:GITHUB_REPOSITORY/releases/$env:RELEASE_ID/assets?name=$([Uri]::EscapeDataString($archiveName))"
-          gh api --method POST "$uploadUrl" --header "Content-Type: application/zip" --input "$archive" --silent
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-  publish:
-    needs: [prepare, build]
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: ${{ env.RELEASE_TAG }}
-      - name: Checkout release tooling
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.workflow_sha }}
-          path: .release-tools
-      - uses: actions/setup-node@v6
-        with:
-          node-version-file: .node-version
-      - name: Generate and validate the complete updater manifest
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_ID: ${{ needs.prepare.outputs.release_id }}
-        run: |
-          gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" > release.json
-          mkdir -p release-signatures
-          while IFS=$'\t' read -r asset_id asset_name; do
-            gh api "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" --header "Accept: application/octet-stream" > "release-signatures/$asset_name"
-          done < <(jq -r '.assets[] | select(.name | endswith(".sig")) | [.id, .name] | @tsv' release.json)
-          node .release-tools/scripts/generate-updater-manifest.mjs release.json release-signatures latest.json
-          node scripts/validate-release.mjs --manifest latest.json
-          old_manifest_id="$(jq -r '.assets[] | select(.name == "latest.json") | .id' release.json)"
-          if [ -n "$old_manifest_id" ]; then
-            gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$old_manifest_id"
-          fi
-          gh api --method POST "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?name=latest.json" \
-            --header "Content-Type: application/json" --input latest.json --silent
-      - name: Publish complete release
-        uses: actions/github-script@v8
-        env:
-          RELEASE_ID: ${{ needs.prepare.outputs.release_id }}
-        with:
-          script: |
-            const { data: release } = await github.rest.repos.getRelease({
-              ...context.repo,
-              release_id: Number(process.env.RELEASE_ID),
-            });
-            if (release.tag_name !== process.env.RELEASE_TAG) throw new Error("The draft release tag changed.");
-            await github.rest.repos.updateRelease({
-              ...context.repo,
-              release_id: release.id,
-              tag_name: release.tag_name,
-              target_commitish: release.target_commitish,
-              name: release.name,
-              body: release.body,
-              prerelease: release.prerelease,
-              draft: false,
-              make_latest: process.env.RELEASE_TAG.includes("-") ? "false" : "true",
-            });
+        run: pnpm release:local --tag "$env:RELEASE_TAG"

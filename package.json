@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "pnpm tauri dev",
-    "build": "pnpm tauri build",
+    "build": "pnpm tauri build --target x86_64-pc-windows-msvc --bundles msi,nsis -- --locked",
     "tauri": "tauri",
     "dev:renderer": "vite",
     "build:renderer": "vite build",
@@ -14,7 +14,11 @@
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,css,json}\"",
     "format:check": "prettier --check \"src/**/*.{js,jsx,ts,tsx,css,json}\"",
     "test:unit": "vitest run",
-    "test:unit:watch": "vitest watch"
+    "test:unit:watch": "vitest watch",
+    "release": "node scripts/release.mjs",
+    "release:github": "node scripts/release.mjs --mode github",
+    "release:local": "node scripts/release.mjs --mode local",
+    "release:check": "node scripts/release.mjs --dry-run"
   },
   "keywords": [],
   "license": "MIT",

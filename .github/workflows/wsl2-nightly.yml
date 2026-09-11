@@ -1,11 +1,8 @@
-name: WSL2 Nightly
+name: WSL2 Manual Checks
 
-# The full backend suite takes 50+ minutes on a \\wsl.localhost 9P filesystem,
-# so it runs nightly instead of per PR. The per-PR gate in ci.yml only runs the
-# atomic-write contract test against the same WSL2-backed environment.
+# The WSL2-backed suite is expensive. Run it manually when changing Windows/WSL
+# filesystem integration; normal CI and releases only target Windows x64.
 on:
-  schedule:
-    - cron: "23 18 * * *" # 02:23 Beijing time
   workflow_dispatch:
 
 jobs:

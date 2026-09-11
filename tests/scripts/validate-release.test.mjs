@@ -14,20 +14,15 @@ const repository = "owner/private-app";
 const manifest = () => ({
   version: "3.20.2-1",
   platforms: Object.fromEntries(
-    [
-      "windows-x86_64",
-      "windows-aarch64",
-      "linux-x86_64",
-      "linux-aarch64",
-      "darwin-x86_64",
-      "darwin-aarch64",
-    ].map((platform) => [
-      platform,
-      {
-        signature: "test-signature",
-        url: `https://github.com/${repository}/releases/download/v3.20.2-1/${platform}.zip`,
-      },
-    ]),
+    ["windows-x86_64", "windows-x86_64-msi", "windows-x86_64-nsis"].map(
+      (platform) => [
+        platform,
+        {
+          signature: "test-signature",
+          url: `https://github.com/${repository}/releases/download/v3.20.2-1/CC.Switch_3.20.2-1_${platform.endsWith("nsis") ? "x64-setup.exe" : "x64_en-US.msi"}`,
+        },
+      ],
+    ),
   ),
 });
 
@@ -70,16 +65,29 @@ describe("private release validation", () => {
     ).not.toThrow();
   });
 
-  it("rejects missing architectures and signatures before publishing", () => {
+  it("rejects missing installer types and signatures before publishing", () => {
     const incomplete = manifest();
-    delete incomplete.platforms["windows-aarch64"];
+    delete incomplete.platforms["windows-x86_64-nsis"];
     expect(() => validateManifest(incomplete, "3.20.2-1", repository)).toThrow(
-      /windows-aarch64/,
+      /NSIS/,
     );
     const unsigned = manifest();
     unsigned.platforms["windows-x86_64"].signature = "";
     expect(() => validateManifest(unsigned, "3.20.2-1", repository)).toThrow(
       /签名/,
+    );
+  });
+
+  it("rejects non-Windows platforms and an MSI/NSIS type mismatch", () => {
+    const extra = manifest();
+    extra.platforms["linux-x86_64"] = extra.platforms["windows-x86_64"];
+    expect(() => validateManifest(extra, "3.20.2-1", repository)).toThrow(
+      /只能/,
+    );
+    const mixed = manifest();
+    mixed.platforms["windows-x86_64-nsis"] = mixed.platforms["windows-x86_64"];
+    expect(() => validateManifest(mixed, "3.20.2-1", repository)).toThrow(
+      /类型/,
     );
   });
 

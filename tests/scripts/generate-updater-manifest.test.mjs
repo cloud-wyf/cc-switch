@@ -5,15 +5,7 @@ const version = "3.20.2-1";
 const repository = "owner/private-app";
 const names = [
   `CC.Switch_${version}_x64_en-US.msi`,
-  `CC.Switch_${version}_arm64_en-US.msi`,
   `CC.Switch_${version}_x64-setup.exe`,
-  `CC.Switch_${version}_amd64.AppImage`,
-  `CC.Switch_${version}_aarch64.AppImage`,
-  `CC.Switch_${version}_amd64.deb`,
-  `CC.Switch_${version}_arm64.deb`,
-  `CC.Switch-${version}-1.x86_64.rpm`,
-  `CC.Switch-${version}-1.aarch64.rpm`,
-  "CC.Switch_universal.app.tar.gz",
 ];
 
 function fixture() {
@@ -38,17 +30,14 @@ function fixture() {
 }
 
 describe("complete updater manifest generation", () => {
-  it("covers every architecture and installer format using current asset signatures", () => {
+  it("covers Windows x64 MSI and NSIS using current asset signatures", () => {
     const input = fixture();
     const manifest = generateUpdaterManifest(input);
-    expect(Object.keys(manifest.platforms)).toHaveLength(17);
+    expect(Object.keys(manifest.platforms)).toHaveLength(3);
     for (const platform of [
       "windows-x86_64",
-      "windows-aarch64",
-      "linux-x86_64",
-      "linux-aarch64",
-      "darwin-x86_64",
-      "darwin-aarch64",
+      "windows-x86_64-msi",
+      "windows-x86_64-nsis",
     ]) {
       const entry = manifest.platforms[platform];
       expect(entry.url).toContain(`/releases/download/v${version}/`);
@@ -57,19 +46,19 @@ describe("complete updater manifest generation", () => {
       );
     }
     expect(manifest.platforms["windows-x86_64"].url).toMatch(/\.msi$/);
-    expect(manifest.platforms["darwin-x86_64"]).toEqual(
-      manifest.platforms["darwin-aarch64"],
+    expect(manifest.platforms["windows-x86_64"]).toEqual(
+      manifest.platforms["windows-x86_64-msi"],
     );
     expect(manifest.notes).toBe(input.release.body);
     expect(manifest.pub_date).toBe(input.pubDate);
   });
 
-  it("rejects an incomplete architecture instead of publishing a partial manifest", () => {
+  it("requires both Windows installer formats", () => {
     const input = fixture();
     input.release.assets = input.release.assets.filter(
-      (asset) => !asset.name.endsWith("_aarch64.AppImage"),
+      (asset) => !asset.name.endsWith("_x64-setup.exe"),
     );
-    expect(() => generateUpdaterManifest(input)).toThrow("linux-aarch64");
+    expect(() => generateUpdaterManifest(input)).toThrow("windows-x86_64-nsis");
   });
 
   it("rejects missing or empty signatures", () => {
