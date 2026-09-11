@@ -155,7 +155,7 @@ jobs:
           tagName: ${{ env.RELEASE_TAG }}
           tauriScript: pnpm exec tauri
           args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} -- --locked
-          includeUpdaterJson: true
+          includeUpdaterJson: false
           retryAttempts: 3
       - name: Package Windows portable build
         if: runner.os == 'Windows'
@@ -190,18 +190,32 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ env.RELEASE_TAG }}
+      - name: Checkout release tooling
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tools
       - uses: actions/setup-node@v6
         with:
           node-version-file: .node-version
-      - name: Validate all updater platforms before publishing
+      - name: Generate and validate the complete updater manifest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_ID: ${{ needs.prepare.outputs.release_id }}
         run: |
-          asset_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets" --jq '.[] | select(.name == "latest.json") | .id')"
-          test -n "$asset_id" || { echo "The draft release is missing latest.json."; exit 1; }
-          gh api "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" --header "Accept: application/octet-stream" > latest.json
+          gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" > release.json
+          mkdir -p release-signatures
+          while IFS=$'\t' read -r asset_id asset_name; do
+            gh api "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" --header "Accept: application/octet-stream" > "release-signatures/$asset_name"
+          done < <(jq -r '.assets[] | select(.name | endswith(".sig")) | [.id, .name] | @tsv' release.json)
+          node .release-tools/scripts/generate-updater-manifest.mjs release.json release-signatures latest.json
           node scripts/validate-release.mjs --manifest latest.json
+          old_manifest_id="$(jq -r '.assets[] | select(.name == "latest.json") | .id' release.json)"
+          if [ -n "$old_manifest_id" ]; then
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$old_manifest_id"
+          fi
+          gh api --method POST "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?name=latest.json" \
+            --header "Content-Type: application/json" --input latest.json --silent
       - name: Publish complete release
         uses: actions/github-script@v8
         env:

@@ -85,7 +85,7 @@ pnpm build
 
 1. 在本仓库的 Actions Secrets 中，将 `TAURI_SIGNING_PRIVATE_KEY` 设置为对应私钥文件的内容。如果私钥设有密码，再配置 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。
 2. 按上面的版本规则同步四处版本号，运行 `node scripts/validate-release.mjs` 检查一致性。
-3. 推送与应用版本一致的 Tag，例如 `v3.20.2-1`。`Release` 工作流会创建草稿，构建并签名 Windows、macOS、Linux 安装包，检查各平台更新清单后再发布。
+3. 推送与应用版本一致的 Tag，例如 `v3.20.2-1`。`Release` 工作流会创建草稿，构建并签名 Windows、macOS、Linux 安装包。所有平台完成后，由 `scripts/generate-updater-manifest.mjs` 根据实际附件和签名统一生成、校验更新清单，再发布。
 4. 已安装本项目构建的应用会在下次启动或手动检查更新时发现新版。首次从已移除更新功能的旧构建迁移时，需要先安装一次包含此更新功能的新构建。
 
 仓库需要启用 GitHub Actions。如果推送 Tag 时 Actions 尚未启用，可在启用后手动运行 `Release` 工作流并填入已有 Tag；工作流会构建该 Tag 对应的源码，仍只允许发布草稿，不覆盖已发布版本。
