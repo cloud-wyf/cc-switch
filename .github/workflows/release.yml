@@ -4,16 +4,22 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing version tag to build and publish, for example v3.20.2-1"
+        required: true
+        type: string
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.ref_name }}
+  group: release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 env:
-  RELEASE_TAG: ${{ github.ref_name }}
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   prepare:
@@ -22,6 +28,8 @@ jobs:
       release_id: ${{ steps.release.outputs.release_id }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
       - uses: actions/setup-node@v6
         with:
           node-version-file: .node-version
@@ -86,6 +94,8 @@ jobs:
             bundles: app,dmg
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
@@ -160,6 +170,8 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
       - uses: actions/setup-node@v6
         with:
           node-version-file: .node-version
