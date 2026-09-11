@@ -53,11 +53,18 @@ jobs:
         with:
           script: |
             const tag = process.env.RELEASE_TAG;
-            let release;
-            try {
-              ({ data: release } = await github.rest.repos.getReleaseByTag({ ...context.repo, tag }));
-            } catch (error) {
-              if (error.status !== 404) throw error;
+            // The tag endpoint may omit drafts. List authenticated releases so retries reuse them.
+            const releases = await github.paginate(github.rest.repos.listReleases, {
+              ...context.repo,
+              per_page: 100,
+            });
+            const matching = releases.filter(release => release.tag_name === tag);
+            if (matching.some(release => !release.draft)) {
+              throw new Error("A published release must not be overwritten. Use a new version.");
+            }
+            if (matching.length > 1) throw new Error("Resolve duplicate drafts for this tag before releasing.");
+            let release = matching[0];
+            if (!release) {
               ({ data: release } = await github.rest.repos.createRelease({
                 ...context.repo,
                 tag_name: tag,
@@ -67,7 +74,6 @@ jobs:
                 prerelease: process.env.PRERELEASE === "true",
               }));
             }
-            if (!release.draft) throw new Error("A published release must not be overwritten. Use a new version.");
             core.setOutput("release_id", release.id);
 
   build:
@@ -135,6 +141,7 @@ jobs:
         with:
           workspaces: src-tauri -> target
           key: ${{ matrix.target }}
+          cache-on-failure: true
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
       - name: Build and sign release assets
@@ -145,6 +152,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           releaseId: ${{ needs.prepare.outputs.release_id }}
+          tagName: ${{ env.RELEASE_TAG }}
           tauriScript: pnpm exec tauri
           args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} -- --locked
           includeUpdaterJson: true
@@ -155,6 +163,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BUILD_TARGET: ${{ matrix.target }}
+          RELEASE_ID: ${{ needs.prepare.outputs.release_id }}
         run: |
           $portableDirectory = Join-Path $env:RUNNER_TEMP "cc-switch-portable"
           New-Item -ItemType Directory -Path $portableDirectory -Force | Out-Null
@@ -162,7 +171,16 @@ jobs:
           Set-Content -LiteralPath (Join-Path $portableDirectory "portable.ini") -Value "" -NoNewline
           $archive = Join-Path $env:RUNNER_TEMP "cc-switch-$env:RELEASE_TAG-$env:BUILD_TARGET-portable.zip"
           Compress-Archive -Path "$portableDirectory/*" -DestinationPath $archive -Force
-          gh release upload "$env:RELEASE_TAG" "$archive" --repo "$env:GITHUB_REPOSITORY" --clobber
+          $archiveName = [System.IO.Path]::GetFileName($archive)
+          $assets = gh api "repos/$env:GITHUB_REPOSITORY/releases/$env:RELEASE_ID/assets" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $existingAsset = $assets | Where-Object name -eq $archiveName
+          if ($existingAsset) {
+            gh api --method DELETE "repos/$env:GITHUB_REPOSITORY/releases/assets/$($existingAsset.id)"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          $uploadUrl = "https://uploads.github.com/repos/$env:GITHUB_REPOSITORY/releases/$env:RELEASE_ID/assets?name=$([Uri]::EscapeDataString($archiveName))"
+          gh api --method POST "$uploadUrl" --header "Content-Type: application/zip" --input "$archive" --silent
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   publish:
@@ -178,8 +196,11 @@ jobs:
       - name: Validate all updater platforms before publishing
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.prepare.outputs.release_id }}
         run: |
-          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern latest.json
+          asset_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets" --jq '.[] | select(.name == "latest.json") | .id')"
+          test -n "$asset_id" || { echo "The draft release is missing latest.json."; exit 1; }
+          gh api "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" --header "Accept: application/octet-stream" > latest.json
           node scripts/validate-release.mjs --manifest latest.json
       - name: Publish complete release
         uses: actions/github-script@v8
@@ -187,9 +208,19 @@ jobs:
           RELEASE_ID: ${{ needs.prepare.outputs.release_id }}
         with:
           script: |
-            await github.rest.repos.updateRelease({
+            const { data: release } = await github.rest.repos.getRelease({
               ...context.repo,
               release_id: Number(process.env.RELEASE_ID),
+            });
+            if (release.tag_name !== process.env.RELEASE_TAG) throw new Error("The draft release tag changed.");
+            await github.rest.repos.updateRelease({
+              ...context.repo,
+              release_id: release.id,
+              tag_name: release.tag_name,
+              target_commitish: release.target_commitish,
+              name: release.name,
+              body: release.body,
+              prerelease: release.prerelease,
               draft: false,
               make_latest: process.env.RELEASE_TAG.includes("-") ? "false" : "true",
             });
