@@ -16,6 +16,46 @@ const codexConfig = (wireApi: "chat_completions" | "responses") =>
   `model_provider = "custom"\n\n[model_providers.custom]\nname = "X"\nbase_url = "https://x.example/v1"\nwire_api = "${wireApi}"\n`;
 
 describe("providerNeedsRouting", () => {
+  it.each<AppId>(["claude", "codex", "gemini", "claude-desktop", "grokbuild"])(
+    "requires local routing for a %s script provider",
+    (appId) => {
+      for (const enabled of [undefined, true, false]) {
+        expect(
+          providerNeedsRouting(
+            appId,
+            mkProvider({
+              meta: {
+                localProxyScript: "export default (_request, next) => next();",
+                localProxyScriptEnabled: enabled,
+              },
+            }),
+          ),
+        ).toBe(enabled !== false);
+      }
+      expect(
+        providerNeedsRouting(
+          appId,
+          mkProvider({ meta: { localProxyScript: "   " } }),
+        ),
+      ).toBe(false);
+    },
+  );
+
+  it("keeps protocol conversion routing when the script is disabled", () => {
+    expect(
+      providerNeedsRouting(
+        "codex",
+        mkProvider({
+          meta: {
+            localProxyScript: "export default (_request, next) => next();",
+            localProxyScriptEnabled: false,
+            apiFormat: "openai_chat",
+          },
+        }),
+      ),
+    ).toBe(true);
+  });
+
   it("allows explicit Codex Official cards during takeover", () => {
     const native = mkProvider({
       id: "codex-official",

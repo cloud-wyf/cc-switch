@@ -19,6 +19,22 @@ const TEMPLATE_TYPE_BALANCE: &str = "balance";
 const TEMPLATE_TYPE_OFFICIAL_SUBSCRIPTION: &str = "official_subscription";
 const COPILOT_UNIT_PREMIUM: &str = "requests";
 
+/// Validate TypeScript syntax without executing imports or user code.
+#[tauri::command]
+pub async fn validate_proxy_script(source: String) -> Result<(), String> {
+    crate::proxy::script_middleware::validate(&source).await
+}
+
+/// A script-bearing current provider must not silently remain on a direct route.
+async fn enable_current_script_routing(
+    app_handle: &tauri::AppHandle,
+    app: &AppType,
+    id: &str,
+) -> Result<(), String> {
+    let state = app_handle.try_state::<AppState>().ok_or("应用状态不可用")?;
+    crate::services::provider::proxy_script::activate_current(state.inner(), app, id).await
+}
+
 /// 获取所有供应商
 #[tauri::command]
 pub fn get_providers(
@@ -44,15 +60,21 @@ pub async fn add_provider(
 ) -> Result<bool, String> {
     let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
     let add_to_live = addToLive.unwrap_or(true);
-    tauri::async_runtime::spawn_blocking(move || {
-        let state = app_handle
+    crate::services::provider::proxy_script::validate(&app_type, &provider).await?;
+    let id = provider.id.clone();
+    let worker_handle = app_handle.clone();
+    let worker_app = app_type.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let state = worker_handle
             .try_state::<AppState>()
             .ok_or_else(|| "应用状态不可用".to_string())?;
-        ProviderService::add(state.inner(), app_type, provider, add_to_live)
+        ProviderService::add(state.inner(), worker_app, provider, add_to_live)
             .map_err(|e| e.to_string())
     })
     .await
-    .map_err(|e| format!("供应商添加任务执行失败: {e}"))?
+    .map_err(|e| format!("供应商添加任务执行失败: {e}"))??;
+    enable_current_script_routing(&app_handle, &app_type, &id).await?;
+    Ok(result)
 }
 
 #[tauri::command]
@@ -63,15 +85,21 @@ pub async fn update_provider(
     #[allow(non_snake_case)] originalId: Option<String>,
 ) -> Result<bool, String> {
     let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
-    tauri::async_runtime::spawn_blocking(move || {
-        let state = app_handle
+    crate::services::provider::proxy_script::validate(&app_type, &provider).await?;
+    let id = provider.id.clone();
+    let worker_handle = app_handle.clone();
+    let worker_app = app_type.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let state = worker_handle
             .try_state::<AppState>()
             .ok_or_else(|| "应用状态不可用".to_string())?;
-        ProviderService::update(state.inner(), app_type, originalId.as_deref(), provider)
+        ProviderService::update(state.inner(), worker_app, originalId.as_deref(), provider)
             .map_err(|e| e.to_string())
     })
     .await
-    .map_err(|e| format!("供应商更新任务执行失败: {e}"))?
+    .map_err(|e| format!("供应商更新任务执行失败: {e}"))??;
+    enable_current_script_routing(&app_handle, &app_type, &id).await?;
+    Ok(result)
 }
 
 #[tauri::command]

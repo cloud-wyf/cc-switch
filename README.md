@@ -6,7 +6,7 @@
 
 ## 开发环境
 
-- Node.js：参考 `.node-version`（22.12.0）。
+- Node.js：参考 `.node-version`（24.14.1）；供应商 TypeScript 中间件需要 Node.js 24+。
 - pnpm：参考 `package.json` 的 `packageManager`（10.12.3）。
 - Rust：参考 `rust-toolchain.toml`（1.95）。
 - Tauri CLI：使用 pnpm 安装的项目版本（2.11.4 起），确保打包工具能正确写入应用内更新所需的安装类型标记。

@@ -1,4 +1,15 @@
 {
+  "proxyScript": {
+    "title": "供应商代理脚本",
+    "enabled": "启用代理脚本",
+    "description": "填写单文件 TypeScript 中间件，启用后选择此供应商会自动开启本地路由。关闭开关会保留代码并跳过执行，保存后生效。",
+    "editor": "TypeScript 代理中间件",
+    "runtime": "需要本机 Node.js 24+，支持 node: 内置模块。脚本拥有当前用户的本机权限；next(request) 继承 CC Switch 的网络代理设置。",
+    "example": "插入透传示例",
+    "checking": "正在校验…",
+    "validate": "校验语法",
+    "valid": "语法校验通过（未执行脚本）"
+  },
   "app": {
     "title": "CC Switch",
     "description": "Claude Code / Codex / Gemini CLI 全方位辅助工具"

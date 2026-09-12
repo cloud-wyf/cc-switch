@@ -135,6 +135,17 @@ impl Provider {
             .unwrap_or(false)
     }
 
+    /// Return executable middleware; legacy scripts without a switch stay enabled.
+    pub fn active_proxy_script(&self) -> Option<&str> {
+        let meta = self.meta.as_ref()?;
+        if meta.local_proxy_script_enabled == Some(false) {
+            return None;
+        }
+        meta.local_proxy_script
+            .as_deref()
+            .filter(|source| !source.trim().is_empty())
+    }
+
     /// Resolve `(base_url, api_key)` for usage queries (native balance /
     /// coding-plan and the JS-script `{{apiKey}}`/`{{baseUrl}}` fallback)
     /// from the stored provider config.
@@ -550,6 +561,15 @@ pub struct ProviderMeta {
         skip_serializing_if = "Option::is_none"
     )]
     pub local_proxy_request_overrides: Option<LocalProxyRequestOverrides>,
+    /// Single-file TypeScript middleware executed only by the local proxy.
+    #[serde(rename = "localProxyScript", skip_serializing_if = "Option::is_none")]
+    pub local_proxy_script: Option<String>,
+    /// Disable middleware without removing its code. Unset preserves legacy behavior.
+    #[serde(
+        rename = "localProxyScriptEnabled",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub local_proxy_script_enabled: Option<bool>,
     /// 累加模式应用中，该 provider 是否已写入 live config。
     /// `None` 表示旧数据/未知状态，`Some(false)` 表示明确仅存在于数据库中。
     #[serde(rename = "liveConfigManaged", skip_serializing_if = "Option::is_none")]
@@ -1121,6 +1141,35 @@ mod tests {
         let overrides = decoded.local_proxy_request_overrides.unwrap();
         assert_eq!(overrides.headers.get("X-Test"), Some(&"yes".to_string()));
         assert_eq!(overrides.body.unwrap()["temperature"], 0.2);
+    }
+
+    #[test]
+    fn provider_meta_preserves_and_clears_proxy_script() {
+        let source = "export default async (_request: Request, next) => next();\n";
+        let meta = ProviderMeta {
+            local_proxy_script: Some(source.into()),
+            local_proxy_script_enabled: Some(false),
+            ..ProviderMeta::default()
+        };
+        let value = serde_json::to_value(meta).unwrap();
+        assert_eq!(value["localProxyScript"], source);
+        assert_eq!(value["localProxyScriptEnabled"], false);
+        let mut decoded: ProviderMeta = serde_json::from_value(value).unwrap();
+        assert_eq!(decoded.local_proxy_script.as_deref(), Some(source));
+        assert_eq!(decoded.local_proxy_script_enabled, Some(false));
+        decoded.local_proxy_script = None;
+        assert!(serde_json::to_value(decoded)
+            .unwrap()
+            .get("localProxyScript")
+            .is_none());
+        assert!(serde_json::from_value::<ProviderMeta>(json!({}))
+            .unwrap()
+            .local_proxy_script
+            .is_none());
+        assert!(serde_json::from_value::<ProviderMeta>(json!({}))
+            .unwrap()
+            .local_proxy_script_enabled
+            .is_none());
     }
 
     #[test]

@@ -93,6 +93,7 @@ export interface ClaudeDesktopProviderFormProps {
     iconColor?: string;
   };
   showButtons?: boolean;
+  proxyScriptField?: import("react").ReactNode;
   onManageAuthAccounts?: (target: ManagedAuthProvider) => void;
 }
 
@@ -247,6 +248,7 @@ export function ClaudeDesktopProviderForm({
   initialData,
   showButtons = true,
   onManageAuthAccounts,
+  proxyScriptField,
 }: ClaudeDesktopProviderFormProps) {
   const { t } = useTranslation();
   const initialMode = isOAuthProviderType(initialData?.meta?.providerType)
@@ -1301,6 +1303,8 @@ export function ClaudeDesktopProviderForm({
             />
           </>
         )}
+
+        {proxyScriptField}
 
         {showButtons && (
           <div className="flex justify-end gap-2">

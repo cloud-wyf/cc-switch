@@ -2320,85 +2320,65 @@ impl RequestForwarder {
             short_value_hash(Some(&filtered_body))
         );
 
-        // 确定超时
-        let timeout = if self.non_streaming_timeout.is_zero() {
-            std::time::Duration::from_secs(600) // 默认 600 秒
-        } else {
-            self.non_streaming_timeout
+        let transport = super::upstream_transport::UpstreamTransport {
+            preserve_exact_header_case: should_preserve_exact_header_case(
+                adapter.name(),
+                provider,
+                resolved_claude_api_format.as_deref(),
+                is_copilot,
+            ),
+            proxy_url: super::http_client::get_current_proxy_url(),
+            extensions: extensions.clone(),
+            request_is_streaming,
+            non_streaming_timeout: self.non_streaming_timeout,
+            streaming_first_byte_timeout: self.streaming_first_byte_timeout,
         };
-
-        // 获取全局代理 URL
-        let upstream_proxy_url: Option<String> = super::http_client::get_current_proxy_url();
-
-        // SOCKS5 代理不支持 CONNECT 隧道，需要用 reqwest
-        let is_socks_proxy = upstream_proxy_url
-            .as_deref()
-            .map(|u| u.starts_with("socks5"))
-            .unwrap_or(false);
-
-        let preserve_exact_header_case = should_preserve_exact_header_case(
-            adapter.name(),
-            provider,
-            resolved_claude_api_format.as_deref(),
-            is_copilot,
-        );
-
-        // 发送请求
-        let response = if is_socks_proxy || !preserve_exact_header_case {
-            // OpenAI / Copilot / Codex 类后端不依赖原始 header 大小写；走 reqwest
-            // 连接池，避免 raw TCP/TLS path 每次请求都重新握手。SOCKS5 也只能走 reqwest。
-            log::debug!(
-                "[Forwarder] Using pooled reqwest client (preserve_exact_header_case={preserve_exact_header_case}, socks_proxy={is_socks_proxy})"
-            );
-            let client = super::http_client::get();
-            let mut request = client.request(method.clone(), &url);
-            if request_is_streaming {
-                // reqwest 的 timeout 是整请求超时；流式请求交给 response_processor
-                // 的首包/静默期超时控制，避免长流被总时长误杀。
-                request = request.timeout(std::time::Duration::from_secs(24 * 60 * 60));
-            } else if !self.non_streaming_timeout.is_zero() {
-                request = request.timeout(self.non_streaming_timeout);
+        let request = super::upstream_transport::UpstreamRequest {
+            url,
+            method: method.clone(),
+            headers: ordered_headers,
+            body: body_bytes,
+        };
+        let response = if let Some(source) = provider.active_proxy_script() {
+            let timeout = transport.header_timeout();
+            let request = request.for_script();
+            let script_model = Arc::new(std::sync::Mutex::new(None::<String>));
+            let observed_model = script_model.clone();
+            // next() uses the same transport, including the configured HTTP/SOCKS proxy.
+            let next: super::script_middleware::Transport = Arc::new(move |request| {
+                let transport = transport.clone();
+                let observed_model = observed_model.clone();
+                Box::pin(async move {
+                    let request = super::upstream_transport::UpstreamRequest::from_script(request)?;
+                    if let Ok(body) = serde_json::from_slice::<Value>(&request.body) {
+                        if let Some(model) = body
+                            .get("model")
+                            .and_then(Value::as_str)
+                            .filter(|model| !model.is_empty())
+                        {
+                            *observed_model.lock().map_err(|_| {
+                                ProxyError::Internal("代理脚本模型记录锁异常".into())
+                            })? = Some(model.to_string());
+                        }
+                    }
+                    transport.send(request).await
+                })
+            });
+            let response = super::script_middleware::execute(
+                source, request,
+                serde_json::json!({"providerId":provider.id, "providerName":provider.name, "appType":app_type.as_str()}),
+                next, timeout,
+            ).await?;
+            if let Some(model) = script_model
+                .lock()
+                .map_err(|_| ProxyError::Internal("代理脚本模型记录锁异常".into()))?
+                .take()
+            {
+                outbound_model = Some(model);
             }
-            for (key, value) in &ordered_headers {
-                request = request.header(key, value);
-            }
-            let send = request.body(body_bytes).send();
-            let send_result = if request_is_streaming {
-                let header_timeout = if self.streaming_first_byte_timeout.is_zero() {
-                    timeout
-                } else {
-                    self.streaming_first_byte_timeout
-                };
-                tokio::time::timeout(header_timeout, send)
-                    .await
-                    .map_err(|_| {
-                        ProxyError::Timeout(format!(
-                            "流式响应首包超时: {}s（上游未返回响应头）",
-                            header_timeout.as_secs()
-                        ))
-                    })?
-            } else {
-                send.await
-            };
-            let reqwest_resp = send_result.map_err(map_reqwest_send_error)?;
-            ProxyResponse::Reqwest(reqwest_resp)
+            response
         } else {
-            // HTTP 代理或直连：走 hyper raw write（保持 header 大小写）
-            // 如果有 HTTP 代理，hyper_client 会用 CONNECT 隧道穿过代理
-            let uri: http::Uri = url.parse().map_err(|e| {
-                ProxyError::ForwardFailed(format!("Invalid upstream URL ({target_for_log}): {e}"))
-            })?;
-            super::hyper_client::send_request(
-                uri,
-                &target_for_log,
-                method.clone(),
-                ordered_headers,
-                extensions.clone(),
-                body_bytes,
-                timeout,
-                upstream_proxy_url.as_deref(),
-            )
-            .await?
+            transport.send(request).await?
         };
 
         // 检查响应状态
@@ -2827,6 +2807,8 @@ impl RequestForwarder {
 /// 从 ProxyError 中提取错误消息
 fn extract_error_message(error: &ProxyError) -> Option<String> {
     match error {
+        // Local script failures must never trigger upstream request rectification.
+        ProxyError::ScriptError(_) => None,
         ProxyError::UpstreamError { body, .. } => body.clone(),
         _ => Some(error.to_string()),
     }
@@ -3563,7 +3545,7 @@ fn should_force_identity_encoding(
     is_streaming_request(endpoint, body, headers)
 }
 
-fn map_reqwest_send_error(error: reqwest::Error) -> ProxyError {
+pub(super) fn map_reqwest_send_error(error: reqwest::Error) -> ProxyError {
     if error.is_timeout() {
         ProxyError::Timeout(format!("上游请求超时: {}", error.without_url()))
     } else if error.is_connect() {

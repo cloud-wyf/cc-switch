@@ -8,6 +8,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum ProxyError {
+    #[error("供应商代理脚本执行失败: {0}")]
+    ScriptError(String),
     #[error("上游响应体超过大小上限: {0} 字节")]
     ResponseBodyTooLarge(usize),
 
@@ -128,6 +130,7 @@ impl IntoResponse for ProxyError {
                         (StatusCode::INTERNAL_SERVER_ERROR, self.to_string())
                     }
                     ProxyError::ForwardFailed(_) => (StatusCode::BAD_GATEWAY, self.to_string()),
+                    ProxyError::ScriptError(_) => (StatusCode::BAD_GATEWAY, self.to_string()),
                     ProxyError::NoAvailableProvider => {
                         (StatusCode::SERVICE_UNAVAILABLE, self.to_string())
                     }

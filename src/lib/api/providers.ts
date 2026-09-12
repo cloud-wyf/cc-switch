@@ -47,6 +47,9 @@ export interface ClaudeDesktopDefaultRoute {
 }
 
 export const providersApi = {
+  async validateProxyScript(source: string): Promise<void> {
+    await invoke("validate_proxy_script", { source });
+  },
   async getAll(appId: AppId): Promise<Record<string, Provider>> {
     return await invoke("get_providers", { app: appId });
   },

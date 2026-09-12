@@ -75,6 +75,7 @@ export function GrokBuildProviderForm({
   onSubmittingChange,
   initialData,
   showButtons = true,
+  proxyScriptField,
 }: GrokBuildProviderFormProps) {
   const { t } = useTranslation();
   const isDarkMode = useDarkMode();
@@ -550,6 +551,8 @@ export function GrokBuildProviderForm({
             </FormItem>
           )}
         />
+
+        {proxyScriptField}
 
         {showButtons && (
           <div className="flex justify-end gap-2">

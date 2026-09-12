@@ -1,4 +1,15 @@
 {
+  "proxyScript": {
+    "title": "Provider proxy script",
+    "enabled": "Enable proxy script",
+    "description": "Enter single-file TypeScript middleware. Selecting this provider with the script enabled turns on local routing. Turning the switch off keeps the code and skips execution. Save to apply changes.",
+    "editor": "TypeScript proxy middleware",
+    "runtime": "Requires local Node.js 24+; supports node: built-ins. Scripts run with your local user permissions. next(request) uses CC Switch's network proxy settings.",
+    "example": "Insert passthrough example",
+    "checking": "Checking…",
+    "validate": "Check syntax",
+    "valid": "Syntax valid (script not executed)"
+  },
   "app": {
     "title": "CC Switch",
     "description": "All-in-One Assistant for Claude Code, Codex & Gemini CLI"

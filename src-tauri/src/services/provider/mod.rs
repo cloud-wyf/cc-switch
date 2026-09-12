@@ -6,6 +6,7 @@ mod endpoints;
 mod gemini_auth;
 mod live;
 mod pi;
+pub(crate) mod proxy_script;
 mod usage;
 
 use indexmap::IndexMap;
@@ -132,6 +133,173 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex, OnceLock};
     use tempfile::TempDir;
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[serial]
+    async fn proxy_script_switch_and_toggle_preserve_code_and_control_interception() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let _home = TempHome::new();
+        crate::settings::reload_settings().unwrap();
+        let db = Arc::new(Database::memory().unwrap());
+        let state = AppState::new(db.clone());
+        let socket = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = socket.local_addr().unwrap().port();
+        drop(socket);
+        db.update_proxy_config(ProxyConfig {
+            listen_port: port,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+        let upstream_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let upstream_url = format!("http://{}", upstream_listener.local_addr().unwrap());
+        let upstream_router = axum::Router::new().route(
+            "/v1/messages",
+            axum::routing::post(|| async {
+                axum::Json(json!({
+                    "id": "upstream", "type": "message", "role": "assistant", "model": "test-model",
+                    "content": [{"type": "text", "text": "ordinary upstream response"}],
+                    "stop_reason": "end_turn", "usage": {"input_tokens": 1, "output_tokens": 1},
+                }))
+            }),
+        );
+        let upstream_task = tokio::spawn(async move {
+            axum::serve(upstream_listener, upstream_router)
+                .await
+                .unwrap();
+        });
+        let mut provider = Provider::with_id(
+            "scripted".into(),
+            "Scripted".into(),
+            json!({"env":{"ANTHROPIC_API_KEY":"test-token", "ANTHROPIC_BASE_URL":upstream_url}}),
+            None,
+        );
+        provider.meta = Some(ProviderMeta {
+            local_proxy_script: Some(
+                r#"
+                export default async (request: Request) => {
+                    const body = await request.json();
+                    return Response.json({
+                        id: 'local-script', type: 'message', role: 'assistant', model: body.model,
+                        content: [{type: 'text', text: 'intercepted by provider script'}],
+                        stop_reason: 'end_turn', usage: {input_tokens: 1, output_tokens: 1},
+                    });
+                };
+            "#
+                .into(),
+            ),
+            ..ProviderMeta::default()
+        });
+        db.save_provider("claude", &provider).unwrap();
+        let source = provider.meta.as_ref().unwrap().local_proxy_script.clone();
+        let results: Result<Vec<Value>, String> = async {
+            let switch_state = state.clone();
+            tokio::task::spawn_blocking(move || {
+                ProviderService::switch(&switch_state, AppType::Claude, "scripted")
+            })
+            .await
+            .map_err(|error| error.to_string())?
+            .map_err(|error| error.to_string())?;
+            let client = reqwest::Client::builder()
+                .no_proxy()
+                .timeout(std::time::Duration::from_secs(10))
+                .build()
+                .map_err(|error| error.to_string())?;
+            let request = client.post(format!("http://127.0.0.1:{port}/v1/messages"))
+                .json(&json!({"model":"test-model", "max_tokens":10, "messages":[{"role":"user", "content":"hi"}]}));
+            let mut responses = Vec::new();
+            // Legacy configuration is enabled; saving just the switch takes effect on the next request.
+            for enabled in [None, Some(false), Some(true)] {
+                if let Some(enabled) = enabled {
+                    provider.meta.as_mut().unwrap().local_proxy_script_enabled = Some(enabled);
+                    proxy_script::validate(&AppType::Claude, &provider).await?;
+                    let update_state = state.clone();
+                    let updated = provider.clone();
+                    tokio::task::spawn_blocking(move || {
+                        ProviderService::update(&update_state, AppType::Claude, None, updated)
+                    })
+                    .await
+                    .map_err(|error| error.to_string())?
+                    .map_err(|error| error.to_string())?;
+                    proxy_script::activate_current(&state, &AppType::Claude, "scripted").await?;
+                }
+                let response = request.try_clone().unwrap().send().await
+                    .map_err(|error| error.to_string())?;
+                responses.push(response.json::<Value>().await.map_err(|error| error.to_string())?);
+            }
+            Ok(responses)
+        }.await;
+        let enabled = db.get_proxy_config_for_app("claude").await.unwrap().enabled;
+        let stopped = state.proxy_service.stop_with_restore().await;
+        upstream_task.abort();
+        stopped.unwrap();
+        assert!(
+            enabled,
+            "script toggles should leave local routing available"
+        );
+        let results = results.unwrap();
+        assert_eq!(
+            results
+                .iter()
+                .map(|result| result["content"][0]["text"].as_str().unwrap())
+                .collect::<Vec<_>>(),
+            [
+                "intercepted by provider script",
+                "ordinary upstream response",
+                "intercepted by provider script"
+            ]
+        );
+        let stored = db
+            .get_provider_by_id("scripted", "claude")
+            .unwrap()
+            .unwrap();
+        assert_eq!(stored.meta.as_ref().unwrap().local_proxy_script, source);
+        assert_eq!(stored.meta.unwrap().local_proxy_script_enabled, Some(true));
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[serial]
+    async fn proxy_script_disabled_draft_can_be_saved_and_selected_without_takeover() {
+        let _home = TempHome::new();
+        crate::settings::reload_settings().unwrap();
+        let db = Arc::new(Database::memory().unwrap());
+        let state = AppState::new(db.clone());
+        let mut provider = Provider::with_id(
+            "disabled-script".into(),
+            "Disabled script".into(),
+            json!({"env":{"ANTHROPIC_API_KEY":"test-token", "ANTHROPIC_BASE_URL":"https://upstream.invalid"}}),
+            None,
+        );
+        provider.meta = Some(ProviderMeta {
+            local_proxy_script: Some("export default (".into()),
+            local_proxy_script_enabled: Some(false),
+            ..ProviderMeta::default()
+        });
+        proxy_script::validate(&AppType::Claude, &provider)
+            .await
+            .unwrap();
+        db.save_provider("claude", &provider).unwrap();
+        let switch_state = state.clone();
+        tokio::task::spawn_blocking(move || {
+            ProviderService::switch(&switch_state, AppType::Claude, "disabled-script")
+        })
+        .await
+        .unwrap()
+        .unwrap();
+        proxy_script::activate_current(&state, &AppType::Claude, "disabled-script")
+            .await
+            .unwrap();
+        assert!(!db.get_proxy_config_for_app("claude").await.unwrap().enabled);
+        let stored = db
+            .get_provider_by_id("disabled-script", "claude")
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            stored.meta.as_ref().unwrap().local_proxy_script.as_deref(),
+            Some("export default (")
+        );
+        assert_eq!(stored.meta.unwrap().local_proxy_script_enabled, Some(false));
+    }
 
     struct TempHome {
         #[allow(dead_code)]
@@ -5183,6 +5351,39 @@ impl ProviderService {
     ///    d. Write target provider config to live files
     ///    e. Sync MCP configuration
     pub fn switch(state: &AppState, app_type: AppType, id: &str) -> Result<SwitchResult, AppError> {
+        let scripted = state
+            .db
+            .get_provider_by_id(id, app_type.as_str())?
+            .filter(|provider| provider.active_proxy_script().is_some());
+        if let Some(provider) = scripted.clone() {
+            let app = app_type.clone();
+            let validation = tauri::async_runtime::spawn(async move {
+                proxy_script::validate(&app, &provider).await
+            });
+            futures::executor::block_on(validation)
+                .map_err(|error| AppError::Message(error.to_string()))?
+                .map_err(AppError::InvalidInput)?;
+        }
+        let result = Self::switch_without_script_activation(state, app_type.clone(), id)?;
+        // The normal switch has released its per-app lock before takeover acquires it.
+        if scripted.is_some() {
+            let state = state.clone();
+            let id = id.to_string();
+            let activation = tauri::async_runtime::spawn(async move {
+                proxy_script::activate_current(&state, &app_type, &id).await
+            });
+            futures::executor::block_on(activation)
+                .map_err(|error| AppError::Message(error.to_string()))?
+                .map_err(AppError::Message)?;
+        }
+        Ok(result)
+    }
+
+    fn switch_without_script_activation(
+        state: &AppState,
+        app_type: AppType,
+        id: &str,
+    ) -> Result<SwitchResult, AppError> {
         if app_type == AppType::Pi {
             return pi::enable(state, id);
         }

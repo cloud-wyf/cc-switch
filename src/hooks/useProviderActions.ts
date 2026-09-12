@@ -24,6 +24,7 @@ import {
   useSwitchProviderMutation,
 } from "@/lib/query";
 import { usageKeys } from "@/lib/query/usage";
+import { hasEnabledProxyScript } from "@/lib/proxyScript";
 import { extractErrorMessage } from "@/utils/errorUtils";
 import { openclawKeys } from "@/hooks/useOpenClaw";
 import {
@@ -202,7 +203,12 @@ export function useProviderActions(
 
       // Determine why this provider requires the proxy.
       let proxyRequiredReason: string | null = null;
-      if (!routingReady && providerNeedsRouting(activeApp, provider)) {
+      // Providers with enabled scripts activate takeover in the backend switch command.
+      if (
+        !routingReady &&
+        !hasEnabledProxyScript(provider.meta) &&
+        providerNeedsRouting(activeApp, provider)
+      ) {
         if (isCopilotProvider) {
           proxyRequiredReason = t("notifications.proxyReasonCopilot", {
             defaultValue: "使用 GitHub Copilot 作为 Claude 供应商",

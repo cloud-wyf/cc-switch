@@ -2033,6 +2033,7 @@ fn codex_proxy_error_json(
 fn codex_proxy_error_code(error: &ProxyError) -> &'static str {
     match error {
         ProxyError::ForwardFailed(_) => "cc_switch_forward_failed",
+        ProxyError::ScriptError(_) => "cc_switch_script_error",
         ProxyError::Timeout(_) | ProxyError::StreamIdleTimeout(_) => "cc_switch_timeout",
         ProxyError::NoAvailableProvider => "cc_switch_no_available_provider",
         ProxyError::AllProvidersCircuitOpen => "cc_switch_all_providers_circuit_open",

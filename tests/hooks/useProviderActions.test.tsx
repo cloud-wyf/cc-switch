@@ -306,6 +306,33 @@ describe("useProviderActions", () => {
     expect(switchProviderMutateAsync).toHaveBeenCalledTimes(3);
   });
 
+  it.each([undefined, true, false])(
+    "only skips the routing warning for active scripts (enabled: %s)",
+    async (enabled) => {
+      switchProviderMutateAsync.mockResolvedValueOnce(undefined);
+      const { wrapper } = createWrapper();
+      const provider = createProvider({
+        category: "custom",
+        meta: {
+          apiFormat: "openai_chat",
+          localProxyScript: "export default (_request, next) => next();",
+          localProxyScriptEnabled: enabled,
+        },
+      });
+      const { result } = renderHook(
+        () => useProviderActions("codex", false, false),
+        { wrapper },
+      );
+
+      await act(async () => {
+        await result.current.switchProvider(provider);
+      });
+
+      expect(toastWarningMock).toHaveBeenCalledTimes(enabled === false ? 1 : 0);
+      expect(switchProviderMutateAsync).toHaveBeenCalledWith(provider.id);
+    },
+  );
+
   it("warns for managed OAuth until the current Code app is taken over", async () => {
     switchProviderMutateAsync.mockResolvedValueOnce(undefined);
     const { wrapper } = createWrapper();

@@ -230,6 +230,10 @@ export interface ProviderMeta {
   customUserAgent?: string;
   // Local proxy request overrides. Only applied by the local proxy after route transforms.
   localProxyRequestOverrides?: LocalProxyRequestOverrides;
+  // Single-file TypeScript middleware. Empty/absent means ordinary forwarding.
+  localProxyScript?: string;
+  // Defaults to enabled for existing scripts; false preserves code without executing it.
+  localProxyScriptEnabled?: boolean;
   // Whether this provider is currently projected into an additive app's live config.
   liveConfigManaged?: boolean;
   // 供应商类型（用于识别 Copilot 等特殊供应商）

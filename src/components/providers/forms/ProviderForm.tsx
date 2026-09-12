@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+  type ReactNode,
+} from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -130,6 +136,8 @@ import { resolveManagedAccountId } from "@/lib/authBinding";
 import { useOpenClawLiveProviderIds } from "@/hooks/useOpenClaw";
 import { useHermesLiveProviderIds } from "@/hooks/useHermes";
 import { resolveCodexOfficialIdentity } from "@/utils/providerCapabilities";
+import { supportsProxyScript } from "@/lib/proxyScript";
+import { ProxyScriptField } from "./ProxyScriptField";
 
 type PresetEntry = {
   id: string;
@@ -270,20 +278,61 @@ export interface ProviderFormProps {
   };
   showButtons?: boolean;
   isProxyTakeover?: boolean;
+  proxyScriptField?: ReactNode;
 }
 
 export function ProviderForm(props: ProviderFormProps) {
+  const [script, setScript] = useState(
+    props.initialData?.meta?.localProxyScript ?? "",
+  );
+  const [scriptEnabled, setScriptEnabled] = useState(
+    props.initialData?.meta?.localProxyScriptEnabled ?? true,
+  );
+  useEffect(() => {
+    setScript(props.initialData?.meta?.localProxyScript ?? "");
+    setScriptEnabled(props.initialData?.meta?.localProxyScriptEnabled ?? true);
+  }, [
+    props.providerId,
+    props.appId,
+    props.initialData?.meta?.localProxyScript,
+    props.initialData?.meta?.localProxyScriptEnabled,
+  ]);
+  const supported = supportsProxyScript(props.appId);
+  const formProps = {
+    ...props,
+    proxyScriptField: supported ? (
+      <ProxyScriptField
+        value={script}
+        onChange={setScript}
+        enabled={scriptEnabled}
+        onEnabledChange={setScriptEnabled}
+      />
+    ) : undefined,
+    onSubmit: (values: ProviderFormValues) =>
+      props.onSubmit(
+        supported
+          ? {
+              ...values,
+              meta: {
+                ...values.meta,
+                localProxyScript: script.trim() ? script : undefined,
+                localProxyScriptEnabled: scriptEnabled,
+              },
+            }
+          : values,
+      ),
+  };
   if (props.appId === "pi") {
-    return <PiProviderForm {...props} />;
+    return <PiProviderForm {...formProps} />;
   }
   if (props.appId === "claude-desktop") {
-    return <ClaudeDesktopProviderForm {...props} />;
+    return <ClaudeDesktopProviderForm {...formProps} />;
   }
   if (props.appId === "grokbuild") {
-    return <GrokBuildProviderForm {...props} />;
+    return <GrokBuildProviderForm {...formProps} />;
   }
 
-  return <ProviderFormFull {...props} />;
+  return <ProviderFormFull {...formProps} />;
 }
 
 function ProviderFormFull({
@@ -299,6 +348,7 @@ function ProviderFormFull({
   initialData,
   showButtons = true,
   isProxyTakeover = false,
+  proxyScriptField,
 }: ProviderFormProps) {
   if (appId === "claude-desktop") {
     throw new Error("ProviderFormFull should not receive claude-desktop");
@@ -2751,6 +2801,8 @@ function ProviderFormFull({
               {settingsConfigErrorField}
             </>
           )}
+
+          {proxyScriptField}
 
           {!isAnyOmoCategory &&
             appId !== "opencode" &&

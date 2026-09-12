@@ -2,6 +2,7 @@ import type { AppId } from "@/lib/api";
 import type { Provider } from "@/types";
 import { isOAuthProviderType } from "@/config/constants";
 import { resolveManagedAccountId } from "@/lib/authBinding";
+import { hasEnabledProxyScript, supportsProxyScript } from "@/lib/proxyScript";
 import {
   extractCodexBaseUrl,
   extractCodexExperimentalBearerToken,
@@ -117,6 +118,9 @@ export function providerNeedsRouting(
   appId: AppId,
   provider: Provider,
 ): boolean {
+  if (hasEnabledProxyScript(provider.meta) && supportsProxyScript(appId)) {
+    return true;
+  }
   if (
     provider.category === "official" ||
     resolveCodexOfficialIdentity(appId, provider)

@@ -1,4 +1,15 @@
 {
+  "proxyScript": {
+    "title": "プロバイダーのプロキシスクリプト",
+    "enabled": "プロキシスクリプトを有効にする",
+    "description": "単一ファイルの TypeScript ミドルウェアを入力します。スクリプトが有効なプロバイダーを選択すると、ローカルルーティングが有効になります。スイッチをオフにするとコードを保持したまま実行をスキップします。保存すると変更が適用されます。",
+    "editor": "TypeScript プロキシミドルウェア",
+    "runtime": "ローカルの Node.js 24+ が必要です。node: 組み込みモジュールに対応し、現在のユーザー権限で実行します。next(request) は CC Switch のネットワークプロキシ設定を使用します。",
+    "example": "転送例を挿入",
+    "checking": "検証中…",
+    "validate": "構文を検証",
+    "valid": "構文に問題はありません（スクリプトは未実行）"
+  },
   "app": {
     "title": "CC Switch",
     "description": "Claude Code・Codex・Gemini CLI のためのオールインワンアシスタント"

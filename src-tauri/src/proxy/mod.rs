@@ -24,6 +24,7 @@ pub mod model_mapper;
 pub mod provider_router;
 pub mod providers;
 pub mod response_processor;
+pub(crate) mod script_middleware;
 pub(crate) mod server;
 pub mod session;
 pub(crate) mod sse;
@@ -33,6 +34,7 @@ pub mod thinking_optimizer;
 pub mod thinking_rectifier;
 pub(crate) mod tool_media;
 pub(crate) mod types;
+mod upstream_transport;
 pub mod usage;
 
 // 公开导出给外部使用（commands, services等模块需要）

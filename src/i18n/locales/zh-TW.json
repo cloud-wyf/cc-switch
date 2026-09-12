@@ -1,4 +1,15 @@
 {
+  "proxyScript": {
+    "title": "供應商代理腳本",
+    "enabled": "啟用代理腳本",
+    "description": "填入單檔 TypeScript 中介軟體，啟用後選擇此供應商會自動開啟本機路由。關閉開關會保留程式碼並跳過執行，儲存後生效。",
+    "editor": "TypeScript 代理中介軟體",
+    "runtime": "需要本機 Node.js 24+，支援 node: 內建模組。腳本擁有目前使用者的本機權限；next(request) 沿用 CC Switch 的網路代理設定。",
+    "example": "插入透傳範例",
+    "checking": "正在檢查…",
+    "validate": "檢查語法",
+    "valid": "語法檢查通過（未執行腳本）"
+  },
   "app": {
     "title": "CC Switch",
     "description": "Claude Code / Codex / Gemini CLI 全方位輔助工具"
