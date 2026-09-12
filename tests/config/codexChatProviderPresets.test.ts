@@ -6,62 +6,17 @@ import {
   extractCodexWireApi,
 } from "@/utils/providerConfigUtils";
 
-const expectedChatPresets = new Map<
-  string,
-  { baseUrl: string; contextWindows: Record<string, number> }
->([
-  [
-    "Kimi",
-    {
-      baseUrl: "https://api.moonshot.cn/v1",
-      contextWindows: { "kimi-k2.7-code": 262144, "kimi-k3": 1048576 },
-    },
-  ],
-  [
-    "Kimi For Coding",
-    {
-      baseUrl: "https://api.kimi.com/coding/v1",
-      contextWindows: {
-        "kimi-for-coding": 262144,
-        "kimi-for-coding-highspeed": 262144,
-        k3: 1048576,
-        "k3-256k": 262144,
-      },
-    },
-  ],
-]);
-
-describe("Codex Chat provider presets", () => {
-  it("enables session-based prompt cache routing for Kimi Coding", () => {
+describe("Codex native Responses provider presets", () => {
+  it("drops prompt cache routing once Kimi Coding is direct-connect", () => {
+    // promptCacheRouting 只被 Responses→Chat 转换层消费（forwarder 在转换后
+    // 重注入 prompt_cache_key）。原生直连由 Codex 自己发 prompt_cache_key，
+    // 留着这面旗只会让人误以为该卡仍需路由接管。
     const preset = codexProviderPresets.find(
       (item) => item.name === "Kimi For Coding",
     );
 
-    expect(preset?.promptCacheRouting).toBe("enabled");
-  });
-
-  it("marks migrated Chat Completions presets for local routing", () => {
-    for (const [name, expected] of expectedChatPresets) {
-      const preset = codexProviderPresets.find((item) => item.name === name);
-
-      expect(preset, `${name} preset`).toBeDefined();
-      expect(preset?.apiFormat).toBe("openai_chat");
-      expect(extractCodexBaseUrl(preset?.config)).toBe(expected.baseUrl);
-      expect(extractCodexWireApi(preset?.config)).toBe("responses");
-      expect(preset?.endpointCandidates).toContain(expected.baseUrl);
-      expect(preset?.modelCatalog?.length).toBeGreaterThan(0);
-      expect(extractCodexModelName(preset?.config)).toBe(
-        preset?.modelCatalog?.[0]?.model,
-      );
-      expect(
-        Object.fromEntries(
-          (preset?.modelCatalog ?? []).map((model) => [
-            model.model,
-            model.contextWindow,
-          ]),
-        ),
-      ).toEqual(expected.contextWindows);
-    }
+    expect(preset?.apiFormat).toBe("openai_responses");
+    expect(preset?.promptCacheRouting).toBeUndefined();
   });
 
   it("uses native Responses API for migrated CN providers without local route mapping", () => {
@@ -101,6 +56,29 @@ describe("Codex Chat provider presets", () => {
           contextWindows: { "glm-5.3": 1048576 },
         },
       ],
+      // Kimi 两份官方 Codex 接入文档均要求 wire_api = "responses"，并明写服务
+      // 端原生实现 Responses API、无需本地路由或协议转换（platform.kimi.com/
+      // docs/guide/codex-kimi.md 与 kimi.com/code/docs/third-party-tools/
+      // codex.html，2026-09-09 真 Key 探针复核）
+      [
+        "Kimi",
+        {
+          baseUrl: "https://api.moonshot.cn/v1",
+          contextWindows: { "kimi-k3": 1048576, "kimi-k2.7-code": 262144 },
+        },
+      ],
+      [
+        "Kimi For Coding",
+        {
+          baseUrl: "https://api.kimi.com/coding/v1",
+          contextWindows: {
+            "kimi-for-coding": 262144,
+            "kimi-for-coding-highspeed": 262144,
+            k3: 1048576,
+            "k3-256k": 262144,
+          },
+        },
+      ],
     ]);
 
     for (const [name, expected] of nativeResponsesPresets) {
@@ -108,6 +86,7 @@ describe("Codex Chat provider presets", () => {
 
       expect(preset, `${name} preset`).toBeDefined();
       expect(preset?.apiFormat).toBe("openai_responses");
+      expect(extractCodexWireApi(preset?.config)).toBe("responses");
       if (expected.baseUrl) {
         // 直连预设的 base_url 必须是厂商的 Responses 端点本身（不是同站的
         // Chat 端点）；endpointCandidates 与主地址同路径档

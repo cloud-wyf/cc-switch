@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { generateThirdPartyConfig } from "./codexProviderPresets";
+import {
+  codexProviderPresets,
+  generateThirdPartyConfig,
+} from "./codexProviderPresets";
 
 describe("Codex third-party configuration authentication", () => {
   // 托管 OAuth 卡无静态 key：requires_openai_auth = true 会被后端 keyless
@@ -17,5 +20,18 @@ describe("Codex third-party configuration authentication", () => {
     expect(
       generateThirdPartyConfig("acme", "https://api.acme.dev/v1", "m1"),
     ).toContain("requires_openai_auth = true");
+  });
+});
+
+describe("DeepSeek official preset modalities", () => {
+  it("inherits the official vision-capable catalog without a text-only override", () => {
+    const preset = codexProviderPresets.find(
+      (item) => item.name === "DeepSeek",
+    );
+    expect(preset).toBeDefined();
+    expect(preset!.modelCatalog!.length).toBeGreaterThan(0);
+    for (const model of preset!.modelCatalog!) {
+      expect(model.inputModalities, model.model).toBeUndefined();
+    }
   });
 });

@@ -310,10 +310,12 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
       api: "openai-completions",
       models: [
         {
-          id: "MiniMax-M2.7",
-          name: "MiniMax M2.7",
-          contextWindow: 200000,
-          cost: { input: 0.3, output: 1.2, cacheRead: 0.06, cacheWrite: 0.375 },
+          id: "MiniMax-M3",
+          name: "MiniMax M3",
+          reasoning: true,
+          input: ["text", "image"],
+          contextWindow: 1000000,
+          maxTokens: 131072,
         },
       ],
     },
@@ -332,8 +334,8 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
       },
     },
     suggestedDefaults: {
-      model: { primary: "minimax/MiniMax-M2.7" },
-      modelCatalog: { "minimax/MiniMax-M2.7": { alias: "MiniMax" } },
+      model: { primary: "minimax/MiniMax-M3" },
+      modelCatalog: { "minimax/MiniMax-M3": { alias: "MiniMax" } },
     },
   },
   {
@@ -346,10 +348,12 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
       api: "openai-completions",
       models: [
         {
-          id: "MiniMax-M2.7",
-          name: "MiniMax M2.7",
-          contextWindow: 200000,
-          cost: { input: 0.3, output: 1.2, cacheRead: 0.06, cacheWrite: 0.375 },
+          id: "MiniMax-M3",
+          name: "MiniMax M3",
+          reasoning: true,
+          input: ["text", "image"],
+          contextWindow: 1000000,
+          maxTokens: 131072,
         },
       ],
     },
@@ -368,8 +372,8 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
       },
     },
     suggestedDefaults: {
-      model: { primary: "minimax-en/MiniMax-M2.7" },
-      modelCatalog: { "minimax-en/MiniMax-M2.7": { alias: "MiniMax" } },
+      model: { primary: "minimax-en/MiniMax-M3" },
+      modelCatalog: { "minimax-en/MiniMax-M3": { alias: "MiniMax" } },
     },
   },
 ];

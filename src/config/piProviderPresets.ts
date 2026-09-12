@@ -192,8 +192,9 @@ const piProviderPresetDefinitions: PiProviderPreset[] = [
       api: "openai-completions",
       apiKey: "",
       models: [
-        piModel("minimax/minimax-m2.7", {
-          id: "MiniMax-M2.7",
+        piModel("minimax/minimax-m3", {
+          id: "MiniMax-M3",
+          maxTokens: 131072,
         }),
       ],
     },
@@ -216,8 +217,9 @@ const piProviderPresetDefinitions: PiProviderPreset[] = [
       api: "openai-completions",
       apiKey: "",
       models: [
-        piModel("minimax/minimax-m2.7", {
-          id: "MiniMax-M2.7",
+        piModel("minimax/minimax-m3", {
+          id: "MiniMax-M3",
+          maxTokens: 131072,
         }),
       ],
     },

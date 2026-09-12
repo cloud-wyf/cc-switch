@@ -53,6 +53,10 @@ pnpm dev
 - `src-tauri/tauri.conf.json` 的 `version`。
 - `src-tauri/Cargo.lock` 中本项目包的 `version`。
 
+## 同步上游源码
+
+按[上游同步指南](docs/guides/upstream-sync.md)获取并合入上游最新稳定版。指南记录了需要保留的私有更新源、签名公钥、供应商名单、Windows x64 发布方案，以及冲突处理和验证步骤；实际合入的版本和提交见指南末尾的同步记录。
+
 ## 应用内更新
 
 更新源为私有仓库 [cloud-wyf/cc-switch](https://github.com/cloud-wyf/cc-switch)。应用启动后自动检查版本，发现新版时显示更新图标；在「设置 → 关于」中点击更新，程序会下载、校验签名、安装并重启。便携版沿用打开发布页、下载替换的方式。

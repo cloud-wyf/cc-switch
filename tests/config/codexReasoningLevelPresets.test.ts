@@ -7,6 +7,7 @@ import { codexProviderPresets } from "@/config/codexProviderPresets";
 //   表单显示"未设置"的误导比快照过时/冗余声明的代价更大）；
 // - Chat 路由预设（supportsEffort:false）：档位值不进 wire，仅当预设声明了
 //   真实思考开关（supportsThinking + thinkingParam）时填两态 none/high；
+//   未确认开关且模型会思考时，仅列 high 表示单一思考模式；
 // - 后端对两条路径的 catalog 都应用 per-row 覆盖（apply_codex_reasoning_
 //   level_override "Applies to every profile"）。
 // 后端 codex_canonical_efforts 对未知值静默丢弃——预设里的拼写错误不会报错，
@@ -34,8 +35,8 @@ function catalogModel(presetName: string, modelId: string) {
 
 describe("Codex preset pre-filled reasoning levels", () => {
   // 每条期望值都对应官方文档证据（见预设文件内注释）；改动任一侧前先核对来源。
-  // 第四位=期望的显式 defaultReasoningLevel：仅在官方默认 ≠ 后端回落结果时
-  // 声明（后端回落=模板默认 ∈ 子集则保留、否则取子集最高档），其余一律留空
+  // 第四位=期望的显式 defaultReasoningLevel：用于官方 catalog 的默认值，
+  // 或让 Chat catalog 与预设 config.toml 的显式 high 一致（否则可能回落 max）。
   const EXPECTED: Array<[string, string, string[], string?]> = [
     // DeepSeek 直连照抄官方 catalog 镜像（Jason 2026-08-15 拍板：表单可见性
     // 优先，接受快照过时风险——官方目录变更时须同步）
@@ -53,12 +54,17 @@ describe("Codex preset pre-filled reasoning levels", () => {
     ["Zhipu GLM", "glm-5.3", ["low", "high", "max"], "max"],
     ["Zhipu GLM", "glm-5-turbo", ["max"]],
     ["Zhipu GLM en", "glm-5.3", ["low", "high", "max"], "max"],
-    // Kimi 开放平台：k2.7-code 始终思考且官方标注不支持 effort → 单档；k3
-    // 三档（官方默认 max=后端回落结果，无需显式 default）。均关不掉思考无 none
-    ["Kimi", "kimi-k2.7-code", ["high"]],
+    // Kimi 开放平台（原生 Responses 直连，默认模型 kimi-k3）：k3 三档不声明
+    // default——native 模板默认 high ∈ 子集故后端保留 high（= 预设
+    // config.toml 的 model_reasoning_effort），官方默认 max 只是 API 侧未显式
+    // 传 effort 时的行为；k2.7-code 始终思考且官方标注不支持 effort → 单档。
+    // 均关不掉思考无 none
     ["Kimi", "kimi-k3", ["low", "high", "max"]],
-    // Kimi Code 端点：k3/k3-256k 官方默认 high ≠ 回落值 max → 显式 default
-    // 首两例；kimi-for-coding(-highspeed) Thinking 恒 ON 单档
+    ["Kimi", "kimi-k2.7-code", ["high"]],
+    // Kimi Code 端点（原生 Responses 直连）：k3/k3-256k 官方 models.json 明写
+    // default_reasoning_level "high"，与 native 模板回落值相同——照抄官方目录
+    // 的显式声明（表单可见性优先，MiniMax/MiMo 先例）故仍有第四位期望；
+    // kimi-for-coding(-highspeed) Thinking 恒 ON 单档
     ["Kimi For Coding", "kimi-for-coding", ["high"]],
     ["Kimi For Coding", "kimi-for-coding-highspeed", ["high"]],
     ["Kimi For Coding", "k3", ["low", "high", "max"], "high"],
@@ -70,8 +76,7 @@ describe("Codex preset pre-filled reasoning levels", () => {
     (presetName, modelId, levels, expectedDefault) => {
       const model = catalogModel(presetName, modelId);
       expect(model.reasoningLevels).toEqual(levels);
-      // 默认档通常不显式声明（后端 fallback 已落到正确档位）；仅当官方默认
-      // 与回落结果不一致时才有第四位期望值（Kimi Code k3 系先例）
+      // 显式默认来源见各预设注释；未声明时仍保留后端的 fallback 行为。
       expect(model.defaultReasoningLevel).toBe(expectedDefault);
     },
   );

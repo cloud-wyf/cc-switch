@@ -42,7 +42,8 @@
     "deleting": "刪除中...",
     "auto": "自動",
     "enabled": "已啟用",
-    "notSet": "未設定"
+    "notSet": "未設定",
+    "collapse": "收合"
   },
   "firstRunNotice": {
     "title": "歡迎使用 CC Switch",
@@ -83,7 +84,8 @@
     "enableTeammates": "Teammates 模式",
     "enableToolSearch": "啟用 Tool Search",
     "effortMax": "最大強度思考",
-    "disableAutoUpgrade": "停用自動升級"
+    "disableAutoUpgrade": "停用自動升級",
+    "disableArtifact": "停用 Artifact 工具"
   },
   "header": {
     "viewOnGithub": "在 GitHub 上檢視",
@@ -977,7 +979,8 @@
       "effectiveApiRequired": "模型 {{id}} 必須直接設定或從供應商繼承 API",
       "effectiveBaseUrlRequired": "模型 {{id}} 必須直接設定或從供應商繼承基礎 URL",
       "duplicateModel": "模型 ID {{id}} 重複",
-      "modelRequired": "請至少新增一個模型"
+      "modelRequired": "請至少新增一個模型",
+      "providerKeyDuplicate": "該供應商標識已存在"
     },
     "current": {
       "readFailed": "無法讀取 Pi 供應商設定",
@@ -1200,6 +1203,7 @@
       "ucloudCoding": "優雲智算 Coding Plan",
       "shengsuanyun": "勝算雲",
       "qiniu": "七牛雲",
+      "doubaoseed": "火山 豆包AI",
       "openrouter": "OpenRouter",
       "deepseek": "DeepSeek",
       "together": "Together AI"
@@ -3198,6 +3202,7 @@
     "fiveHour": "5 小時",
     "sevenDay": "7 天",
     "sevenDayOpus": "7 天 (Opus)",
+    "sevenDayFable": "Fable",
     "sevenDaySonnet": "7 天 (Sonnet)",
     "thirtyDay": "30 天",
     "geminiPro": "Pro",
