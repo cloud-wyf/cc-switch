@@ -84,6 +84,7 @@ fn import_authorizer(context: rusqlite::hooks::AuthContext<'_>) -> rusqlite::hoo
 
 /// Tables whose data rows are skipped when exporting for WebDAV sync.
 const SYNC_SKIP_TABLES: &[&str] = &[
+    "proxy_request_events",
     "proxy_request_logs",
     "stream_check_logs",
     "provider_health",
@@ -96,6 +97,7 @@ const SYNC_SKIP_TABLES: &[&str] = &[
 /// Tables whose local data is preserved from the live database during WebDAV import.
 /// Excludes ephemeral tables like provider_health that can safely rebuild at runtime.
 const SYNC_PRESERVE_TABLES: &[&str] = &[
+    "proxy_request_events",
     "proxy_request_logs",
     "stream_check_logs",
     "proxy_live_backup",
@@ -446,6 +448,10 @@ impl Database {
 
         // Periodic maintenance is always enabled, regardless of auto-backup settings.
         let mut reclaimed_rows = 0u64;
+        match self.cleanup_proxy_events() {
+            Ok(deleted) => reclaimed_rows += deleted,
+            Err(e) => log::warn!("Periodic proxy_request_events cleanup failed: {e}"),
+        }
         match self.cleanup_old_stream_check_logs(7) {
             Ok(deleted) => {
                 reclaimed_rows += deleted;

@@ -1171,6 +1171,53 @@ impl RequestForwarder {
         extensions: &Extensions,
         adapter: &dyn ProviderAdapter,
     ) -> Result<(ProxyResponse, Option<String>, Option<String>), ProxyError> {
+        let request_model = body
+            .get("model")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .or_else(|| super::handler_context::extract_gemini_model_from_path(endpoint));
+        let attempt = extensions
+            .get::<super::event_log::RequestTrace>()
+            .map(|trace| {
+                trace.start_attempt(
+                    app_type.as_str(),
+                    provider,
+                    &self.session_id,
+                    request_model.as_deref(),
+                )
+            });
+        let result = self
+            .forward_inner(
+                app_type,
+                method,
+                provider,
+                endpoint,
+                body,
+                headers,
+                extensions,
+                adapter,
+                attempt.as_ref(),
+            )
+            .await;
+        if let (Some(attempt), Err(error)) = (&attempt, &result) {
+            attempt.failed(error);
+        }
+        result
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn forward_inner(
+        &self,
+        app_type: &AppType,
+        method: &http::Method,
+        provider: &Provider,
+        endpoint: &str,
+        body: &Value,
+        headers: &axum::http::HeaderMap,
+        extensions: &Extensions,
+        adapter: &dyn ProviderAdapter,
+        attempt: Option<&super::event_log::AttemptLog>,
+    ) -> Result<(ProxyResponse, Option<String>, Option<String>), ProxyError> {
         // 使用适配器提取 base_url
         let mut base_url = adapter.extract_base_url(provider)?;
 
@@ -2339,15 +2386,23 @@ impl RequestForwarder {
             headers: ordered_headers,
             body: body_bytes,
         };
+        if let Some(attempt) = attempt {
+            attempt.script_input(&request);
+        }
         let response = if let Some(source) = provider.active_proxy_script() {
+            if let Some(attempt) = attempt {
+                attempt.script_started();
+            }
             let timeout = transport.header_timeout();
             let request = request.for_script();
             let script_model = Arc::new(std::sync::Mutex::new(None::<String>));
             let observed_model = script_model.clone();
+            let attempt_log = attempt.cloned();
             // next() uses the same transport, including the configured HTTP/SOCKS proxy.
             let next: super::script_middleware::Transport = Arc::new(move |request| {
                 let transport = transport.clone();
                 let observed_model = observed_model.clone();
+                let attempt_log = attempt_log.clone();
                 Box::pin(async move {
                     let request = super::upstream_transport::UpstreamRequest::from_script(request)?;
                     if let Ok(body) = serde_json::from_slice::<Value>(&request.body) {
@@ -2361,7 +2416,7 @@ impl RequestForwarder {
                             })? = Some(model.to_string());
                         }
                     }
-                    transport.send(request).await
+                    super::event_log::send(&transport, request, attempt_log.as_ref()).await
                 })
             });
             let response = super::script_middleware::execute(
@@ -2378,7 +2433,7 @@ impl RequestForwarder {
             }
             response
         } else {
-            transport.send(request).await?
+            super::event_log::send(&transport, request, attempt).await?
         };
 
         // 检查响应状态

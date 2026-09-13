@@ -2930,6 +2930,21 @@
       "disabled": "Logging disabled",
       "failed": "Failed to toggle logging"
     },
+    "eventLog": {
+      "title": "Detailed Request Logs",
+      "description": "Set how much of each request and response body to store and how long to retain logs.",
+      "bodyLimit": "Body storage limit (KiB)",
+      "bodyLimitDescription": "Each direction is limited to 0–{{max}} KiB. Set to 0 to record metadata only.",
+      "purgeDays": "Retention (days)",
+      "purgeDaysDescription": "Keep logs for 1–{{max}} days. Expired logs are removed at app startup and daily while running.",
+      "effectiveHint": "The body limit applies to new requests. Retention changes apply at the next cleanup. No proxy restart is required.",
+      "invalidBodyLimit": "The body limit must be a whole number from 0 to {{max}} (KiB).",
+      "invalidPurgeDays": "Retention must be a whole number from 1 to {{max}} days.",
+      "saved": "Detailed request log settings saved",
+      "saveFailed": "Failed to save detailed request log settings: {{error}}",
+      "loadFailed": "Failed to load detailed request log settings",
+      "retry": "Retry"
+    },
     "server": {
       "started": "Routing service started - {{address}}:{{port}}",
       "startFailed": "Failed to start routing service: {{detail}}",

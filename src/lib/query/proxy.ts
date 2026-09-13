@@ -6,12 +6,14 @@ import type {
   GlobalProxyConfig,
   AppProxyConfig,
   ProxyTakeoverStatus,
+  ProxyEventLogConfig,
 } from "@/types/proxy";
 
 export const proxyKeys = {
   status: ["proxyStatus"] as const,
   takeoverStatus: ["proxyTakeoverStatus"] as const,
   globalConfig: ["globalProxyConfig"] as const,
+  eventLogConfig: ["proxyEventLogConfig"] as const,
   appConfig: (appType: string) => ["appProxyConfig", appType] as const,
 };
 
@@ -96,6 +98,26 @@ export function useUpdateGlobalProxyConfig() {
       toast.error(
         t("proxy.settings.toast.saveFailed", { error: error.message }),
       );
+    },
+  });
+}
+
+/** 获取详细请求日志配置。 */
+export function useProxyEventLogConfig() {
+  return useQuery({
+    queryKey: proxyKeys.eventLogConfig,
+    queryFn: () => proxyApi.getProxyEventLogConfig(),
+  });
+}
+
+/** 保存成功后同步缓存，保留失败时的表单输入由组件负责。 */
+export function useSetProxyEventLogConfig() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (config: ProxyEventLogConfig) =>
+      proxyApi.setProxyEventLogConfig(config),
+    onSuccess: (_, config) => {
+      queryClient.setQueryData(proxyKeys.eventLogConfig, config);
     },
   });
 }

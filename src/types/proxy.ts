@@ -124,6 +124,14 @@ export interface GlobalProxyConfig {
   enableLogging: boolean;
 }
 
+// 详细请求日志配置（所有本地代理请求共用）
+export interface ProxyEventLogConfig {
+  enabled: boolean;
+  // 每个方向的正文采样上限，单位为字节；0 表示不保存正文。
+  logBodyLimit: number;
+  purgeDays: number;
+}
+
 // 应用级代理配置（每个 app 独立）
 export interface AppProxyConfig {
   appType: string;

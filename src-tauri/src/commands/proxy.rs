@@ -2,6 +2,7 @@
 //!
 //! 提供前端调用的 API 接口
 
+use crate::database::ProxyEventLogConfig;
 use crate::error::AppError;
 use crate::proxy::types::*;
 use crate::proxy::{CircuitBreakerConfig, CircuitBreakerStats};
@@ -118,6 +119,29 @@ pub async fn update_global_proxy_config(
     let db = &state.db;
     db.update_global_proxy_config(config)
         .await
+        .map_err(|e| e.to_string())
+}
+
+/// 获取详细请求日志的正文上限和保留策略。
+#[tauri::command]
+pub async fn get_proxy_event_log_config(
+    state: tauri::State<'_, AppState>,
+) -> Result<ProxyEventLogConfig, String> {
+    state
+        .db
+        .get_proxy_event_log_config()
+        .map_err(|e| e.to_string())
+}
+
+/// 后续请求和定期清理直接读取新配置，无需重启代理。
+#[tauri::command]
+pub async fn set_proxy_event_log_config(
+    state: tauri::State<'_, AppState>,
+    config: ProxyEventLogConfig,
+) -> Result<(), String> {
+    state
+        .db
+        .set_proxy_event_log_config(&config)
         .map_err(|e| e.to_string())
 }
 

@@ -2931,6 +2931,21 @@
       "disabled": "日誌紀錄已關閉",
       "failed": "切換日誌狀態失敗"
     },
+    "eventLog": {
+      "title": "詳細請求日誌",
+      "description": "設定請求與回應本文的儲存上限及自動清理期限。",
+      "bodyLimit": "本文儲存上限（KiB）",
+      "bodyLimitDescription": "每個方向分別限制為 0–{{max}} KiB，填 0 僅記錄中繼資料。",
+      "purgeDays": "保留天數",
+      "purgeDaysDescription": "保留 1–{{max}} 天，應用程式啟動及執行期間每天清理過期日誌。",
+      "effectiveHint": "本文上限對後續請求生效；保留天數在下次清理時生效，無需重新啟動代理。",
+      "invalidBodyLimit": "本文上限必須是 0–{{max}} 之間的整數（KiB）。",
+      "invalidPurgeDays": "保留天數必須是 1–{{max}} 之間的整數。",
+      "saved": "詳細請求日誌設定已儲存",
+      "saveFailed": "儲存詳細請求日誌設定失敗：{{error}}",
+      "loadFailed": "讀取詳細請求日誌設定失敗",
+      "retry": "重試"
+    },
     "server": {
       "started": "路由服務已啟動 - {{address}}:{{port}}",
       "startFailed": "啟動路由服務失敗：{{detail}}",

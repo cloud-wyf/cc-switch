@@ -2930,6 +2930,21 @@
       "disabled": "日志记录已关闭",
       "failed": "切换日志状态失败"
     },
+    "eventLog": {
+      "title": "详细请求日志",
+      "description": "设置请求与响应正文的保存上限及自动清理期限。",
+      "bodyLimit": "正文保存上限（KiB）",
+      "bodyLimitDescription": "每个方向分别限制为 0–{{max}} KiB，填 0 仅记录元数据。",
+      "purgeDays": "保留天数",
+      "purgeDaysDescription": "保留 1–{{max}} 天，应用启动及运行期间每天清理过期日志。",
+      "effectiveHint": "正文上限对后续请求生效；保留天数在下次清理时生效，无需重启代理。",
+      "invalidBodyLimit": "正文上限必须是 0–{{max}} 之间的整数（KiB）。",
+      "invalidPurgeDays": "保留天数必须是 1–{{max}} 之间的整数。",
+      "saved": "详细请求日志配置已保存",
+      "saveFailed": "保存详细请求日志配置失败：{{error}}",
+      "loadFailed": "读取详细请求日志配置失败",
+      "retry": "重试"
+    },
     "server": {
       "started": "路由服务已启动 - {{address}}:{{port}}",
       "startFailed": "启动路由服务失败: {{detail}}",

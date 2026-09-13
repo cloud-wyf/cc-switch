@@ -137,6 +137,17 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[serial]
     async fn proxy_script_switch_and_toggle_preserve_code_and_control_interception() {
+        assert_proxy_script_switch_and_toggle(AppType::Claude).await;
+    }
+
+    #[cfg(any(target_os = "macos", windows))]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[serial]
+    async fn claude_desktop_proxy_script_switch_and_toggle_use_the_desktop_gateway() {
+        assert_proxy_script_switch_and_toggle(AppType::ClaudeDesktop).await;
+    }
+
+    async fn assert_proxy_script_switch_and_toggle(app: AppType) {
         let _ = rustls::crypto::ring::default_provider().install_default();
         let _home = TempHome::new();
         crate::settings::reload_settings().unwrap();
@@ -190,12 +201,25 @@ mod tests {
             ),
             ..ProviderMeta::default()
         });
-        db.save_provider("claude", &provider).unwrap();
+        if matches!(app, AppType::ClaudeDesktop) {
+            let meta = provider.meta.as_mut().unwrap();
+            meta.claude_desktop_mode = Some(crate::provider::ClaudeDesktopMode::Proxy);
+            meta.claude_desktop_model_routes.insert(
+                "claude-sonnet-4-6".into(),
+                crate::provider::ClaudeDesktopModelRoute {
+                    model: "test-model".into(),
+                    label_override: None,
+                    supports_1m: None,
+                },
+            );
+        }
+        db.save_provider(app.as_str(), &provider).unwrap();
         let source = provider.meta.as_ref().unwrap().local_proxy_script.clone();
         let results: Result<Vec<Value>, String> = async {
             let switch_state = state.clone();
+            let switch_app = app.clone();
             tokio::task::spawn_blocking(move || {
-                ProviderService::switch(&switch_state, AppType::Claude, "scripted")
+                ProviderService::switch(&switch_state, switch_app, "scripted")
             })
             .await
             .map_err(|error| error.to_string())?
@@ -205,23 +229,42 @@ mod tests {
                 .timeout(std::time::Duration::from_secs(10))
                 .build()
                 .map_err(|error| error.to_string())?;
-            let request = client.post(format!("http://127.0.0.1:{port}/v1/messages"))
-                .json(&json!({"model":"test-model", "max_tokens":10, "messages":[{"role":"user", "content":"hi"}]}));
+            let (base_url, model) = if matches!(app, AppType::ClaudeDesktop) {
+                let profile_path = crate::claude_desktop_config::get_config_library_path()
+                    .map_err(|error| error.to_string())?
+                    .join(format!("{}.json", crate::claude_desktop_config::PROFILE_ID));
+                let profile: Value = read_json_file(&profile_path)
+                    .map_err(|error| error.to_string())?;
+                let base = profile["inferenceGatewayBaseUrl"].as_str()
+                    .ok_or_else(|| "desktop profile is missing its gateway URL".to_string())?;
+                assert_eq!(base, format!("http://127.0.0.1:{port}/claude-desktop"));
+                (base.to_string(), "claude-sonnet-4-6")
+            } else {
+                (format!("http://127.0.0.1:{port}"), "test-model")
+            };
+            let mut request = client.post(format!("{base_url}/v1/messages"))
+                .json(&json!({"model":model, "max_tokens":10, "messages":[{"role":"user", "content":"hi"}]}));
+            if matches!(app, AppType::ClaudeDesktop) {
+                let token = crate::claude_desktop_config::get_or_create_gateway_token(&db)
+                    .map_err(|error| error.to_string())?;
+                request = request.bearer_auth(token);
+            }
             let mut responses = Vec::new();
             // Legacy configuration is enabled; saving just the switch takes effect on the next request.
             for enabled in [None, Some(false), Some(true)] {
                 if let Some(enabled) = enabled {
                     provider.meta.as_mut().unwrap().local_proxy_script_enabled = Some(enabled);
-                    proxy_script::validate(&AppType::Claude, &provider).await?;
+                    proxy_script::validate(&app, &provider).await?;
                     let update_state = state.clone();
+                    let update_app = app.clone();
                     let updated = provider.clone();
                     tokio::task::spawn_blocking(move || {
-                        ProviderService::update(&update_state, AppType::Claude, None, updated)
+                        ProviderService::update(&update_state, update_app, None, updated)
                     })
                     .await
                     .map_err(|error| error.to_string())?
                     .map_err(|error| error.to_string())?;
-                    proxy_script::activate_current(&state, &AppType::Claude, "scripted").await?;
+                    proxy_script::activate_current(&state, &app, "scripted").await?;
                 }
                 let response = request.try_clone().unwrap().send().await
                     .map_err(|error| error.to_string())?;
@@ -229,15 +272,26 @@ mod tests {
             }
             Ok(responses)
         }.await;
-        let enabled = db.get_proxy_config_for_app("claude").await.unwrap().enabled;
+        let enabled = if matches!(app, AppType::ClaudeDesktop) {
+            assert!(
+                db.get_live_backup(app.as_str()).await.unwrap().is_none(),
+                "Desktop scripts must use the dedicated gateway, without generic takeover backups"
+            );
+            state.proxy_service.is_running().await
+        } else {
+            db.get_proxy_config_for_app(app.as_str())
+                .await
+                .unwrap()
+                .enabled
+        };
         let stopped = state.proxy_service.stop_with_restore().await;
         upstream_task.abort();
         stopped.unwrap();
+        let results = results.unwrap();
         assert!(
             enabled,
             "script toggles should leave local routing available"
         );
-        let results = results.unwrap();
         assert_eq!(
             results
                 .iter()
@@ -250,7 +304,7 @@ mod tests {
             ]
         );
         let stored = db
-            .get_provider_by_id("scripted", "claude")
+            .get_provider_by_id("scripted", app.as_str())
             .unwrap()
             .unwrap();
         assert_eq!(stored.meta.as_ref().unwrap().local_proxy_script, source);

@@ -4,7 +4,7 @@
 
 关闭开关并保存即可暂停该供应商的脚本，代码会保留，仍可编辑；再次开启并保存即可恢复，无需重新粘贴。每个供应商独立保存开关状态，旧配置中未设置开关的脚本默认启用。关闭脚本不会停止整个本地代理，协议转换等其他路由功能仍可继续使用；代码为空时也不会执行脚本。
 
-需要本机安装 Node.js 24 或更新版本，且 `node` 在应用的 PATH 中。无需安装 npm 包，也不需要自行监听端口。支持现有本地代理应用：Claude、Codex、Gemini、Grok Build 和 Claude Desktop；Claude Desktop 先选择本地路由模式。官方供应商仍遵循应用已有的接管支持范围。
+需要本机安装 Node.js 24 或更新版本，且 `node` 在应用的 PATH 中。无需安装 npm 包，也不需要自行监听端口。支持现有本地代理应用：Claude、Codex、Gemini、Grok Build 和 Claude Desktop；Claude Desktop 需先在「模型配置 → 接入方式」选择「模型映射」，以启用本地路由。官方供应商仍遵循应用已有的接管支持范围。
 
 ## 接口
 
@@ -55,7 +55,15 @@ export default async function (
 }
 ```
 
-只将此示例用于接受 Anthropic 请求的供应商。原 `tools/proxy/src/proxy.ts` 中的 beta 清洗、Thinking 注入、探测短路及空响应处理已整理成一个可粘贴的[兼容中间件示例](../examples/anthropic-compatibility-middleware.ts)。原脚本的 `http.createServer`、`listen`、上游选择和启动脚本不需要复制。SQLite 日志等功能可使用 `node:sqlite` / `node:fs` 自行添加。
+只将此示例用于接受 Anthropic 请求的供应商。原 `tools/proxy/src/proxy.ts` 中的 beta 清洗、Thinking 注入、探测短路及空响应处理已整理成一个可粘贴的[兼容中间件示例](../examples/anthropic-compatibility-middleware.ts)。原脚本的 `http.createServer`、`listen`、上游选择和启动脚本不需要复制。详细 SQLite 报文日志由宿主统一记录，见[供应商代理详细请求日志](provider-proxy-event-logs-zh.md)。
+
+需要原 `proxy2.js` 的小请求分流时，复制[proxy2 中间件](../examples/proxy2-middleware.ts)。主请求使用当前供应商；默认无工具、`max_tokens <= 32000`、改写前请求体不超过 8192 字节的 Messages 请求使用备用上游，同时替换凭证、按配置替换模型并关闭 Thinking。默认探测请求仍在本地返回 200；顶部的 `CONFIG.forwardProbe` 可改为 `true`，让探测也按正常规则转发。
+
+脚本是独立单文件，不读取外部 `config.json`。所有可调参数都在顶部 `CONFIG` 中：备用上游开关、地址、密钥、认证方式和模型，分流的 token/字节上限，探测开关，以及 Thinking 和 beta 兼容规则。仓库示例的 `fallback.apiKey` 留空，使用时填写备用密钥；关闭 `fallback.enabled` 或留空备用地址/密钥时不分流。转发、网络代理、超时和 SQLite 详细报文日志由 CC Switch 统一管理；脚本无需自行建表和清理日志。
+
+Codex Desktop 自动命名可以使用 [DeepSeek 命名中间件](../examples/codex-title-deepseek-middleware.ts)。将它粘贴到使用 **Responses 协议**的 Codex 供应商中，填写顶部 `CONFIG.apiKey` 并启用。它根据 `x-codex-turn-metadata` 中的 `turn_trigger`（缺省时使用 `thread_source`）精确匹配 `thread_title` 和 `thread_description`，将标题及描述生成请求直接转到 DeepSeek 原生的 `/responses` 接口，保留 Codex 的 JSON Schema 和流式设置，原样透传 JSON 或 SSE。其他对话、摘要、压缩和 PR 请求照常转发；匹配不依赖模型名或请求大小。
+
+命名脚本的地址、密钥、模型、token 上限、超时和文本长度限制均在顶部 `CONFIG`。默认使用接口接受的模型 ID `deepseek-flash`，通过 `reasoning.effort: "none"` 关闭思考，最多输出 512 token、等待 20 秒；只发送命名任务最后一条用户文本。模型 ID 应使用 API 实际接受的名称，不能根据模型展示版本拼接成 `deepseek-v4.1-flash`。上游 HTTP 状态、响应内容和流式失败事件均保留原样，输出结构由 DeepSeek 的原生 JSON Schema 支持保证。该脚本复用 `next()` 的网络转发，无需更新应用或新增接口。它作用于后续触发的自动命名；保存后新建任务即可验证效果。协议能力参见 [DeepSeek Responses API 文档](https://api-docs.deepseek.com/guides/responses_api/)。
 
 ## 执行范围与生命周期
 

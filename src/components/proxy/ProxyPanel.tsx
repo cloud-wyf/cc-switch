@@ -15,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { ToggleRow } from "@/components/ui/toggle-row";
+import { ProxyEventLogConfigPanel } from "@/components/proxy/ProxyEventLogConfigPanel";
 import { toast } from "sonner";
 import { useFailoverQueue } from "@/lib/query/failover";
 import { ProviderHealthBadge } from "@/components/providers/ProviderHealthBadge";
@@ -621,6 +622,7 @@ export function ProxyPanel({
             </div>
           </div>
         )}
+        <ProxyEventLogConfigPanel />
       </section>
     </>
   );

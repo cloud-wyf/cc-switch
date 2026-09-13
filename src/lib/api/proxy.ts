@@ -5,6 +5,7 @@ import type {
   ProxyTakeoverStatus,
   GlobalProxyConfig,
   AppProxyConfig,
+  ProxyEventLogConfig,
 } from "@/types/proxy";
 
 export const proxyApi = {
@@ -55,6 +56,16 @@ export const proxyApi = {
   // 更新全局代理配置
   async updateGlobalProxyConfig(config: GlobalProxyConfig): Promise<void> {
     return invoke("update_global_proxy_config", { config });
+  },
+
+  // 获取详细请求日志配置
+  async getProxyEventLogConfig(): Promise<ProxyEventLogConfig> {
+    return invoke("get_proxy_event_log_config");
+  },
+
+  // 更新详细请求日志配置
+  async setProxyEventLogConfig(config: ProxyEventLogConfig): Promise<void> {
+    return invoke("set_proxy_event_log_config", { config });
   },
 
   // 获取指定应用的代理配置

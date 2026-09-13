@@ -357,6 +357,10 @@ export const handlers = [
 
   http.post(`${TAURI_ENDPOINT}/is_live_takeover_active`, () => success(false)),
 
+  http.post(`${TAURI_ENDPOINT}/get_proxy_event_log_config`, () =>
+    success({ enabled: true, logBodyLimit: 65536, purgeDays: 7 }),
+  ),
+
   // Failover / circuit breaker defaults
   http.post(`${TAURI_ENDPOINT}/get_auto_failover_enabled`, () =>
     success(false),

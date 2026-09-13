@@ -2930,6 +2930,21 @@
       "disabled": "ログ記録が無効になりました",
       "failed": "ログ状態の切り替えに失敗しました"
     },
+    "eventLog": {
+      "title": "詳細リクエストログ",
+      "description": "リクエストとレスポンス本文の保存上限とログの保持期間を設定します。",
+      "bodyLimit": "本文の保存上限（KiB）",
+      "bodyLimitDescription": "各方向をそれぞれ 0–{{max}} KiB に制限します。0 にするとメタデータのみを記録します。",
+      "purgeDays": "保持日数",
+      "purgeDaysDescription": "1–{{max}} 日間保持します。期限切れのログはアプリ起動時と実行中の毎日に削除されます。",
+      "effectiveHint": "本文の上限は新しいリクエストから、保持日数は次回のクリーンアップから適用されます。プロキシの再起動は不要です。",
+      "invalidBodyLimit": "本文の上限は 0–{{max}} の整数（KiB）で入力してください。",
+      "invalidPurgeDays": "保持日数は 1–{{max}} の整数で入力してください。",
+      "saved": "詳細リクエストログの設定を保存しました",
+      "saveFailed": "詳細リクエストログの設定を保存できませんでした: {{error}}",
+      "loadFailed": "詳細リクエストログの設定を読み込めませんでした",
+      "retry": "再試行"
+    },
     "server": {
       "started": "ルーティングサービスが開始されました - {{address}}:{{port}}",
       "startFailed": "ルーティングサービスの開始に失敗しました: {{detail}}",

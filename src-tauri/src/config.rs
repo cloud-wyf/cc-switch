@@ -27,6 +27,23 @@ pub fn get_home_dir() -> PathBuf {
         }
     }
 
+    // 单元测试不应因使用内存数据库而清理真实 settings.json 或轮换真实备份。
+    // 显式 CC_SWITCH_TEST_HOME 仍优先，供需要固定目录的测试使用。
+    #[cfg(test)]
+    {
+        static TEST_HOME: std::sync::OnceLock<tempfile::TempDir> = std::sync::OnceLock::new();
+        return TEST_HOME
+            .get_or_init(|| {
+                tempfile::Builder::new()
+                    .prefix("cc-switch-unit-tests-")
+                    .tempdir()
+                    .expect("create isolated test home")
+            })
+            .path()
+            .to_path_buf();
+    }
+
+    #[cfg(not(test))]
     dirs::home_dir().unwrap_or_else(|| {
         log::warn!("无法获取用户主目录，回退到当前目录");
         PathBuf::from(".")
