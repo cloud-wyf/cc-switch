@@ -1563,6 +1563,8 @@ pub fn run() {
             commands::update_global_proxy_config,
             commands::get_proxy_event_log_config,
             commands::set_proxy_event_log_config,
+            commands::list_proxy_events,
+            commands::get_proxy_event,
             commands::get_proxy_config_for_app,
             commands::update_proxy_config_for_app,
             commands::get_default_cost_multiplier,

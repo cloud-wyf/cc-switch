@@ -6,6 +6,9 @@ import type {
   GlobalProxyConfig,
   AppProxyConfig,
   ProxyEventLogConfig,
+  ProxyEventDetail,
+  ProxyEventPage,
+  ProxyEventQuery,
 } from "@/types/proxy";
 
 export const proxyApi = {
@@ -66,6 +69,16 @@ export const proxyApi = {
   // 更新详细请求日志配置
   async setProxyEventLogConfig(config: ProxyEventLogConfig): Promise<void> {
     return invoke("set_proxy_event_log_config", { config });
+  },
+
+  // 详细请求日志分页列表
+  async listProxyEvents(query: ProxyEventQuery): Promise<ProxyEventPage> {
+    return invoke("list_proxy_events", { query });
+  },
+
+  // 单条详细请求日志
+  async getProxyEvent(id: number): Promise<ProxyEventDetail | null> {
+    return invoke("get_proxy_event", { id });
   },
 
   // 获取指定应用的代理配置

@@ -175,6 +175,8 @@ export const useUpdateProviderMutation = (appId: AppId) => {
     }: {
       provider: Provider;
       originalId?: string;
+      /** 覆盖默认的「供应商更新成功」提示，供开关类快捷操作使用。 */
+      successMessage?: string;
     }) => {
       await providersApi.update(provider, appId, originalId);
       return provider;
@@ -202,9 +204,10 @@ export const useUpdateProviderMutation = (appId: AppId) => {
         await invalidateHermesProviderCaches(queryClient);
       }
       toast.success(
-        t("notifications.updateSuccess", {
-          defaultValue: "供应商更新成功",
-        }),
+        variables.successMessage ??
+          t("notifications.updateSuccess", {
+            defaultValue: "供应商更新成功",
+          }),
         {
           closeButton: true,
         },

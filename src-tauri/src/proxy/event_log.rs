@@ -35,6 +35,9 @@ use std::{
 static SEQUENCE: AtomicU64 = AtomicU64::new(0);
 static RUN_AT: OnceLock<String> = OnceLock::new();
 
+/// 顶层字段名到其规范化 JSON 摘要；用完整正文比较字段变化，不受采样截断影响。
+type Fields = BTreeMap<String, [u8; 32]>;
+
 fn lock<T>(value: &Mutex<T>) -> MutexGuard<'_, T> {
     // 日志状态损坏不能使正在代理的请求 panic。
     value.lock().unwrap_or_else(|error| error.into_inner())
@@ -44,6 +47,49 @@ fn local_time() -> String {
     chrono::Local::now()
         .format("%Y-%m-%d %H:%M:%S%.3f")
         .to_string()
+}
+
+/// 递归按键排序，保证同一语义的对象无论来源如何摘要一致。
+fn canonical(value: &Value) -> Value {
+    match value {
+        Value::Object(object) => Value::Object(
+            object
+                .iter()
+                .collect::<BTreeMap<_, _>>()
+                .into_iter()
+                .map(|(key, value)| (key.clone(), canonical(value)))
+                .collect(),
+        ),
+        Value::Array(items) => Value::Array(items.iter().map(canonical).collect()),
+        other => other.clone(),
+    }
+}
+
+fn fields_of(value: &Value) -> Option<Fields> {
+    value.as_object().map(|object| {
+        object
+            .iter()
+            .map(|(key, value)| {
+                let bytes = serde_json::to_vec(&canonical(value)).unwrap_or_default();
+                (key.clone(), Sha256::digest(bytes).into())
+            })
+            .collect()
+    })
+}
+
+/// 相对基准正文的顶层差异：新增或修改的字段带完整值，删除的字段只记名字。
+fn field_delta(base: &Fields, object: &serde_json::Map<String, Value>, fields: &Fields) -> Value {
+    let mut set = serde_json::Map::new();
+    for (key, hash) in fields {
+        if base.get(key) != Some(hash) {
+            set.insert(key.clone(), object[key].clone());
+        }
+    }
+    let unset: Vec<&String> = base
+        .keys()
+        .filter(|key| !fields.contains_key(*key))
+        .collect();
+    json!({"set": set, "unset": unset})
 }
 
 #[derive(Clone)]
@@ -227,6 +273,10 @@ struct RequestSample {
     secrets: Vec<String>,
     body: Sample,
     model_hint: Option<String>,
+    /// 完整正文的顶层字段摘要；非 JSON 对象时为 None。
+    fields: Option<Fields>,
+    /// 相对原始请求的差异编码；能放进上限时替代正文前缀。
+    delta: Option<Value>,
 }
 
 impl RequestSample {
@@ -256,24 +306,47 @@ impl RequestSample {
             secrets: header_secrets(headers),
             body: Sample::new(limit),
             model_hint: None,
+            fields: None,
+            delta: None,
         }
     }
 
-    fn upstream(request: &UpstreamRequest, limit: usize) -> Self {
-        let mut sample = Self::new(&request.method, &request.url, &request.headers, limit);
-        // 只反序列化模型名，忽略大 messages/input；正文截断不影响可检索的模型元数据。
-        #[derive(serde::Deserialize)]
-        struct ModelOnly {
-            model: Option<String>,
-        }
-        sample.model_hint = serde_json::from_slice::<ModelOnly>(&request.body)
-            .ok()
-            .and_then(|body| body.model)
+    /// 上游请求的完整正文都在内存里：先算字段摘要和差异，再决定是否还要保存前缀。
+    fn upstream(request: &UpstreamRequest, limit: usize, base: Option<&Fields>) -> Self {
+        let parsed: Option<Value> = serde_json::from_slice(&request.body).ok();
+        let fields = parsed.as_ref().and_then(fields_of);
+        let delta = match (base, parsed.as_ref().and_then(Value::as_object), &fields) {
+            (Some(base), Some(object), Some(fields)) if limit > 0 => {
+                let data = field_delta(base, object, fields);
+                serde_json::to_vec(&data)
+                    .ok()
+                    .filter(|bytes| bytes.len() <= limit)
+                    .map(|_| {
+                        json!({"encoding":"delta","base":"orig_body","size":request.body.len(),
+                            "truncated":false,"complete":true,"data":data})
+                    })
+            }
+            _ => None,
+        };
+        let prefix_limit = if delta.is_some() { 0 } else { limit };
+        let mut sample = Self::new(
+            &request.method,
+            &request.url,
+            &request.headers,
+            prefix_limit,
+        );
+        sample.model_hint = parsed
+            .as_ref()
+            .and_then(|body| body.get("model"))
+            .and_then(Value::as_str)
+            .map(str::to_string)
             .or_else(|| {
                 url::Url::parse(&request.url).ok().and_then(|url| {
                     super::handler_context::extract_gemini_model_from_path(url.path())
                 })
             });
+        sample.fields = fields;
+        sample.delta = delta;
         sample.body.push(&request.body);
         sample.body.finish(None);
         sample
@@ -284,6 +357,10 @@ impl RequestSample {
             || self.raw_url_hash != other.raw_url_hash
             || self.header_hash != other.header_hash
             || self.body.signature() != other.body.signature()
+    }
+
+    fn body_json(&self) -> Value {
+        self.delta.clone().unwrap_or_else(|| self.body.json())
     }
 
     fn model(&self) -> Option<String> {
@@ -357,12 +434,20 @@ struct AttemptState {
 #[derive(Clone)]
 pub(crate) struct AttemptLog {
     state: Arc<Mutex<AttemptState>>,
+    /// 整次客户端请求的原始正文字段摘要，所有差异编码都相对它计算。
+    original: Arc<Mutex<Option<Fields>>>,
     limit: usize,
 }
 
 impl AttemptLog {
+    fn base(&self) -> Option<Fields> {
+        lock(&self.original).clone()
+    }
+
     pub(crate) fn script_input(&self, request: &UpstreamRequest) {
-        lock(&self.state).script_input = Some(RequestSample::upstream(request, self.limit));
+        let base = self.base();
+        lock(&self.state).script_input =
+            Some(RequestSample::upstream(request, self.limit, base.as_ref()));
     }
 
     pub(crate) fn script_started(&self) {
@@ -374,8 +459,9 @@ impl AttemptLog {
     }
 
     fn start_forward(&self, request: &UpstreamRequest) -> Arc<Mutex<ForwardState>> {
+        let base = self.base();
         let forward = Arc::new(Mutex::new(ForwardState {
-            request: RequestSample::upstream(request, self.limit),
+            request: RequestSample::upstream(request, self.limit, base.as_ref()),
             response: None,
             error: None,
             started: Instant::now(),
@@ -477,6 +563,8 @@ struct TraceInner {
     created_at: i64,
     start: Instant,
     original: RequestSample,
+    /// 第一次进入转发器时的客户端正文字段摘要。
+    original_fields: Arc<Mutex<Option<Fields>>>,
     state: Mutex<TraceState>,
 }
 
@@ -499,6 +587,7 @@ impl RequestTrace {
             started_at: local_time(),
             created_at: chrono::Utc::now().timestamp(),
             start: Instant::now(),
+            original_fields: Arc::new(Mutex::new(None)),
             state: Mutex::new(TraceState {
                 attempts: Vec::new(),
                 client: None,
@@ -512,9 +601,17 @@ impl RequestTrace {
         provider: &Provider,
         session_id: &str,
         request_model: Option<&str>,
+        body: &Value,
     ) -> AttemptLog {
+        {
+            let mut original = lock(&self.0.original_fields);
+            if original.is_none() {
+                *original = fields_of(body);
+            }
+        }
         let attempt = AttemptLog {
             limit: self.0.config.log_body_limit,
+            original: self.0.original_fields.clone(),
             state: Arc::new(Mutex::new(AttemptState {
                 app_type: app_type.into(),
                 provider_id: provider.id.clone(),
@@ -535,6 +632,7 @@ impl RequestTrace {
     fn events(&self, finish_reason: &str) -> Vec<Value> {
         let state = lock(&self.0.state);
         let client = state.client.as_ref();
+        let original_fields = lock(&self.0.original_fields).clone();
         let base = json!({
             "request_id":self.0.request_id,"run_at":RUN_AT.get_or_init(local_time),"seq":self.0.seq,
             "started_at":self.0.started_at,"created_at":self.0.created_at,"duration_ms":self.0.start.elapsed().as_millis() as u64,
@@ -566,7 +664,7 @@ impl RequestTrace {
                 secrets.extend(input.secrets.clone());
                 entry["script_url"] = json!(input.url);
                 entry["script_headers"] = input.headers.clone();
-                entry["script_body"] = input.body.json();
+                entry["script_body"] = input.body_json();
             }
             if attempt.forwards.is_empty() {
                 events.push(entry);
@@ -581,7 +679,16 @@ impl RequestTrace {
                 event["fwd_url"] = json!(forward.request.url);
                 event["fwd_method"] = json!(forward.request.method);
                 event["fwd_headers"] = forward.request.headers.clone();
-                event["fwd_body"] = forward.request.body.json();
+                // 脚本原样转发时正文与脚本输入逐字节相同，只记引用不重复保存。
+                let same_as_input = attempt.script_input.as_ref().is_some_and(|input| {
+                    input.body.signature() == forward.request.body.signature()
+                });
+                event["fwd_body"] = if same_as_input {
+                    let size = forward.request.body.signature().0;
+                    json!({"encoding":"same_as","ref":"script_body","size":size,"truncated":false,"complete":true,"data":Value::Null})
+                } else {
+                    forward.request.body_json()
+                };
                 event["model"] = json!(forward.request.model());
                 event["upstream_header_ms"] = json!(forward.header_ms);
                 event["upstream_duration_ms"] = json!(forward.duration_ms);
@@ -592,7 +699,12 @@ impl RequestTrace {
                         attempt.script_used && input.raw_url_hash != forward.request.raw_url_hash
                     );
                 }
-                event["mods"] = modifications(&self.0.original, &forward.request);
+                event["mods"] = modifications(
+                    &self.0.original.headers,
+                    &forward.request.headers,
+                    original_fields.as_ref(),
+                    forward.request.fields.as_ref(),
+                );
                 if let Some(error) = &forward.error {
                     event["error"] = json!(error);
                 }
@@ -653,12 +765,13 @@ fn redact_values(value: &mut Value, secrets: &[String]) {
     }
 }
 
-fn modifications(before: &RequestSample, after: &RequestSample) -> Value {
-    let before_body = before.body.json();
-    let after_body = after.body.json();
-    let mut removed = Vec::new();
-    let mut added = Vec::new();
-    let mut changed = Vec::new();
+/// 原始请求与转发请求的顶层字段变化；字段摘要来自完整正文，与采样截断无关。
+fn modifications(
+    before_headers: &Value,
+    after_headers: &Value,
+    before: Option<&Fields>,
+    after: Option<&Fields>,
+) -> Value {
     let betas = |headers: &Value| -> Vec<String> {
         let values = match &headers["anthropic-beta"] {
             Value::String(value) => vec![value.as_str()],
@@ -673,20 +786,20 @@ fn modifications(before: &RequestSample, after: &RequestSample) -> Value {
             .map(str::to_string)
             .collect()
     };
-    let after_betas = betas(&after.headers);
-    let dropped_beta: Vec<_> = betas(&before.headers)
+    let after_betas = betas(after_headers);
+    let dropped_beta: Vec<_> = betas(before_headers)
         .into_iter()
         .filter(|beta| !after_betas.contains(beta))
         .collect();
-    if let (Some(before), Some(after)) = (
-        before_body["data"].as_object(),
-        after_body["data"].as_object(),
-    ) {
-        for key in before.keys() {
-            if !after.contains_key(key) {
-                removed.push(key);
-            } else if before[key] != after[key] {
-                changed.push(key);
+    let mut removed = Vec::new();
+    let mut added = Vec::new();
+    let mut changed = Vec::new();
+    if let (Some(before), Some(after)) = (before, after) {
+        for (key, hash) in before {
+            match after.get(key) {
+                None => removed.push(key),
+                Some(other) if other != hash => changed.push(key),
+                Some(_) => {}
             }
         }
         for key in after.keys() {
@@ -696,7 +809,7 @@ fn modifications(before: &RequestSample, after: &RequestSample) -> Value {
         }
     }
     json!({"dropped_beta":dropped_beta,"stripped_fields":removed,"injected_fields":added,"changed_fields":changed,
-        "body_diff_truncated":before_body["truncated"] == true || after_body["truncated"] == true})
+        "diff_unavailable":before.is_none() || after.is_none()})
 }
 
 /// 根 guard 在响应读取完毕或客户端中断时提交一次；未轮询响应也不会漏掉日志。
@@ -818,14 +931,11 @@ pub(crate) async fn middleware(
     {
         return next.run(request).await;
     }
-    let config = match state.db.get_proxy_event_log_config() {
-        Ok(config) if config.enabled => config,
-        Ok(_) => return next.run(request).await,
-        Err(error) => {
-            log::warn!("读取详细代理日志配置失败: {error}");
-            return next.run(request).await;
-        }
-    };
+    // 配置由保存命令推送到内存副本，热路径不碰数据库锁。
+    let config = state.event_log.read().await.clone();
+    if !config.enabled {
+        return next.run(request).await;
+    }
     let trace = RequestTrace::new(state.db.clone(), config, &request);
     let guard = TraceGuard(Some(trace.clone()));
     let (mut parts, body) = request.into_parts();

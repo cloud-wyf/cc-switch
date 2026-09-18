@@ -139,7 +139,8 @@ async fn post_request(url: &str) -> reqwest::Response {
 }
 
 #[test]
-fn migration_from_v18_adds_events_without_changing_existing_data() {
+fn migration_from_v18_keeps_data_and_leaves_no_events_table_in_main() {
+    // 主库迁移不依赖附加库：备份恢复和 SQL 导入的暂存连接上没有 events。
     let conn = rusqlite::Connection::open_in_memory().unwrap();
     conn.execute_batch("CREATE TABLE existing_data (value TEXT); INSERT INTO existing_data VALUES ('keep'); PRAGMA user_version = 18;").unwrap();
     Database::apply_schema_migrations_on_conn(&conn).unwrap();
@@ -147,7 +148,7 @@ fn migration_from_v18_adds_events_without_changing_existing_data() {
     assert_eq!(
         conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i32>(0))
             .unwrap(),
-        19
+        crate::database::SCHEMA_VERSION
     );
     assert_eq!(
         conn.query_row("SELECT value FROM existing_data", [], |r| r
@@ -155,7 +156,17 @@ fn migration_from_v18_adds_events_without_changing_existing_data() {
             .unwrap(),
         "keep"
     );
-    conn.prepare("SELECT script_used, request_changed, route_changed, orig_body, fwd_body, resp_body, client_body FROM proxy_request_events").unwrap();
+    let legacy_tables: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM main.sqlite_master WHERE name = 'proxy_request_events'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(legacy_tables, 0);
+    // 附加库里的表由 Database 打开时创建，与主库版本无关。
+    let db = Database::memory().unwrap();
+    db.conn.lock().unwrap().prepare("SELECT script_used, request_changed, route_changed, orig_body, fwd_body, resp_body, client_body FROM events.proxy_request_events").unwrap();
 }
 
 #[test]
@@ -213,14 +224,48 @@ fn secret_url_parameters_and_legacy_modification_fields_are_preserved_safely() {
             .collect(),
         body: br#"{"model":"new","thinking":{"type":"disabled"}}"#.to_vec(),
     };
+    let before = RequestSample::upstream(&original, 65536, None);
+    let after = RequestSample::upstream(&modified, 65536, None);
     let diff = modifications(
-        &RequestSample::upstream(&original, 65536),
-        &RequestSample::upstream(&modified, 65536),
+        &before.headers,
+        &after.headers,
+        before.fields.as_ref(),
+        after.fields.as_ref(),
     );
     assert_eq!(diff["dropped_beta"], json!(["drop"]));
     assert_eq!(diff["stripped_fields"], json!(["remove_me"]));
     assert_eq!(diff["injected_fields"], json!(["thinking"]));
     assert_eq!(diff["changed_fields"], json!(["model"]));
+    assert_eq!(diff["diff_unavailable"], false);
+
+    // 差异编码只存相对原始请求变化的顶层字段；放不进上限时退回保存前缀。
+    let compact = RequestSample::upstream(&modified, 65536, before.fields.as_ref());
+    assert_eq!(compact.body_json()["encoding"], "delta");
+    assert_eq!(compact.body_json()["size"], modified.body.len());
+    assert_eq!(
+        compact.body_json()["data"],
+        json!({"set":{"model":"new","thinking":{"type":"disabled"}},"unset":["remove_me"]})
+    );
+    let too_large = RequestSample::upstream(&modified, 8, before.fields.as_ref());
+    assert_eq!(too_large.body_json()["encoding"], "text");
+    assert_eq!(too_large.body_json()["truncated"], true);
+    let text = UpstreamRequest {
+        url: original.url.clone(),
+        method: Method::POST,
+        headers: HeaderMap::new(),
+        body: b"plain text".to_vec(),
+    };
+    let unparsed = RequestSample::upstream(&text, 65536, before.fields.as_ref());
+    assert_eq!(unparsed.body_json()["encoding"], "text");
+    assert_eq!(
+        modifications(
+            &Value::Null,
+            &Value::Null,
+            before.fields.as_ref(),
+            unparsed.fields.as_ref()
+        )["diff_unavailable"],
+        true
+    );
 }
 
 #[tokio::test]
@@ -230,11 +275,13 @@ async fn body_limit_updates_apply_without_restarting_and_keep_the_actual_model()
     let db = Arc::new(Database::memory().unwrap());
     let (proxy, url) = proxy(db.clone(), &provider("large", &upstream, None, false)).await;
     for (index, limit) in [65536, 128 * 1024, 0].into_iter().enumerate() {
-        db.set_proxy_event_log_config(&ProxyEventLogConfig {
+        let config = ProxyEventLogConfig {
             log_body_limit: limit,
             ..Default::default()
-        })
-        .unwrap();
+        };
+        db.set_proxy_event_log_config(&config).unwrap();
+        // 保存命令会把新配置推给运行中的服务器，请求路径不再每次读数据库。
+        proxy.apply_event_log_config(config).await;
         let response = reqwest::Client::builder()
             .no_proxy()
             .build()
@@ -252,14 +299,19 @@ async fn body_limit_updates_apply_without_restarting_and_keep_the_actual_model()
         let event = &events[index];
         assert_eq!(event["model"], "original-model");
         assert_eq!(event["request_model"], "original-model");
-        assert_eq!(event["fwd_body"]["truncated"], limit < 80_000);
         assert_eq!(event["orig_body"]["truncated"], limit < 80_000);
         assert!(event["fwd_body"]["size"].as_u64().unwrap() > 80_000);
         assert!(event["upstream_header_ms"].is_number());
         assert!(event["upstream_duration_ms"].is_number());
         if limit == 0 {
             assert_eq!(event["fwd_body"]["encoding"], "omitted");
+        } else {
+            // 转发正文只记相对原始请求的差异，不再重复保存 80 KB 的前缀。
+            assert_eq!(event["fwd_body"]["encoding"], "delta");
+            assert_eq!(event["fwd_body"]["truncated"], false);
+            assert!(event["fwd_body"]["data"]["set"].get("input").is_none());
         }
+        assert!(event["script_body"].is_null(), "no script ran: {event:#}");
     }
     proxy.stop().await.unwrap();
     server.abort();
@@ -420,7 +472,19 @@ async fn requests_without_active_script_keep_four_phases_and_redact_credentials(
         assert_eq!(event["request_changed"], 0, "{event:#}");
         assert_eq!(event["route_changed"], 0);
         assert_eq!(event["orig_body"]["data"]["input"], "name this task");
-        assert_eq!(event["fwd_body"]["data"]["model"], "original-model");
+        assert_eq!(event["model"], "original-model");
+        if enabled {
+            // 脚本原样转发：脚本输入是差异编码，转发正文只引用脚本输入。
+            assert_eq!(event["script_body"]["encoding"], "delta");
+            assert_eq!(event["fwd_body"]["encoding"], "same_as");
+            assert_eq!(event["fwd_body"]["ref"], "script_body");
+        } else {
+            assert!(event["script_body"].is_null(), "{event:#}");
+            assert_eq!(event["fwd_body"]["encoding"], "delta");
+            assert!(event["fwd_body"]["data"]["set"].get("model").is_none());
+        }
+        assert_eq!(event["mods"]["changed_fields"], json!([]));
+        assert_eq!(event["mods"]["diff_unavailable"], false);
         assert_eq!(event["resp_body"]["data"], expected);
         assert_eq!(event["client_body"]["encoding"], "forwarded");
         assert_eq!(event["orig_headers"]["authorization"], "[REDACTED]");
@@ -466,7 +530,12 @@ async fn script_routing_and_response_rewrite_are_recorded_separately() {
         .as_str()
         .unwrap()
         .ends_with("/alternate/responses"));
-    assert_eq!(event["script_body"]["data"]["model"], "original-model");
+    // 脚本输入相对原始请求没有改动；脚本改写的模型只出现在转发正文的差异里，字段变更用完整正文比较。
+    assert_eq!(event["script_body"]["encoding"], "delta");
+    assert!(event["script_body"]["data"]["set"].get("model").is_none());
+    assert_eq!(event["fwd_body"]["encoding"], "delta");
+    assert_eq!(event["fwd_body"]["data"]["set"]["model"], "deepseek-test");
+    assert_eq!(event["mods"]["changed_fields"], json!(["model"]));
     assert_eq!(event["resp_body"]["data"]["model"], "deepseek-test");
     assert_eq!(event["client_body"]["data"]["rewritten"], true);
     assert_eq!(event["status"], 200);

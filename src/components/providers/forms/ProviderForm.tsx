@@ -302,6 +302,7 @@ export function ProviderForm(props: ProviderFormProps) {
     ...props,
     proxyScriptField: supported ? (
       <ProxyScriptField
+        key={props.providerId ?? "new"}
         value={script}
         onChange={setScript}
         enabled={scriptEnabled}
@@ -315,8 +316,11 @@ export function ProviderForm(props: ProviderFormProps) {
               ...values,
               meta: {
                 ...values.meta,
+                // 没有脚本时两个字段都不写，保持 meta 干净；旧数据缺失开关仍按启用处理。
                 localProxyScript: script.trim() ? script : undefined,
-                localProxyScriptEnabled: scriptEnabled,
+                localProxyScriptEnabled: script.trim()
+                  ? scriptEnabled
+                  : undefined,
               },
             }
           : values,

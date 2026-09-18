@@ -14,6 +14,19 @@ export function hasEnabledProxyScript(meta?: ProviderMeta): boolean {
   );
 }
 
+/** 脚本已启用但该应用未开启本地路由：请求直连上游，脚本不会执行。 */
+export function proxyScriptInactive(
+  appId: AppId,
+  meta: ProviderMeta | undefined,
+  routingActive: boolean,
+): boolean {
+  return (
+    !routingActive &&
+    ["claude", "codex", "gemini", "grokbuild"].includes(appId) &&
+    hasEnabledProxyScript(meta)
+  );
+}
+
 export const PROXY_SCRIPT_EXAMPLE = `export default async function middleware(
   request: Request,
   next: (request?: Request) => Promise<Response>,

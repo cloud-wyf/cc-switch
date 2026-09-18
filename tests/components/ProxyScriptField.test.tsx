@@ -209,11 +209,31 @@ describe("per-provider proxy script persistence", () => {
       expect.objectContaining({
         meta: {
           localProxyScript: undefined,
-          localProxyScriptEnabled: true,
+          localProxyScriptEnabled: undefined,
           costMultiplier: "2",
         },
       }),
     );
+  });
+
+  it("does not write a script switch for providers without a script", () => {
+    const onSubmit = vi.fn();
+    render(
+      <ProviderForm
+        appId="grokbuild"
+        providerId="plain"
+        submitLabel="保存"
+        onCancel={vi.fn()}
+        onSubmit={onSubmit}
+        initialData={{ meta: { costMultiplier: "2" } }}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "保存供应商" }));
+    expect(onSubmit.mock.lastCall![0].meta).toEqual({
+      localProxyScript: undefined,
+      localProxyScriptEnabled: undefined,
+      costMultiplier: "2",
+    });
   });
 
   it("loads the selected provider's own script and switch state", async () => {

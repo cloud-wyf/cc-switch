@@ -306,3 +306,18 @@ async fn shipped_compatibility_example_patches_beta_thinking_and_empty_response(
     assert_eq!(response.status(), http::StatusCode::BAD_GATEWAY);
     assert_eq!(json_body(response).await["error"]["type"], "api_error");
 }
+
+#[tokio::test]
+async fn validation_results_are_cached_by_source_digest() {
+    let source = "export default (_request, next) => next(); // digest-cache";
+    validate(source).await.unwrap();
+    assert!(is_validated(&source_digest(source)));
+    // 缓存命中不再启动 Node：即便进程槽全部被占用也立即返回。
+    let permits = PROCESS_SLOTS.acquire_many(16).await.unwrap();
+    validate(source).await.unwrap();
+    drop(permits);
+    let broken = "export default (";
+    assert!(!is_validated(&source_digest(broken)));
+    assert!(validate(broken).await.is_err());
+    assert!(!is_validated(&source_digest(broken)));
+}

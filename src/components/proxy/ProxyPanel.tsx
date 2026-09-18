@@ -15,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { ToggleRow } from "@/components/ui/toggle-row";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ProxyEventLogConfigPanel } from "@/components/proxy/ProxyEventLogConfigPanel";
 import { toast } from "sonner";
 import { useFailoverQueue } from "@/lib/query/failover";
@@ -27,6 +28,8 @@ import {
   useGlobalProxyConfig,
   useUpdateGlobalProxyConfig,
 } from "@/lib/query/proxy";
+import { providersApi } from "@/lib/api/providers";
+import { hasEnabledProxyScript } from "@/lib/proxyScript";
 import type { ProxyStatus } from "@/types/proxy";
 import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion } from "framer-motion";
@@ -81,7 +84,13 @@ export function ProxyPanel({
   const { data: geminiQueue = [] } = useFailoverQueue("gemini");
   const { data: grokQueue = [] } = useFailoverQueue("grokbuild");
 
-  const handleTakeoverChange = async (appType: string, enabled: boolean) => {
+  // 关闭本地路由前，若当前供应商启用了代理脚本，先让用户确认脚本将停止执行。
+  const [scriptConfirm, setScriptConfirm] = useState<{
+    appType: string;
+    provider: string;
+  } | null>(null);
+
+  const applyTakeoverChange = async (appType: string, enabled: boolean) => {
     try {
       await setTakeoverForApp.mutateAsync({ appType, enabled });
       toast.success(
@@ -107,6 +116,20 @@ export function ProxyPanel({
         }),
       );
     }
+  };
+
+  const handleTakeoverChange = async (
+    appType: ProxyAppId,
+    enabled: boolean,
+  ) => {
+    if (!enabled) {
+      const scripted = await currentScriptedProvider(appType);
+      if (scripted) {
+        setScriptConfirm({ appType, provider: scripted });
+        return;
+      }
+    }
+    await applyTakeoverChange(appType, enabled);
   };
 
   const handleLoggingChange = async (enabled: boolean) => {
@@ -297,6 +320,7 @@ export function ProxyPanel({
                             handleTakeoverChange(appType, checked)
                           }
                           disabled={setTakeoverForApp.isPending}
+                          aria-label={getAppLabel(appType)}
                         />
                       </div>
                     );
@@ -624,8 +648,40 @@ export function ProxyPanel({
         )}
         <ProxyEventLogConfigPanel />
       </section>
+      <ConfirmDialog
+        isOpen={scriptConfirm !== null}
+        variant="destructive"
+        title={t("proxy.takeover.scriptConfirmTitle")}
+        message={t("proxy.takeover.scriptConfirmMessage", {
+          provider: scriptConfirm?.provider ?? "",
+          app: scriptConfirm ? getAppLabel(scriptConfirm.appType) : "",
+        })}
+        confirmText={t("proxy.takeover.scriptConfirmAction")}
+        onConfirm={() => {
+          const pending = scriptConfirm;
+          setScriptConfirm(null);
+          if (pending) void applyTakeoverChange(pending.appType, false);
+        }}
+        onCancel={() => setScriptConfirm(null)}
+      />
     </>
   );
+}
+
+/** 当前供应商启用了非空脚本时返回其名称；查询失败按无脚本处理，不阻塞关闭。 */
+async function currentScriptedProvider(
+  appType: ProxyAppId,
+): Promise<string | null> {
+  try {
+    const [providers, currentId] = await Promise.all([
+      providersApi.getAll(appType),
+      providersApi.getCurrent(appType),
+    ]);
+    const current = providers[currentId];
+    return current && hasEnabledProxyScript(current.meta) ? current.name : null;
+  } catch {
+    return null;
+  }
 }
 
 interface StatCardProps {

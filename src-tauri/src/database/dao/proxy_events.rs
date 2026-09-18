@@ -1,15 +1,23 @@
-//! 详细代理日志持久化。正文只保存采样前缀，清理独立于用量统计和自动备份开关。
+//! 详细代理日志持久化。表位于附加库 events（proxy-events.db），主库备份和配置同步天然不包含它。
 
 use crate::database::{lock_conn, to_json_string, Database};
 use crate::error::AppError;
-use rusqlite::Connection;
+use rusqlite::{params_from_iter, types::Value as SqlValue, Connection};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
+use std::path::Path;
 
 pub(crate) const SCHEMA: &str = include_str!("../proxy_events.sql");
 pub(crate) const CONFIG_KEY: &str = "proxy_event_log_config";
+pub(crate) const EVENTS_FILE: &str = "proxy-events.db";
 const MAX_BODY_LIMIT: usize = 1024 * 1024;
 const MAX_PURGE_DAYS: u32 = 365;
+/// 保留天数之外的硬上限，防止客户端重试风暴在几分钟内写满磁盘。
+pub(crate) const MAX_ROWS: u32 = 2000;
+const MAX_PAGE_SIZE: u32 = 200;
+const DEFAULT_PAGE_SIZE: u32 = 50;
+const COLUMNS: &str = "request_id,app_type,provider_id,session_id,attempt,forward_seq,script_enabled,script_used,request_changed,route_changed,target,upstream,run_at,seq,started_at,created_at,duration_ms,method,url,request_model,model,status,client_status,total_bytes,upstream_header_ms,upstream_duration_ms,stream_error,rewritten,error,finish_reason,mods,orig_headers,orig_body,script_url,script_headers,script_body,fwd_url,fwd_method,fwd_headers,fwd_body,resp_headers,resp_body,client_headers,client_body";
+const SUMMARY_COLUMNS: &str = "id,request_id,app_type,provider_id,session_id,attempt,forward_seq,script_enabled,script_used,request_changed,route_changed,target,started_at,created_at,duration_ms,method,url,request_model,model,status,client_status,total_bytes,upstream_header_ms,upstream_duration_ms,finish_reason,error,fwd_url";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -29,10 +37,206 @@ impl Default for ProxyEventLogConfig {
     }
 }
 
+/// 列表查询条件；缺省字段不过滤。
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ProxyEventQuery {
+    pub app_type: Option<String>,
+    pub provider_id: Option<String>,
+    pub target: Option<String>,
+    pub model: Option<String>,
+    /// success | error | 4xx | 5xx | none
+    pub status: Option<String>,
+    pub script_used: Option<bool>,
+    pub route_changed: Option<bool>,
+    pub search: Option<String>,
+    pub since: Option<i64>,
+    pub until: Option<i64>,
+    pub sort_by: Option<String>,
+    pub sort_dir: Option<String>,
+    pub page: u32,
+    pub page_size: u32,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProxyEventPage {
+    pub items: Vec<Value>,
+    pub total: u64,
+    pub failed: u64,
+    pub script_used: u64,
+    pub avg_duration_ms: Option<f64>,
+    pub page: u32,
+    pub page_size: u32,
+}
+
+fn like(pattern: &str) -> SqlValue {
+    SqlValue::Text(format!("%{}%", pattern.trim()))
+}
+
+fn present(value: &Option<String>) -> Option<&str> {
+    value.as_deref().map(str::trim).filter(|s| !s.is_empty())
+}
+
+impl ProxyEventQuery {
+    fn conditions(&self) -> (String, Vec<SqlValue>) {
+        let mut clauses: Vec<String> = Vec::new();
+        let mut params: Vec<SqlValue> = Vec::new();
+        if let Some(app) = present(&self.app_type) {
+            params.push(SqlValue::Text(app.into()));
+            clauses.push(format!("app_type = ?{}", params.len()));
+        }
+        if let Some(id) = present(&self.provider_id) {
+            params.push(SqlValue::Text(id.into()));
+            clauses.push(format!("provider_id = ?{}", params.len()));
+        }
+        if let Some(target) = present(&self.target) {
+            params.push(like(target));
+            clauses.push(format!("target LIKE ?{}", params.len()));
+        }
+        if let Some(model) = present(&self.model) {
+            params.push(like(model));
+            params.push(like(model));
+            clauses.push(format!(
+                "(request_model LIKE ?{} OR model LIKE ?{})",
+                params.len() - 1,
+                params.len()
+            ));
+        }
+        match self.status.as_deref() {
+            Some("success") => clauses.push("client_status < 400".into()),
+            Some("error") => clauses.push("(client_status IS NULL OR client_status >= 400)".into()),
+            Some("4xx") => clauses.push("status BETWEEN 400 AND 499".into()),
+            Some("5xx") => clauses.push("status >= 500".into()),
+            Some("none") => clauses.push("status IS NULL".into()),
+            _ => {}
+        }
+        if let Some(used) = self.script_used {
+            clauses.push(format!("script_used = {}", i32::from(used)));
+        }
+        if let Some(changed) = self.route_changed {
+            clauses.push(format!("route_changed = {}", i32::from(changed)));
+        }
+        if let Some(search) = present(&self.search) {
+            let first = params.len() + 1;
+            params.extend(std::iter::repeat_n(like(search), 4));
+            clauses.push(format!(
+                "(request_id LIKE ?{first} OR url LIKE ?{} OR fwd_url LIKE ?{} OR error LIKE ?{})",
+                first + 1,
+                first + 2,
+                first + 3
+            ));
+        }
+        if let Some(since) = self.since {
+            params.push(SqlValue::Integer(since));
+            clauses.push(format!("created_at >= ?{}", params.len()));
+        }
+        if let Some(until) = self.until {
+            params.push(SqlValue::Integer(until));
+            clauses.push(format!("created_at <= ?{}", params.len()));
+        }
+        let sql = if clauses.is_empty() {
+            String::new()
+        } else {
+            format!(" WHERE {}", clauses.join(" AND "))
+        };
+        (sql, params)
+    }
+
+    fn order(&self) -> String {
+        let column = match self.sort_by.as_deref() {
+            Some("duration_ms") => "duration_ms",
+            Some("upstream_duration_ms") => "upstream_duration_ms",
+            Some("status") => "status",
+            Some("client_status") => "client_status",
+            Some("target") => "target",
+            Some("model") => "model",
+            Some("app_type") => "app_type",
+            _ => "id",
+        };
+        let direction = if self.sort_dir.as_deref() == Some("asc") {
+            "ASC"
+        } else {
+            "DESC"
+        };
+        // id 是插入顺序，作为并列时的稳定次序。
+        format!(" ORDER BY {column} {direction}, id {direction}")
+    }
+}
+
+fn row_to_json(row: &rusqlite::Row<'_>, names: &[String]) -> rusqlite::Result<Value> {
+    use rusqlite::types::ValueRef;
+    let mut object = serde_json::Map::new();
+    for (index, name) in names.iter().enumerate() {
+        let value = match row.get_ref(index)? {
+            ValueRef::Null => Value::Null,
+            ValueRef::Integer(value) => json!(value),
+            ValueRef::Real(value) => json!(value),
+            ValueRef::Text(bytes) => {
+                let text = String::from_utf8_lossy(bytes);
+                if name.ends_with("_headers") || name.ends_with("_body") || name == "mods" {
+                    serde_json::from_str(&text).unwrap_or_else(|_| json!(text))
+                } else {
+                    json!(text)
+                }
+            }
+            ValueRef::Blob(bytes) => json!(String::from_utf8_lossy(bytes)),
+        };
+        object.insert(name.clone(), value);
+    }
+    Ok(Value::Object(object))
+}
+
 impl Database {
+    /// 把详细日志库附加到当前连接并建表；文件不存在时自动创建。
+    pub(crate) fn attach_proxy_events(conn: &Connection, path: &Path) -> Result<(), AppError> {
+        conn.execute(
+            "ATTACH DATABASE ?1 AS events",
+            [path.to_string_lossy().as_ref()],
+        )
+        .map_err(|e| AppError::Database(format!("附加详细代理日志库失败: {e}")))?;
+        // 只对空库生效；已有数据的库沿用原有模式。
+        conn.execute_batch("PRAGMA events.auto_vacuum = INCREMENTAL;")
+            .map_err(|e| AppError::Database(format!("设置详细代理日志库 auto_vacuum 失败: {e}")))?;
+        Self::create_proxy_event_tables(conn)
+    }
+
     pub(crate) fn create_proxy_event_tables(conn: &Connection) -> Result<(), AppError> {
         conn.execute_batch(SCHEMA)
             .map_err(|e| AppError::Database(format!("创建详细代理日志表失败: {e}")))
+    }
+
+    /// 旧版本把事件表建在主库；启动时把行搬到附加库，然后删除主库表。
+    /// 复制和删除在同一事务里，失败时主库表原样保留，由随后的 v20 迁移清理。
+    pub(crate) fn migrate_legacy_proxy_events(conn: &Connection) -> Result<u64, AppError> {
+        let legacy: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM main.sqlite_master WHERE type = 'table' AND name = 'proxy_request_events'",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        if legacy == 0 {
+            return Ok(0);
+        }
+        let tx = conn
+            .unchecked_transaction()
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        let moved = tx
+            .execute(
+                &format!(
+                    "INSERT OR IGNORE INTO events.proxy_request_events (id,{COLUMNS}) SELECT id,{COLUMNS} FROM main.proxy_request_events"
+                ),
+                [],
+            )
+            .map_err(|e| AppError::Database(format!("迁移旧版详细代理日志失败: {e}")))?;
+        tx.execute_batch("DROP TABLE main.proxy_request_events;")
+            .map_err(|e| AppError::Database(format!("删除主库旧版详细代理日志表失败: {e}")))?;
+        tx.commit().map_err(|e| AppError::Database(e.to_string()))?;
+        if moved > 0 {
+            log::info!("已把 {moved} 条详细代理日志迁移到独立日志库");
+        }
+        Ok(moved as u64)
     }
 
     pub fn get_proxy_event_log_config(&self) -> Result<ProxyEventLogConfig, AppError> {
@@ -62,7 +266,7 @@ impl Database {
         self.set_setting(CONFIG_KEY, &to_json_string(config)?)
     }
 
-    /// 一批记录在一个事务内写入，流式转发期间不持有 SQLite 锁。
+    /// 一批记录在一个事务内写入，流式转发期间不持有 SQLite 锁；写入后按行数上限裁掉最旧的记录。
     pub(crate) fn save_proxy_events(&self, events: &[Value]) -> Result<(), AppError> {
         if events.is_empty() {
             return Ok(());
@@ -73,13 +277,13 @@ impl Database {
             .map_err(|e| AppError::Database(e.to_string()))?;
         {
             // 列名固定；报文 JSON 作为绑定参数传入，不拼接到 SQL。
-            const COLUMNS: &str = "request_id,app_type,provider_id,session_id,attempt,forward_seq,script_enabled,script_used,request_changed,route_changed,target,upstream,run_at,seq,started_at,created_at,duration_ms,method,url,request_model,model,status,client_status,total_bytes,upstream_header_ms,upstream_duration_ms,stream_error,rewritten,error,finish_reason,mods,orig_headers,orig_body,script_url,script_headers,script_body,fwd_url,fwd_method,fwd_headers,fwd_body,resp_headers,resp_body,client_headers,client_body";
             let values = COLUMNS
                 .split(',')
                 .map(|name| format!("json_extract(?1, '$.{name}')"))
                 .collect::<Vec<_>>()
                 .join(",");
-            let sql = format!("INSERT INTO proxy_request_events ({COLUMNS}) SELECT {values}");
+            let sql =
+                format!("INSERT INTO events.proxy_request_events ({COLUMNS}) SELECT {values}");
             let mut statement = tx
                 .prepare_cached(&sql)
                 .map_err(|e| AppError::Database(e.to_string()))?;
@@ -88,6 +292,11 @@ impl Database {
                     .execute([event.to_string()])
                     .map_err(|e| AppError::Database(format!("写入详细代理日志失败: {e}")))?;
             }
+            tx.execute(
+                "DELETE FROM events.proxy_request_events WHERE id <= (SELECT id FROM events.proxy_request_events ORDER BY id DESC LIMIT 1 OFFSET ?1)",
+                [MAX_ROWS],
+            )
+            .map_err(|e| AppError::Database(format!("裁剪详细代理日志失败: {e}")))?;
         }
         tx.commit().map_err(|e| AppError::Database(e.to_string()))
     }
@@ -102,21 +311,106 @@ impl Database {
         let conn = lock_conn!(self.conn);
         let deleted = conn
             .execute(
-                "DELETE FROM proxy_request_events WHERE created_at < ?1",
+                "DELETE FROM events.proxy_request_events WHERE created_at < ?1",
                 [cutoff],
             )
             .map_err(|e| AppError::Database(format!("清理详细代理日志失败: {e}")))?;
         if deleted > 0 {
             log::info!("已清理 {deleted} 条过期详细代理日志");
+            if let Err(e) = conn.execute_batch("PRAGMA events.incremental_vacuum;") {
+                log::warn!("回收详细代理日志空间失败: {e}");
+            }
         }
         Ok(deleted as u64)
+    }
+
+    /// 分页概览，只读取标量列；正文和报文头留给详情查询。
+    pub fn list_proxy_events(&self, query: &ProxyEventQuery) -> Result<ProxyEventPage, AppError> {
+        let page_size = match query.page_size {
+            0 => DEFAULT_PAGE_SIZE,
+            size => size.min(MAX_PAGE_SIZE),
+        };
+        let (filter, params) = query.conditions();
+        let conn = lock_conn!(self.conn);
+        let (total, failed, script_used, avg_duration_ms): (u64, u64, u64, Option<f64>) = conn
+            .query_row(
+                &format!(
+                    "SELECT COUNT(*), COALESCE(SUM(client_status IS NULL OR client_status >= 400), 0), COALESCE(SUM(script_used), 0), AVG(duration_ms) FROM events.proxy_request_events{filter}"
+                ),
+                params_from_iter(params.iter()),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .map_err(|e| AppError::Database(format!("统计详细代理日志失败: {e}")))?;
+        let mut statement = conn
+            .prepare(&format!(
+                "SELECT {SUMMARY_COLUMNS} FROM events.proxy_request_events{filter}{} LIMIT ?{} OFFSET ?{}",
+                query.order(),
+                params.len() + 1,
+                params.len() + 2
+            ))
+            .map_err(|e| AppError::Database(format!("查询详细代理日志失败: {e}")))?;
+        let names: Vec<String> = statement
+            .column_names()
+            .into_iter()
+            .map(str::to_string)
+            .collect();
+        let mut bound = params.clone();
+        bound.push(SqlValue::Integer(i64::from(page_size)));
+        bound.push(SqlValue::Integer(
+            i64::from(query.page) * i64::from(page_size),
+        ));
+        let items = statement
+            .query_map(params_from_iter(bound.iter()), |row| {
+                row_to_json(row, &names)
+            })
+            .map_err(|e| AppError::Database(format!("读取详细代理日志失败: {e}")))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| AppError::Database(format!("读取详细代理日志失败: {e}")))?;
+        Ok(ProxyEventPage {
+            items,
+            total,
+            failed,
+            script_used,
+            avg_duration_ms,
+            page: query.page,
+            page_size,
+        })
+    }
+
+    /// 单条完整记录；报文列解析为 JSON，便于前端直接渲染。
+    pub fn get_proxy_event(&self, id: i64) -> Result<Option<Value>, AppError> {
+        let conn = lock_conn!(self.conn);
+        let mut statement = conn
+            .prepare("SELECT * FROM events.proxy_request_events WHERE id = ?1")
+            .map_err(|e| AppError::Database(format!("查询详细代理日志失败: {e}")))?;
+        let names: Vec<String> = statement
+            .column_names()
+            .into_iter()
+            .map(str::to_string)
+            .collect();
+        let mut rows = statement
+            .query_map([id], |row| row_to_json(row, &names))
+            .map_err(|e| AppError::Database(format!("读取详细代理日志失败: {e}")))?;
+        rows.next()
+            .transpose()
+            .map_err(|e| AppError::Database(format!("读取详细代理日志失败: {e}")))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
+
+    fn event(id: &str, created_at: i64, extra: Value) -> Value {
+        let mut event = json!({"request_id":id,"target":"Provider","run_at":"t","seq":1,"started_at":"2026-09-18 10:00:00.000",
+            "created_at":created_at,"duration_ms":100,"method":"POST","url":"/v1/responses","finish_reason":"completed",
+            "attempt":1,"forward_seq":1,"script_enabled":false,"script_used":false,"request_changed":false,"route_changed":false,
+            "app_type":"codex","provider_id":"p1","status":200,"client_status":200,"orig_body":{"encoding":"json","data":{"model":"m"}}});
+        for (key, value) in extra.as_object().unwrap() {
+            event[key] = value.clone();
+        }
+        event
+    }
 
     #[test]
     fn config_defaults_and_valid_limits_round_trip() {
@@ -178,5 +472,156 @@ mod tests {
         let bounded = db.get_proxy_event_log_config().unwrap();
         assert_eq!(bounded.log_body_limit, MAX_BODY_LIMIT);
         assert_eq!(bounded.purge_days, 1);
+    }
+
+    #[test]
+    fn events_live_in_the_attached_database_and_stay_out_of_main() {
+        let db = Database::memory().unwrap();
+        db.save_proxy_events(&[event("a", 1, json!({}))]).unwrap();
+        let conn = db.conn.lock().unwrap();
+        let in_main: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM main.sqlite_master WHERE name = 'proxy_request_events'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(in_main, 0);
+        let in_events: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM events.proxy_request_events",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(in_events, 1);
+    }
+
+    #[test]
+    fn legacy_main_table_rows_move_into_the_attached_database() {
+        let db = Database::memory().unwrap();
+        {
+            let conn = db.conn.lock().unwrap();
+            conn.execute_batch(&SCHEMA.replace("events.", "main."))
+                .unwrap();
+            conn.execute(
+                "INSERT INTO main.proxy_request_events (request_id,target,run_at,seq,started_at,created_at,duration_ms,method,url,finish_reason) VALUES ('legacy','t','r',1,'s',5,1,'POST','/x','completed')",
+                [],
+            )
+            .unwrap();
+            assert_eq!(Database::migrate_legacy_proxy_events(&conn).unwrap(), 1);
+            assert_eq!(Database::migrate_legacy_proxy_events(&conn).unwrap(), 0);
+            let in_main: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM main.sqlite_master WHERE name = 'proxy_request_events'",
+                    [],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            assert_eq!(in_main, 0);
+        }
+        let page = db.list_proxy_events(&ProxyEventQuery::default()).unwrap();
+        assert_eq!(page.total, 1);
+        assert_eq!(page.items[0]["request_id"], "legacy");
+    }
+
+    #[test]
+    fn row_cap_keeps_only_the_newest_rows() {
+        let db = Database::memory().unwrap();
+        let batch: Vec<Value> = (0..(MAX_ROWS + 5))
+            .map(|i| event(&format!("r{i}"), i64::from(i), json!({})))
+            .collect();
+        db.save_proxy_events(&batch).unwrap();
+        let page = db
+            .list_proxy_events(&ProxyEventQuery {
+                sort_dir: Some("asc".into()),
+                page_size: 1,
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(page.total, u64::from(MAX_ROWS));
+        assert_eq!(page.items[0]["request_id"], "r5");
+    }
+
+    #[test]
+    fn list_filters_sorts_paginates_and_summarizes() {
+        let db = Database::memory().unwrap();
+        db.save_proxy_events(&[
+            event(
+                "ok",
+                10,
+                json!({"duration_ms": 100, "model": "gpt-6-astra"}),
+            ),
+            event(
+                "slow-error",
+                20,
+                json!({"duration_ms": 900, "status": 500, "client_status": 500, "error": "上游错误 (状态码 500)", "script_used": true, "target": "any router"}),
+            ),
+            event(
+                "claude-cancel",
+                30,
+                json!({"app_type": "claude", "status": null, "client_status": null, "finish_reason": "cancelled", "duration_ms": 50}),
+            ),
+        ])
+        .unwrap();
+        let all = db.list_proxy_events(&ProxyEventQuery::default()).unwrap();
+        assert_eq!(all.total, 3);
+        assert_eq!(all.failed, 2);
+        assert_eq!(all.script_used, 1);
+        assert_eq!(all.avg_duration_ms, Some(350.0));
+        assert_eq!(all.items[0]["request_id"], "claude-cancel");
+        assert!(all.items[0].get("orig_body").is_none());
+
+        let errors = db
+            .list_proxy_events(&ProxyEventQuery {
+                status: Some("error".into()),
+                sort_by: Some("duration_ms".into()),
+                sort_dir: Some("desc".into()),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(
+            errors
+                .items
+                .iter()
+                .map(|e| e["request_id"].as_str().unwrap())
+                .collect::<Vec<_>>(),
+            ["slow-error", "claude-cancel"]
+        );
+        let searched = db
+            .list_proxy_events(&ProxyEventQuery {
+                search: Some("状态码 500".into()),
+                app_type: Some("codex".into()),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(searched.total, 1);
+        assert_eq!(searched.items[0]["target"], "any router");
+        let by_model = db
+            .list_proxy_events(&ProxyEventQuery {
+                model: Some("astra".into()),
+                script_used: Some(false),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(by_model.total, 1);
+        let paged = db
+            .list_proxy_events(&ProxyEventQuery {
+                page: 1,
+                page_size: 2,
+                since: Some(10),
+                until: Some(30),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(paged.total, 3);
+        assert_eq!(paged.items.len(), 1);
+        assert_eq!(paged.items[0]["request_id"], "ok");
+
+        let id = all.items[1]["id"].as_i64().unwrap();
+        let detail = db.get_proxy_event(id).unwrap().unwrap();
+        assert_eq!(detail["request_id"], "slow-error");
+        assert_eq!(detail["orig_body"]["data"]["model"], "m");
+        assert!(db.get_proxy_event(999_999).unwrap().is_none());
     }
 }

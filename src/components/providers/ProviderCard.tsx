@@ -41,6 +41,9 @@ import { useUsageQuery } from "@/lib/query/queries";
 import { resolveProviderIcon } from "@/utils/providerIcon";
 import { ProviderStatusBadge } from "@/components/providers/ProviderStatusBadge";
 import { isAdditiveAppId, isProxyAppId } from "@/config/appConfig";
+import { proxyScriptInactive, supportsProxyScript } from "@/lib/proxyScript";
+import { useUpdateProviderMutation } from "@/lib/query/mutations";
+import { Switch } from "@/components/ui/switch";
 
 interface DragHandleProps {
   attributes: DraggableAttributes;
@@ -309,6 +312,23 @@ export function ProviderCard({
   // apiFormat 被改动/缺省影响。此 badge 仅在 Codex 视图渲染，故加 appId 守卫。
   const codexNeedsRouting =
     appId === "codex" && providerNeedsRouting(appId, provider);
+  // 卡片上的脚本开关与编辑页保存等价：后端校验脚本，开启当前供应商的脚本时自动打开本地路由。
+  const updateProvider = useUpdateProviderMutation(appId);
+  const hasProxyScript =
+    supportsProxyScript(appId) &&
+    Boolean(provider.meta?.localProxyScript?.trim());
+  const proxyScriptEnabled = provider.meta?.localProxyScriptEnabled !== false;
+  const toggleProxyScript = (enabled: boolean) =>
+    updateProvider.mutate({
+      provider: {
+        ...provider,
+        meta: { ...provider.meta, localProxyScriptEnabled: enabled },
+      },
+      originalId: provider.id,
+      successMessage: enabled
+        ? t("provider.proxyScriptEnabled", { defaultValue: "代理脚本已启用" })
+        : t("provider.proxyScriptDisabled", { defaultValue: "代理脚本已关闭" }),
+    });
   // 获取用量数据以判断是否有多套餐
   // 累加模式应用：使用 isInConfig 代替 isCurrent
   const shouldAutoQuery = isAdditiveAppId(appId) ? isInConfig : isCurrent;
@@ -474,6 +494,24 @@ export function ProviderCard({
                 />
               )}
 
+              {isCurrent &&
+                proxyScriptInactive(
+                  appId,
+                  provider.meta,
+                  isProxyRunning && isProxyTakeover,
+                ) && (
+                  <ProviderStatusBadge
+                    tone="warning"
+                    label={t("provider.scriptInactive", {
+                      defaultValue: "脚本未生效",
+                    })}
+                    title={t("provider.scriptInactiveHint", {
+                      defaultValue:
+                        "该供应商启用了代理脚本，但当前应用未开启本地路由，请求不会经过脚本。",
+                    })}
+                  />
+                )}
+
               {appId === "claude" && provider.category === "official" && (
                 <ProviderStatusBadge
                   label={t("provider.noRoutingSupport", {
@@ -599,6 +637,27 @@ export function ProviderCard({
         </div>
 
         <div className="flex items-center ml-auto min-w-0 gap-3">
+          {hasProxyScript && (
+            <div
+              className="flex flex-shrink-0 items-center gap-1.5 text-xs text-muted-foreground"
+              title={t("provider.proxyScriptToggleHint", {
+                defaultValue:
+                  "直接开启或关闭该供应商的代理脚本，代码会保留。开启当前供应商的脚本会自动打开本地路由。",
+              })}
+            >
+              <span>
+                {t("provider.proxyScriptToggle", { defaultValue: "代理脚本" })}
+              </span>
+              <Switch
+                checked={proxyScriptEnabled}
+                onCheckedChange={toggleProxyScript}
+                disabled={updateProvider.isPending}
+                aria-label={t("provider.proxyScriptToggle", {
+                  defaultValue: "代理脚本",
+                })}
+              />
+            </div>
+          )}
           <div className="ml-auto">
             <div className="flex items-center gap-1">
               {isCopilot ? (

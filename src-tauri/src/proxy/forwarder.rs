@@ -1184,6 +1184,7 @@ impl RequestForwarder {
                     provider,
                     &self.session_id,
                     request_model.as_deref(),
+                    body,
                 )
             });
         let result = self
@@ -2386,11 +2387,10 @@ impl RequestForwarder {
             headers: ordered_headers,
             body: body_bytes,
         };
-        if let Some(attempt) = attempt {
-            attempt.script_input(&request);
-        }
         let response = if let Some(source) = provider.active_proxy_script() {
+            // 脚本输入只在脚本真正执行时记录；普通转发的 fwd_body 已经是同一份内容。
             if let Some(attempt) = attempt {
+                attempt.script_input(&request);
                 attempt.script_started();
             }
             let timeout = transport.header_timeout();

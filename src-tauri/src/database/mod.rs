@@ -40,7 +40,7 @@ pub(crate) use dao::proxy::{
     validate_cost_multiplier, validate_pricing_source, PRICING_SOURCE_REQUEST,
     PRICING_SOURCE_RESPONSE,
 };
-pub use dao::proxy_events::ProxyEventLogConfig;
+pub use dao::proxy_events::{ProxyEventLogConfig, ProxyEventPage, ProxyEventQuery};
 pub use dao::FailoverQueueItem;
 pub use dao::Profile;
 
@@ -54,7 +54,7 @@ use std::sync::Mutex;
 
 /// 当前 Schema 版本号
 /// 每次修改表结构时递增，并在 schema.rs 中添加相应的迁移逻辑
-pub(crate) const SCHEMA_VERSION: i32 = 19;
+pub(crate) const SCHEMA_VERSION: i32 = 20;
 
 /// 安全地序列化 JSON，避免 unwrap panic
 pub(crate) fn to_json_string<T: Serialize>(value: &T) -> Result<String, AppError> {
@@ -119,11 +119,32 @@ impl Database {
                 .map_err(|e| AppError::Database(e.to_string()))?;
         }
         register_db_change_hook(&conn);
+        // 详细请求日志放在独立文件里，主库备份和配置同步都不会带上它。
+        // 日志文件损坏不能阻止应用启动：挪走坏文件后重建一个空库。
+        let events_path = db_path.with_file_name(dao::proxy_events::EVENTS_FILE);
+        if let Err(error) = Self::attach_proxy_events(&conn, &events_path) {
+            log::warn!("附加详细代理日志库失败，将重建: {error}");
+            let _ = conn.execute_batch("DETACH DATABASE events;");
+            let broken = events_path.with_extension(format!(
+                "db.corrupt-{}",
+                chrono::Local::now().format("%Y%m%d%H%M%S")
+            ));
+            if let Err(rename) = std::fs::rename(&events_path, &broken) {
+                log::warn!("移动损坏的详细代理日志库失败: {rename}");
+            }
+            Self::attach_proxy_events(&conn, &events_path)?;
+        }
 
         let db = Self {
             conn: Mutex::new(conn),
         };
         db.create_tables()?;
+        {
+            let conn = lock_conn!(db.conn);
+            if let Err(e) = Self::migrate_legacy_proxy_events(&conn) {
+                log::warn!("迁移旧版详细代理日志失败: {e}");
+            }
+        }
 
         // Pre-migration backup: only when upgrading from an existing database
         {
@@ -162,7 +183,9 @@ impl Database {
         // Reclaim disk space after cleanup
         {
             let conn = lock_conn!(db.conn);
-            if let Err(e) = conn.execute_batch("PRAGMA incremental_vacuum;") {
+            if let Err(e) =
+                conn.execute_batch("PRAGMA incremental_vacuum; PRAGMA events.incremental_vacuum;")
+            {
                 log::warn!("Startup incremental vacuum failed: {e}");
             }
         }
@@ -196,6 +219,7 @@ impl Database {
         conn.execute("PRAGMA auto_vacuum = INCREMENTAL;", [])
             .map_err(|e| AppError::Database(e.to_string()))?;
         register_db_change_hook(&conn);
+        Self::attach_proxy_events(&conn, std::path::Path::new(":memory:"))?;
 
         let db = Self {
             conn: Mutex::new(conn),

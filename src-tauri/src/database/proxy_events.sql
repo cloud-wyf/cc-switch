@@ -1,6 +1,6 @@
--- 详细代理事件沿用旧代理的四方向报文字段，并补充供应商、脚本和重试归属。
+-- 详细代理事件保存在附加库 events（proxy-events.db），不进入主库备份和配置同步。
 -- 同一次客户端请求共用 request_id；一次供应商尝试中的每次上游调用独占一行。
-CREATE TABLE IF NOT EXISTS proxy_request_events (
+CREATE TABLE IF NOT EXISTS events.proxy_request_events (
     id INTEGER PRIMARY KEY,
     request_id TEXT NOT NULL,
     app_type TEXT,
@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS proxy_request_events (
     client_body TEXT,
     UNIQUE(request_id, attempt, forward_seq)
 ) STRICT;
-CREATE INDEX IF NOT EXISTS idx_proxy_events_created ON proxy_request_events(created_at);
-CREATE INDEX IF NOT EXISTS idx_proxy_events_provider ON proxy_request_events(app_type, provider_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_proxy_events_script ON proxy_request_events(script_used, created_at);
-CREATE INDEX IF NOT EXISTS idx_proxy_events_status ON proxy_request_events(status, created_at);
+CREATE INDEX IF NOT EXISTS events.idx_proxy_events_created ON proxy_request_events(created_at);
+CREATE INDEX IF NOT EXISTS events.idx_proxy_events_provider ON proxy_request_events(app_type, provider_id, created_at);
+CREATE INDEX IF NOT EXISTS events.idx_proxy_events_script ON proxy_request_events(script_used, created_at);
+CREATE INDEX IF NOT EXISTS events.idx_proxy_events_status ON proxy_request_events(status, created_at);

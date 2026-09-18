@@ -19,6 +19,32 @@ const MAX_SOURCE_BYTES: usize = 1024 * 1024;
 const MAX_FRAME_BYTES: u64 = 300 * 1024 * 1024;
 const WATCHDOG: Duration = Duration::from_secs(15);
 static PROCESS_SLOTS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(16);
+/// 本进程内已通过校验的脚本摘要；切换供应商不再为同一份源码反复启动 Node。
+static VALIDATED: std::sync::Mutex<Vec<[u8; 32]>> = std::sync::Mutex::new(Vec::new());
+const VALIDATED_CAPACITY: usize = 64;
+
+fn source_digest(source: &str) -> [u8; 32] {
+    use sha2::Digest;
+    sha2::Sha256::digest(source.as_bytes()).into()
+}
+
+fn is_validated(digest: &[u8; 32]) -> bool {
+    VALIDATED
+        .lock()
+        .map(|cache| cache.contains(digest))
+        .unwrap_or(false)
+}
+
+fn remember_validated(digest: [u8; 32]) {
+    if let Ok(mut cache) = VALIDATED.lock() {
+        if cache.len() >= VALIDATED_CAPACITY {
+            cache.clear();
+        }
+        if !cache.contains(&digest) {
+            cache.push(digest);
+        }
+    }
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct ScriptRequest {
@@ -120,6 +146,10 @@ pub(crate) async fn validate(source: &str) -> Result<(), String> {
     if source.trim().is_empty() {
         return Ok(());
     }
+    let digest = source_digest(source);
+    if is_validated(&digest) {
+        return Ok(());
+    }
     let _slot = tokio::time::timeout(WATCHDOG, PROCESS_SLOTS.acquire())
         .await
         .map_err(|_| "代理脚本繁忙，请稍后重试语法校验".to_string())?
@@ -152,6 +182,9 @@ pub(crate) async fn validate(source: &str) -> Result<(), String> {
     .and_then(|result| result);
     let _ = child.kill().await;
     let _ = child.wait().await;
+    if result.is_ok() {
+        remember_validated(digest);
+    }
     result
 }
 

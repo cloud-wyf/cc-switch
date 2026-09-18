@@ -84,7 +84,6 @@ fn import_authorizer(context: rusqlite::hooks::AuthContext<'_>) -> rusqlite::hoo
 
 /// Tables whose data rows are skipped when exporting for WebDAV sync.
 const SYNC_SKIP_TABLES: &[&str] = &[
-    "proxy_request_events",
     "proxy_request_logs",
     "stream_check_logs",
     "provider_health",
@@ -97,7 +96,6 @@ const SYNC_SKIP_TABLES: &[&str] = &[
 /// Tables whose local data is preserved from the live database during WebDAV import.
 /// Excludes ephemeral tables like provider_health that can safely rebuild at runtime.
 const SYNC_PRESERVE_TABLES: &[&str] = &[
-    "proxy_request_events",
     "proxy_request_logs",
     "stream_check_logs",
     "proxy_live_backup",
@@ -470,7 +468,9 @@ impl Database {
         }
         if reclaimed_rows > 0 {
             let conn = lock_conn!(self.conn);
-            if let Err(e) = conn.execute_batch("PRAGMA incremental_vacuum;") {
+            if let Err(e) =
+                conn.execute_batch("PRAGMA incremental_vacuum; PRAGMA events.incremental_vacuum;")
+            {
                 log::warn!("Periodic incremental vacuum failed: {e}");
             }
         }

@@ -4036,6 +4036,13 @@ impl ProxyService {
         self.server.read().await.is_some()
     }
 
+    /// 把新的详细请求日志配置推给运行中的服务器；未运行时下次启动自动从数据库读取。
+    pub async fn apply_event_log_config(&self, config: crate::database::ProxyEventLogConfig) {
+        if let Some(server) = self.server.read().await.as_ref() {
+            server.apply_event_log_config(config).await;
+        }
+    }
+
     /// 热更新熔断器配置
     ///
     /// 如果代理服务器正在运行，将新配置应用到所有已创建的熔断器实例

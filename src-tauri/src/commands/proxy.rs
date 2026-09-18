@@ -2,7 +2,7 @@
 //!
 //! 提供前端调用的 API 接口
 
-use crate::database::ProxyEventLogConfig;
+use crate::database::{ProxyEventLogConfig, ProxyEventPage, ProxyEventQuery};
 use crate::error::AppError;
 use crate::proxy::types::*;
 use crate::proxy::{CircuitBreakerConfig, CircuitBreakerStats};
@@ -133,7 +133,7 @@ pub async fn get_proxy_event_log_config(
         .map_err(|e| e.to_string())
 }
 
-/// 后续请求和定期清理直接读取新配置，无需重启代理。
+/// 保存后推送给运行中的代理，后续请求和定期清理直接使用新配置，无需重启。
 #[tauri::command]
 pub async fn set_proxy_event_log_config(
     state: tauri::State<'_, AppState>,
@@ -142,6 +142,34 @@ pub async fn set_proxy_event_log_config(
     state
         .db
         .set_proxy_event_log_config(&config)
+        .map_err(|e| e.to_string())?;
+    state.proxy_service.apply_event_log_config(config).await;
+    Ok(())
+}
+
+/// 详细请求日志分页概览。
+#[tauri::command]
+pub async fn list_proxy_events(
+    state: tauri::State<'_, AppState>,
+    query: ProxyEventQuery,
+) -> Result<ProxyEventPage, String> {
+    let db = state.db.clone();
+    tauri::async_runtime::spawn_blocking(move || db.list_proxy_events(&query))
+        .await
+        .map_err(|e| format!("查询详细请求日志失败: {e}"))?
+        .map_err(|e| e.to_string())
+}
+
+/// 单条详细请求日志，包含全部报文。
+#[tauri::command]
+pub async fn get_proxy_event(
+    state: tauri::State<'_, AppState>,
+    id: i64,
+) -> Result<Option<serde_json::Value>, String> {
+    let db = state.db.clone();
+    tauri::async_runtime::spawn_blocking(move || db.get_proxy_event(id))
+        .await
+        .map_err(|e| format!("读取详细请求日志失败: {e}"))?
         .map_err(|e| e.to_string())
 }
 

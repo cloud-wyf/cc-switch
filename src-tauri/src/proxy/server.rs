@@ -17,7 +17,7 @@ use super::{
     types::*,
     ProxyError,
 };
-use crate::database::Database;
+use crate::database::{Database, ProxyEventLogConfig};
 use axum::{
     extract::DefaultBodyLimit,
     routing::{any, get, post},
@@ -48,6 +48,8 @@ pub struct ProxyState {
     pub app_handle: Option<tauri::AppHandle>,
     /// 故障转移切换管理器
     pub failover_manager: Arc<FailoverSwitchManager>,
+    /// 详细请求日志配置的内存副本；请求路径不读数据库。
+    pub event_log: Arc<RwLock<ProxyEventLogConfig>>,
 }
 
 /// 代理HTTP服务器
@@ -69,6 +71,10 @@ impl ProxyServer {
         let provider_router = Arc::new(ProviderRouter::new(db.clone()));
         // 创建故障转移切换管理器
         let failover_manager = Arc::new(FailoverSwitchManager::new(db.clone()));
+        let event_log = db.get_proxy_event_log_config().unwrap_or_else(|error| {
+            log::warn!("读取详细代理日志配置失败，使用默认值: {error}");
+            ProxyEventLogConfig::default()
+        });
 
         let state = ProxyState {
             db,
@@ -81,6 +87,7 @@ impl ProxyServer {
             codex_chat_history: Arc::new(CodexChatHistoryStore::default()),
             app_handle,
             failover_manager,
+            event_log: Arc::new(RwLock::new(event_log)),
         };
 
         Self {
@@ -410,6 +417,11 @@ impl ProxyServer {
     /// 在不重启服务的情况下更新运行时配置
     pub async fn apply_runtime_config(&self, config: &ProxyConfig) {
         *self.state.config.write().await = config.clone();
+    }
+
+    /// 详细请求日志配置热更新，后续请求立即使用新值。
+    pub async fn apply_event_log_config(&self, config: ProxyEventLogConfig) {
+        *self.state.event_log.write().await = config;
     }
 
     /// 热更新熔断器配置

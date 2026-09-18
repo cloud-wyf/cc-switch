@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Save, ScrollText } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import {
   useSetProxyEventLogConfig,
 } from "@/lib/query/proxy";
 import { extractErrorMessage } from "@/utils/errorUtils";
+import { ProxyEventLogViewer } from "./ProxyEventLogViewer";
 
 const BYTES_PER_KIB = 1024;
 const MAX_BODY_LIMIT_KIB = 1024;
@@ -19,6 +20,7 @@ export function ProxyEventLogConfigPanel() {
   const { t } = useTranslation();
   const { data: config, isError, refetch } = useProxyEventLogConfig();
   const saveConfig = useSetProxyEventLogConfig();
+  const [viewerOpen, setViewerOpen] = useState(false);
   // 后台刷新配置时保留尚未保存的输入。
   const [draft, setDraft] = useState<{
     bodyLimitKiB: string;
@@ -80,14 +82,29 @@ export function ProxyEventLogConfigPanel() {
       aria-labelledby="proxy-event-log-title"
       className="rounded-lg border border-border bg-muted/40 p-4 space-y-4"
     >
-      <div>
-        <h4 id="proxy-event-log-title" className="text-sm font-semibold">
-          {t("proxy.eventLog.title")}
-        </h4>
-        <p className="text-xs text-muted-foreground">
-          {t("proxy.eventLog.description")}
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h4 id="proxy-event-log-title" className="text-sm font-semibold">
+            {t("proxy.eventLog.title")}
+          </h4>
+          <p className="text-xs text-muted-foreground">
+            {t("proxy.eventLog.description")}
+          </p>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => setViewerOpen(true)}
+        >
+          <ScrollText className="mr-2 h-4 w-4" />
+          {t("proxy.eventLog.view")}
+        </Button>
       </div>
+      <ProxyEventLogViewer
+        isOpen={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+      />
 
       {!config ? (
         <div className="space-y-2">

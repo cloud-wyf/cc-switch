@@ -1,4 +1,9 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  keepPreviousData,
+} from "@tanstack/react-query";
 import { proxyApi } from "@/lib/api/proxy";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
@@ -7,6 +12,7 @@ import type {
   AppProxyConfig,
   ProxyTakeoverStatus,
   ProxyEventLogConfig,
+  ProxyEventQuery,
 } from "@/types/proxy";
 
 export const proxyKeys = {
@@ -14,6 +20,8 @@ export const proxyKeys = {
   takeoverStatus: ["proxyTakeoverStatus"] as const,
   globalConfig: ["globalProxyConfig"] as const,
   eventLogConfig: ["proxyEventLogConfig"] as const,
+  events: (query: ProxyEventQuery) => ["proxyEvents", query] as const,
+  event: (id: number) => ["proxyEvent", id] as const,
   appConfig: (appType: string) => ["appProxyConfig", appType] as const,
 };
 
@@ -119,6 +127,22 @@ export function useSetProxyEventLogConfig() {
     onSuccess: (_, config) => {
       queryClient.setQueryData(proxyKeys.eventLogConfig, config);
     },
+  });
+}
+
+/** 详细请求日志分页；翻页和改筛选时保留上一页数据避免闪烁。 */
+export function useProxyEvents(query: ProxyEventQuery) {
+  return useQuery({
+    queryKey: proxyKeys.events(query),
+    queryFn: () => proxyApi.listProxyEvents(query),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useProxyEvent(id: number) {
+  return useQuery({
+    queryKey: proxyKeys.event(id),
+    queryFn: () => proxyApi.getProxyEvent(id),
   });
 }
 

@@ -360,6 +360,21 @@ export const handlers = [
   http.post(`${TAURI_ENDPOINT}/get_proxy_event_log_config`, () =>
     success({ enabled: true, logBodyLimit: 65536, purgeDays: 7 }),
   ),
+  http.post(`${TAURI_ENDPOINT}/list_proxy_events`, async ({ request }) => {
+    const { query } = await withJson<{
+      query: { page: number; pageSize: number };
+    }>(request);
+    return success({
+      items: [],
+      total: 0,
+      failed: 0,
+      scriptUsed: 0,
+      avgDurationMs: null,
+      page: query.page,
+      pageSize: query.pageSize,
+    });
+  }),
+  http.post(`${TAURI_ENDPOINT}/get_proxy_event`, () => success(null)),
 
   // Failover / circuit breaker defaults
   http.post(`${TAURI_ENDPOINT}/get_auto_failover_enabled`, () =>

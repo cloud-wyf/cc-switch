@@ -22,7 +22,6 @@ impl Database {
 
     /// 在指定连接上创建表（供迁移和测试使用）
     pub(crate) fn create_tables_on_conn(conn: &Connection) -> Result<(), AppError> {
-        Self::create_proxy_event_tables(conn)?;
         // 1. Providers 表
         conn.execute(
             "CREATE TABLE IF NOT EXISTS providers (
@@ -551,9 +550,17 @@ impl Database {
                         Self::set_user_version(conn, 18)?;
                     }
                     18 => {
+                        // 详细请求日志表现在建在附加的 proxy-events.db，主库不再需要它。
                         log::info!("迁移数据库从 v18 到 v19（供应商代理详细请求日志）");
-                        Self::create_proxy_event_tables(conn)?;
                         Self::set_user_version(conn, 19)?;
+                    }
+                    19 => {
+                        log::info!("迁移数据库从 v19 到 v20（详细请求日志移至独立日志库）");
+                        conn.execute_batch("DROP TABLE IF EXISTS main.proxy_request_events;")
+                            .map_err(|e| {
+                                AppError::Database(format!("删除主库详细请求日志表失败: {e}"))
+                            })?;
+                        Self::set_user_version(conn, 20)?;
                     }
                     _ => {
                         return Err(AppError::Database(format!(
