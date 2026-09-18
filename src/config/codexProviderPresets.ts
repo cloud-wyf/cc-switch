@@ -352,35 +352,6 @@ export const codexProviderPresets: CodexProviderPreset[] = [
     iconColor: "#0F62FE",
   },
   {
-    name: "Zhipu GLM en",
-    websiteUrl: "https://z.ai",
-    apiKeyUrl: "https://z.ai/subscribe",
-    auth: generateThirdPartyAuth(""),
-    // 国际站同上（docs.z.ai/devpack/tool/others + devpack/tool/codex，2026-09-04
-    // 核对）：Responses 端点 /api/v1，官方 models.json 仅列 glm-5.3
-    config: generateThirdPartyConfig(
-      "zhipu_glm_en",
-      "https://api.z.ai/api/v1",
-      "glm-5.3",
-    ),
-    endpointCandidates: ["https://api.z.ai/api/v1"],
-    apiFormat: "openai_responses",
-    modelCatalog: modelCatalog([
-      {
-        model: "glm-5.3",
-        displayName: "GLM-5.3",
-        contextWindow: 1048576,
-        inputModalities: ["text"],
-        supportsParallelToolCalls: true,
-        reasoningLevels: ["low", "high", "max"],
-        defaultReasoningLevel: "max",
-      },
-    ]),
-    category: "cn_official",
-    icon: "zhipu",
-    iconColor: "#0F62FE",
-  },
-  {
     name: "MiniMax",
     websiteUrl: "https://platform.minimaxi.com",
     apiKeyUrl: "https://platform.minimaxi.com/subscribe/coding-plan",
@@ -394,44 +365,6 @@ export const codexProviderPresets: CodexProviderPreset[] = [
     // MiniMax 官方 API 参考已列 /v1/responses 为正式端点（CN/intl 双区，POST /v1/responses），原生 Responses，无需路由接管转换
     apiFormat: "openai_responses",
     // 官方 Codex catalog（platform.minimaxi.com/docs/token-plan/codex-cli）：
-    // shell_command 编辑、并行工具、文本+图像，不声明 freeform apply_patch。
-    // 档位照抄官方 catalog：none/high（M3 的 effort 是思考开关，minimal/low/medium
-    // 端点接受但与 high 行为完全等价，不给假差异档）。与模板默认一致故 Codex 侧
-    // 零行为变化，显式声明只为表单可见（"未设置"误导性更大，Jason 2026-08-15 拍板）
-    modelCatalog: modelCatalog([
-      {
-        model: "MiniMax-M3",
-        displayName: "MiniMax-M3",
-        contextWindow: 1000000,
-        reasoningLevels: ["none", "high"],
-        supportsParallelToolCalls: true,
-        inputModalities: ["text", "image"],
-        baseInstructions:
-          "You are Codex, a coding agent based on MiniMax-M3. You and the user share the same workspace and collaborate to achieve the user's goals.",
-      },
-    ]),
-    category: "cn_official",
-    theme: {
-      backgroundColor: "#f64551",
-      textColor: "#FFFFFF",
-    },
-    icon: "minimax",
-    iconColor: "#FF6B6B",
-  },
-  {
-    name: "MiniMax en",
-    websiteUrl: "https://platform.minimax.io",
-    apiKeyUrl: "https://platform.minimax.io/subscribe/coding-plan",
-    auth: generateThirdPartyAuth(""),
-    config: generateThirdPartyConfig(
-      "minimax_en",
-      "https://api.minimax.io/v1",
-      "MiniMax-M3",
-    ),
-    endpointCandidates: ["https://api.minimax.io/v1"],
-    // MiniMax 官方 API 参考已列 /v1/responses 为正式端点（CN/intl 双区，POST /v1/responses），原生 Responses，无需路由接管转换
-    apiFormat: "openai_responses",
-    // 官方 Codex catalog（platform.minimax.io/docs/token-plan/codex）：
     // shell_command 编辑、并行工具、文本+图像，不声明 freeform apply_patch。
     // 档位照抄官方 catalog：none/high（M3 的 effort 是思考开关，minimal/low/medium
     // 端点接受但与 high 行为完全等价，不给假差异档）。与模板默认一致故 Codex 侧

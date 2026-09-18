@@ -420,39 +420,6 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
     },
   },
   {
-    name: "Zhipu GLM en",
-    websiteUrl: "https://z.ai",
-    apiKeyUrl: "https://z.ai/subscribe",
-    settingsConfig: {
-      npm: "@ai-sdk/openai-compatible",
-      name: "Zhipu GLM en",
-      options: {
-        baseURL: "https://api.z.ai/api/coding/paas/v4",
-        apiKey: "",
-        setCacheKey: true,
-      },
-      models: {
-        "glm-5.1": { name: "GLM-5.1" },
-      },
-    },
-    category: "cn_official",
-    icon: "zhipu",
-    iconColor: "#0F62FE",
-    templateValues: {
-      baseURL: {
-        label: "Base URL",
-        placeholder: "https://api.z.ai/api/coding/paas/v4",
-        defaultValue: "https://api.z.ai/api/coding/paas/v4",
-        editorValue: "",
-      },
-      apiKey: {
-        label: "API Key",
-        placeholder: "",
-        editorValue: "",
-      },
-    },
-  },
-  {
     name: "MiniMax",
     websiteUrl: "https://platform.minimaxi.com",
     apiKeyUrl: "https://platform.minimaxi.com/subscribe/coding-plan",
@@ -461,42 +428,6 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
       name: "MiniMax",
       options: {
         baseURL: "https://api.minimaxi.com/v1",
-        apiKey: "",
-        setCacheKey: true,
-      },
-      models: {
-        "MiniMax-M3": {
-          name: "MiniMax M3",
-          reasoning: true,
-          limit: { context: 1000000, output: 131072 },
-          modalities: { input: ["text", "image"], output: ["text"] },
-        },
-      },
-    },
-    category: "cn_official",
-    theme: {
-      backgroundColor: "#f64551",
-      textColor: "#FFFFFF",
-    },
-    icon: "minimax",
-    iconColor: "#FF6B6B",
-    templateValues: {
-      apiKey: {
-        label: "API Key",
-        placeholder: "",
-        editorValue: "",
-      },
-    },
-  },
-  {
-    name: "MiniMax en",
-    websiteUrl: "https://platform.minimax.io",
-    apiKeyUrl: "https://platform.minimax.io/subscribe/coding-plan",
-    settingsConfig: {
-      npm: "@ai-sdk/openai-compatible",
-      name: "MiniMax en",
-      options: {
-        baseURL: "https://api.minimax.io/v1",
         apiKey: "",
         setCacheKey: true,
       },

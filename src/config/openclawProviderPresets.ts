@@ -263,44 +263,6 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
     },
   },
   {
-    name: "Zhipu GLM en",
-    websiteUrl: "https://z.ai",
-    apiKeyUrl: "https://z.ai/subscribe",
-    settingsConfig: {
-      baseUrl: "https://api.z.ai/api/coding/paas/v4",
-      apiKey: "",
-      api: "openai-completions",
-      models: [
-        {
-          id: "glm-5.1",
-          name: "GLM-5.1",
-          contextWindow: 128000,
-          cost: { input: 1.4, output: 4.4, cacheRead: 0.26 },
-        },
-      ],
-    },
-    category: "cn_official",
-    icon: "zhipu",
-    iconColor: "#0F62FE",
-    templateValues: {
-      baseUrl: {
-        label: "Base URL",
-        placeholder: "https://api.z.ai/api/coding/paas/v4",
-        defaultValue: "https://api.z.ai/api/coding/paas/v4",
-        editorValue: "",
-      },
-      apiKey: {
-        label: "API Key",
-        placeholder: "",
-        editorValue: "",
-      },
-    },
-    suggestedDefaults: {
-      model: { primary: "zhipu-en/glm-5.1" },
-      modelCatalog: { "zhipu-en/glm-5.1": { alias: "GLM" } },
-    },
-  },
-  {
     name: "MiniMax",
     websiteUrl: "https://platform.minimaxi.com",
     apiKeyUrl: "https://platform.minimaxi.com/subscribe/coding-plan",
@@ -336,44 +298,6 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
     suggestedDefaults: {
       model: { primary: "minimax/MiniMax-M3" },
       modelCatalog: { "minimax/MiniMax-M3": { alias: "MiniMax" } },
-    },
-  },
-  {
-    name: "MiniMax en",
-    websiteUrl: "https://platform.minimax.io",
-    apiKeyUrl: "https://platform.minimax.io/subscribe/coding-plan",
-    settingsConfig: {
-      baseUrl: "https://api.minimax.io/v1",
-      apiKey: "",
-      api: "openai-completions",
-      models: [
-        {
-          id: "MiniMax-M3",
-          name: "MiniMax M3",
-          reasoning: true,
-          input: ["text", "image"],
-          contextWindow: 1000000,
-          maxTokens: 131072,
-        },
-      ],
-    },
-    category: "cn_official",
-    theme: {
-      backgroundColor: "#f64551",
-      textColor: "#FFFFFF",
-    },
-    icon: "minimax",
-    iconColor: "#FF6B6B",
-    templateValues: {
-      apiKey: {
-        label: "API Key",
-        placeholder: "",
-        editorValue: "",
-      },
-    },
-    suggestedDefaults: {
-      model: { primary: "minimax-en/MiniMax-M3" },
-      modelCatalog: { "minimax-en/MiniMax-M3": { alias: "MiniMax" } },
     },
   },
 ];

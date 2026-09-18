@@ -167,55 +167,12 @@ export const providerPresets: ProviderPreset[] = [
     iconColor: "#0F62FE",
   },
   {
-    name: "Zhipu GLM en",
-    websiteUrl: "https://z.ai",
-    apiKeyUrl: "https://z.ai/subscribe",
-    settingsConfig: {
-      env: {
-        ANTHROPIC_BASE_URL: "https://api.z.ai/api/anthropic",
-        ANTHROPIC_AUTH_TOKEN: "",
-        ANTHROPIC_MODEL: "glm-5.1",
-        ANTHROPIC_DEFAULT_HAIKU_MODEL: "glm-5.1",
-        ANTHROPIC_DEFAULT_SONNET_MODEL: "glm-5.1",
-        ANTHROPIC_DEFAULT_OPUS_MODEL: "glm-5.1",
-      },
-    },
-    category: "cn_official",
-    icon: "zhipu",
-    iconColor: "#0F62FE",
-  },
-  {
     name: "MiniMax",
     websiteUrl: "https://platform.minimaxi.com",
     apiKeyUrl: "https://platform.minimaxi.com/subscribe/coding-plan",
     settingsConfig: {
       env: {
         ANTHROPIC_BASE_URL: "https://api.minimaxi.com/anthropic",
-        ANTHROPIC_AUTH_TOKEN: "",
-        API_TIMEOUT_MS: "3000000",
-        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: 1,
-        CLAUDE_CODE_AUTO_COMPACT_WINDOW: "1000000",
-        ANTHROPIC_MODEL: "MiniMax-M3[1M]",
-        ANTHROPIC_DEFAULT_SONNET_MODEL: "MiniMax-M3[1M]",
-        ANTHROPIC_DEFAULT_OPUS_MODEL: "MiniMax-M3[1M]",
-        ANTHROPIC_DEFAULT_HAIKU_MODEL: "MiniMax-M3[1M]",
-      },
-    },
-    category: "cn_official",
-    theme: {
-      backgroundColor: "#f64551",
-      textColor: "#FFFFFF",
-    },
-    icon: "minimax",
-    iconColor: "#FF6B6B",
-  },
-  {
-    name: "MiniMax en",
-    websiteUrl: "https://platform.minimax.io",
-    apiKeyUrl: "https://platform.minimax.io/subscribe/coding-plan",
-    settingsConfig: {
-      env: {
-        ANTHROPIC_BASE_URL: "https://api.minimax.io/anthropic",
         ANTHROPIC_AUTH_TOKEN: "",
         API_TIMEOUT_MS: "3000000",
         CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: 1,

@@ -162,26 +162,6 @@ const piProviderPresetDefinitions: PiProviderPreset[] = [
     iconColor: "#0F62FE",
   },
   {
-    name: "Zhipu GLM en",
-    providerKey: "cc-switch-zhipu-glm-en",
-    websiteUrl: "https://z.ai",
-    apiKeyUrl: "https://z.ai/subscribe",
-    settingsConfig: {
-      name: "Zhipu GLM en",
-      baseUrl: "https://api.z.ai/api/coding/paas/v4",
-      api: "openai-completions",
-      apiKey: "",
-      models: [
-        piModel("zai/glm-5.1", {
-          id: "glm-5.1",
-        }),
-      ],
-    },
-    category: "cn_official",
-    icon: "zhipu",
-    iconColor: "#0F62FE",
-  },
-  {
     name: "MiniMax",
     providerKey: "cc-switch-mini-max",
     websiteUrl: "https://platform.minimaxi.com",
@@ -189,31 +169,6 @@ const piProviderPresetDefinitions: PiProviderPreset[] = [
     settingsConfig: {
       name: "MiniMax",
       baseUrl: "https://api.minimaxi.com/v1",
-      api: "openai-completions",
-      apiKey: "",
-      models: [
-        piModel("minimax/minimax-m3", {
-          id: "MiniMax-M3",
-          maxTokens: 131072,
-        }),
-      ],
-    },
-    category: "cn_official",
-    theme: {
-      backgroundColor: "#f64551",
-      textColor: "#FFFFFF",
-    },
-    icon: "minimax",
-    iconColor: "#FF6B6B",
-  },
-  {
-    name: "MiniMax en",
-    providerKey: "cc-switch-mini-max-en",
-    websiteUrl: "https://platform.minimax.io",
-    apiKeyUrl: "https://platform.minimax.io/subscribe/coding-plan",
-    settingsConfig: {
-      name: "MiniMax en",
-      baseUrl: "https://api.minimax.io/v1",
       api: "openai-completions",
       apiKey: "",
       models: [

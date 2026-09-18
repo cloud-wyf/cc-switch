@@ -214,24 +214,6 @@ export const hermesProviderPresets: HermesProviderPreset[] = [
     },
   },
   {
-    name: "Zhipu GLM en",
-    websiteUrl: "https://z.ai",
-    apiKeyUrl: "https://z.ai/subscribe",
-    settingsConfig: {
-      name: "zhipu_glm_en",
-      base_url: "https://api.z.ai/api/coding/paas/v4",
-      api_key: "",
-      api_mode: "chat_completions",
-      models: [{ id: "glm-5.1", name: "GLM-5.1" }],
-    },
-    category: "cn_official",
-    icon: "zhipu",
-    iconColor: "#0F62FE",
-    suggestedDefaults: {
-      model: { default: "glm-5.1", provider: "zhipu_glm_en" },
-    },
-  },
-  {
     name: "MiniMax",
     websiteUrl: "https://platform.minimaxi.com",
     apiKeyUrl: "https://platform.minimaxi.com/subscribe/coding-plan",
@@ -248,25 +230,6 @@ export const hermesProviderPresets: HermesProviderPreset[] = [
     iconColor: "#FF6B6B",
     suggestedDefaults: {
       model: { default: "MiniMax-M3", provider: "minimax" },
-    },
-  },
-  {
-    name: "MiniMax en",
-    websiteUrl: "https://platform.minimax.io",
-    apiKeyUrl: "https://platform.minimax.io/subscribe/coding-plan",
-    settingsConfig: {
-      name: "minimax_en",
-      base_url: "https://api.minimax.io/v1",
-      api_key: "",
-      api_mode: "chat_completions",
-      models: [{ id: "MiniMax-M3", name: "MiniMax M3" }],
-    },
-    category: "cn_official",
-    theme: { backgroundColor: "#f64551", textColor: "#FFFFFF" },
-    icon: "minimax",
-    iconColor: "#FF6B6B",
-    suggestedDefaults: {
-      model: { default: "MiniMax-M3", provider: "minimax_en" },
     },
   },
 ];

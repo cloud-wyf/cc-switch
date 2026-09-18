@@ -36,24 +36,15 @@ describe("Codex native Responses provider presets", () => {
         },
       ],
       ["MiniMax", { contextWindows: { "MiniMax-M3": 1000000 } }],
-      ["MiniMax en", { contextWindows: { "MiniMax-M3": 1000000 } }],
       // 智谱三端点分立（Anthropic /api/anthropic、Chat /api/coding/paas/v4、
       // Responses /api/v1），官方明示错误端点无法使用 Coding Plan 套餐额度——
       // 原生 Responses 预设必须锁在 /api/v1（#6944；docs.bigmodel.cn/cn/coding-plan/
-      // tool/codex 与 docs.z.ai/devpack/tool/codex 自带 models.json，2026-09-04 核对：
-      // 国内站 glm-5.3 + glm-5-turbo，国际站仅 glm-5.3）
+      // tool/codex 自带 models.json，2026-09-04 核对：glm-5.3 + glm-5-turbo）
       [
         "Zhipu GLM",
         {
           baseUrl: "https://open.bigmodel.cn/api/v1",
           contextWindows: { "glm-5.3": 1048576, "glm-5-turbo": 204800 },
-        },
-      ],
-      [
-        "Zhipu GLM en",
-        {
-          baseUrl: "https://api.z.ai/api/v1",
-          contextWindows: { "glm-5.3": 1048576 },
         },
       ],
       // Kimi 两份官方 Codex 接入文档均要求 wire_api = "responses"，并明写服务
