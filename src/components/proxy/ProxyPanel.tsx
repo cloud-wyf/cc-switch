@@ -39,6 +39,7 @@ import {
   PROXY_APP_IDS,
   type ProxyAppId,
 } from "@/config/appConfig";
+import { useProvidersQuery } from "@/lib/query/queries";
 
 interface ProxyPanelProps {
   enableLocalProxy: boolean;
@@ -54,6 +55,9 @@ export function ProxyPanel({
   isProxyPending,
 }: ProxyPanelProps) {
   const { t } = useTranslation();
+  const { data: desktopProviders } = useProvidersQuery("claude-desktop");
+  const desktopCurrent =
+    desktopProviders?.providers[desktopProviders.currentProviderId];
   const { data: status } = useProxyStatusQuery();
   const isRunning = status?.running ?? false;
 
@@ -325,12 +329,32 @@ export function ProxyPanel({
                       </div>
                     );
                   })}
+                  <div
+                    className="flex items-center justify-between gap-2 rounded-md border border-dashed border-primary/20 bg-background/60 px-3 py-2"
+                    title={t("proxy.takeover.desktop.hint")}
+                  >
+                    <span className="text-sm font-medium">
+                      {getAppLabel("claude-desktop")}
+                    </span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      {!desktopCurrent
+                        ? t("proxy.takeover.desktop.none")
+                        : desktopCurrent.meta?.claudeDesktopMode === "proxy"
+                          ? t("proxy.takeover.desktop.localRoute", {
+                              provider: desktopCurrent.name,
+                            })
+                          : t("proxy.takeover.desktop.direct", {
+                              provider: desktopCurrent.name,
+                            })}
+                    </span>
+                  </div>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {t("proxy.takeover.hint", {
                     defaultValue:
                       "选择要接管的应用，启用后该应用的请求将通过本地代理转发",
-                  })}
+                  })}{" "}
+                  {t("proxy.takeover.desktop.hint")}
                 </p>
               </div>
             </motion.div>

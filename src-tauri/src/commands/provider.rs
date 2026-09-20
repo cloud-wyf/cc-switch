@@ -55,11 +55,12 @@ pub fn get_current_provider(state: State<'_, AppState>, app: String) -> Result<S
 pub async fn add_provider(
     app_handle: tauri::AppHandle,
     app: String,
-    provider: Provider,
+    mut provider: Provider,
     #[allow(non_snake_case)] addToLive: Option<bool>,
 ) -> Result<bool, String> {
     let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
     let add_to_live = addToLive.unwrap_or(true);
+    crate::services::provider::proxy_script::prepare(&app_type, &mut provider);
     crate::services::provider::proxy_script::validate(&app_type, &provider).await?;
     let id = provider.id.clone();
     let worker_handle = app_handle.clone();
@@ -81,10 +82,11 @@ pub async fn add_provider(
 pub async fn update_provider(
     app_handle: tauri::AppHandle,
     app: String,
-    provider: Provider,
+    mut provider: Provider,
     #[allow(non_snake_case)] originalId: Option<String>,
 ) -> Result<bool, String> {
     let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
+    crate::services::provider::proxy_script::prepare(&app_type, &mut provider);
     crate::services::provider::proxy_script::validate(&app_type, &provider).await?;
     let id = provider.id.clone();
     let worker_handle = app_handle.clone();

@@ -318,17 +318,33 @@ export function ProviderCard({
     supportsProxyScript(appId) &&
     Boolean(provider.meta?.localProxyScript?.trim());
   const proxyScriptEnabled = provider.meta?.localProxyScriptEnabled !== false;
-  const toggleProxyScript = (enabled: boolean) =>
+  const toggleProxyScript = (enabled: boolean) => {
+    const upgradesDesktop =
+      enabled &&
+      appId === "claude-desktop" &&
+      provider.meta?.claudeDesktopMode !== "proxy";
+    const base = upgradesDesktop
+      ? t("provider.proxyScriptEnabledDesktopUpgraded", {
+          defaultValue: "代理脚本已启用，供应商已切换为本地路由",
+        })
+      : enabled
+        ? t("provider.proxyScriptEnabled", { defaultValue: "代理脚本已启用" })
+        : t("provider.proxyScriptDisabled", { defaultValue: "代理脚本已关闭" });
+    const restart =
+      appId === "claude-desktop" && isCurrent
+        ? `，${t("claudeDesktop.restartRequired", {
+            defaultValue: "重启 Claude Desktop 后生效",
+          })}`
+        : "";
     updateProvider.mutate({
       provider: {
         ...provider,
         meta: { ...provider.meta, localProxyScriptEnabled: enabled },
       },
       originalId: provider.id,
-      successMessage: enabled
-        ? t("provider.proxyScriptEnabled", { defaultValue: "代理脚本已启用" })
-        : t("provider.proxyScriptDisabled", { defaultValue: "代理脚本已关闭" }),
+      successMessage: `${base}${restart}`,
     });
+  };
   // 获取用量数据以判断是否有多套餐
   // 累加模式应用：使用 isInConfig 代替 isCurrent
   const shouldAutoQuery = isAdditiveAppId(appId) ? isInConfig : isCurrent;

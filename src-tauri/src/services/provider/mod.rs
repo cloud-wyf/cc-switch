@@ -5405,11 +5405,14 @@ impl ProviderService {
     ///    d. Write target provider config to live files
     ///    e. Sync MCP configuration
     pub fn switch(state: &AppState, app_type: AppType, id: &str) -> Result<SwitchResult, AppError> {
-        let scripted = state
+        let routed = state
             .db
             .get_provider_by_id(id, app_type.as_str())?
-            .filter(|provider| provider.active_proxy_script().is_some());
-        if let Some(provider) = scripted.clone() {
+            .filter(|provider| proxy_script::needs_routing(&app_type, provider));
+        if let Some(provider) = routed
+            .clone()
+            .filter(|provider| provider.active_proxy_script().is_some())
+        {
             let app = app_type.clone();
             let validation = tauri::async_runtime::spawn(async move {
                 proxy_script::validate(&app, &provider).await
@@ -5420,7 +5423,7 @@ impl ProviderService {
         }
         let result = Self::switch_without_script_activation(state, app_type.clone(), id)?;
         // The normal switch has released its per-app lock before takeover acquires it.
-        if scripted.is_some() {
+        if routed.is_some() {
             let state = state.clone();
             let id = id.to_string();
             let activation = tauri::async_runtime::spawn(async move {

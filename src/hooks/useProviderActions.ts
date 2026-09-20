@@ -24,6 +24,7 @@ import {
   useSwitchProviderMutation,
 } from "@/lib/query";
 import { usageKeys } from "@/lib/query/usage";
+import type { ProvidersQueryData } from "@/lib/query/queries";
 import { hasEnabledProxyScript } from "@/lib/proxyScript";
 import { extractErrorMessage } from "@/utils/errorUtils";
 import { openclawKeys } from "@/hooks/useOpenClaw";
@@ -44,7 +45,6 @@ import { isOAuthProviderType } from "@/config/constants";
  */
 export function useProviderActions(
   activeApp: AppId,
-  isProxyRunning?: boolean,
   isProxyTakeover?: boolean,
 ) {
   const { t } = useTranslation();
@@ -148,9 +148,20 @@ export function useProviderActions(
   // 更新供应商
   const updateProvider = useCallback(
     async (provider: Provider, originalId?: string) => {
+      // Saving the current Claude Desktop provider rewrites its 3P profile,
+      // which Desktop only reads at launch.
+      const desktopCurrent =
+        activeApp === "claude-desktop" &&
+        queryClient.getQueryData<ProvidersQueryData>(["providers", activeApp])
+          ?.currentProviderId === (originalId ?? provider.id);
       await updateProviderMutation.mutateAsync({
         provider,
         originalId,
+        successMessage: desktopCurrent
+          ? t("claudeDesktop.savedRestartRequired", {
+              defaultValue: "已保存，重启 Claude Desktop 后生效",
+            })
+          : undefined,
       });
 
       // 更新托盘菜单（失败不影响主操作）
@@ -163,7 +174,7 @@ export function useProviderActions(
         );
       }
     },
-    [updateProviderMutation],
+    [activeApp, queryClient, t, updateProviderMutation],
   );
 
   // 切换供应商
@@ -193,13 +204,10 @@ export function useProviderActions(
               ),
             )));
 
-      // Claude Desktop 的路由开关就是代理进程本身；其余应用还必须开启当前
-      // 应用的 takeover。不能只看全局进程，否则其它应用已接管时会漏判；也
-      // 不能只看 takeover，否则 Desktop 在路由已运行时会持续误报。
+      // Claude Desktop 本地路由供应商在后端切换时自动拉起路由服务，无需预警；
+      // 其余应用还必须开启当前应用的 takeover，不能只看全局进程。
       const routingReady =
-        activeApp === "claude-desktop"
-          ? isProxyRunning === true
-          : isProxyTakeover === true;
+        activeApp === "claude-desktop" || isProxyTakeover === true;
 
       // Determine why this provider requires the proxy.
       let proxyRequiredReason: string | null = null;
@@ -246,13 +254,6 @@ export function useProviderActions(
               defaultValue: "使用 Anthropic Messages 接口格式",
             },
           );
-        } else if (
-          activeApp === "claude-desktop" &&
-          provider.meta?.claudeDesktopMode === "proxy"
-        ) {
-          proxyRequiredReason = t("notifications.proxyReasonClaudeDesktop", {
-            defaultValue: "使用 Claude Desktop 本地路由模式",
-          });
         } else if (
           provider.meta?.isFullUrl &&
           (activeApp === "claude" ||
@@ -365,14 +366,7 @@ export function useProviderActions(
         // 错误提示由 mutation 处理
       }
     },
-    [
-      switchProviderMutation,
-      syncClaudePlugin,
-      activeApp,
-      isProxyRunning,
-      isProxyTakeover,
-      t,
-    ],
+    [switchProviderMutation, syncClaudePlugin, activeApp, isProxyTakeover, t],
   );
 
   // 删除供应商

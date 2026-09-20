@@ -196,7 +196,8 @@
         "apiKeyPlaceholder": "请输入 Gemini API Key"
       }
     },
-    "duplicateLiveIdsLoadFailed": "读取配置中的供应商标识失败，请先修复配置后再试"
+    "duplicateLiveIdsLoadFailed": "读取配置中的供应商标识失败，请先修复配置后再试",
+    "proxyScriptEnabledDesktopUpgraded": "代理脚本已启用，供应商已切换为本地路由"
   },
   "claudeCode": {
     "needsRouting": "需要路由",
@@ -220,14 +221,14 @@
     "modelConfigTitle": "模型配置",
     "modelModeLabel": "接入方式",
     "modelModeDirect": "直连",
-    "modelModeProxy": "模型映射",
+    "modelModeProxy": "本地路由",
     "officialNotice": "Claude Desktop 官方供应商使用应用内置的 1P 登录，无需配置 API Key 和接口地址。",
     "mode": "模型处理方式",
     "modeDirect": "直连",
     "modeProxy": "需要路由",
     "modelMappingToggle": "需要模型映射",
-    "modelMappingOffHint": "仅当供应商直接接受 Claude Desktop 可识别的三档角色 ID（claude-sonnet-* / claude-opus-* / claude-haiku-*）时才适用直连；其他模型名（含 claude-3-5-sonnet-… 等旧式 ID）请选择模型映射。",
-    "modelMappingOnHint": "Claude Desktop 只接受 claude-sonnet-* / claude-opus-* / claude-haiku-* 三档角色 ID。选择模型映射后，CC Switch 会把这三档映射到供应商的实际模型，并在使用期间保持本地路由开启。",
+    "modelMappingOffHint": "仅当供应商直接接受 Claude Desktop 可识别的三档角色 ID（claude-sonnet-* / claude-opus-* / claude-haiku-*）时才适用直连；其他模型名（含 claude-3-5-sonnet-… 等旧式 ID）或需要代理脚本时请选择本地路由。",
+    "modelMappingOnHint": "Claude Desktop 只接受 claude-sonnet-* / claude-opus-* / claude-haiku-* 三档角色 ID。选择本地路由后，Claude Desktop 连接 CC Switch 的路由服务，由 CC Switch 把这三档映射到供应商的实际模型；代理脚本也只在此模式下执行。",
     "routeMapTitle": "模型映射",
     "routeMapHint": "为 Sonnet、Opus、Haiku 三档分别填写实际请求模型；菜单显示名可写 DeepSeek、Kimi 等品牌名。留空的档会自动沿用 Sonnet（或第一个已填档）的模型，确保子 agent 调用的 Haiku 始终可用。",
     "routeModelLabel": "模型角色",
@@ -250,16 +251,11 @@
     "statusTitle": "Claude Desktop 配置需要检查",
     "statusUnsupported": "当前平台暂不支持 Claude Desktop 3P 配置写入。",
     "statusStaleRawModels": "Claude Desktop profile 中存在非 Sonnet / Opus / Haiku 角色模型名，新版 Claude Desktop 可能拒绝加载；重新切换当前供应商可修复。",
-    "statusMissingRouteMappings": "当前供应商启用了模型映射，但没有有效路由；请编辑供应商并补全至少一个模型映射。",
+    "statusMissingRouteMappings": "当前供应商启用了本地路由，但没有有效路由；请编辑供应商并补全至少一个模型映射。",
     "statusGatewayTokenMissing": "当前本地路由 token 尚未生成；重新切换该供应商会写入新的本地 token。",
     "statusBaseUrlMismatch": "Claude Desktop profile 指向的地址与当前供应商不一致；当前为 {{actual}}，应为 {{expected}}。重新切换当前供应商可修复。",
-    "route": {
-      "tooltip": {
-        "active": "Claude Desktop 本地路由已开启 - {{address}}:{{port}}",
-        "inactive": "开启 Claude Desktop 本地路由，用于需要模型映射或格式转换的供应商。当前配置地址：{{address}}:{{port}}"
-      },
-      "stopBlockedByTakeover": "其它应用正在使用代理接管。请先在设置中关闭对应应用接管，再停止本地路由。"
-    }
+    "savedRestartRequired": "已保存，重启 Claude Desktop 后生效",
+    "restartRequired": "重启 Claude Desktop 后生效"
   },
   "notifications": {
     "providerAdded": "供应商已添加",
@@ -2873,6 +2869,12 @@
         "active": "{{appLabel}} 路由中 - {{address}}:{{port}}\n切换该应用供应商为热切换",
         "broken": "{{appLabel}} 路由中，但路由服务未运行",
         "inactive": "路由 {{appLabel}} 的请求，让该应用请求走本地路由"
+      },
+      "desktop": {
+        "localRoute": "本地路由 · {{provider}}",
+        "direct": "直连 · {{provider}}",
+        "none": "未选择供应商",
+        "hint": "Claude Desktop 没有独立开关：当前供应商的接入方式为本地路由时经路由服务转发，在供应商编辑页修改。"
       }
     },
     "failover": {

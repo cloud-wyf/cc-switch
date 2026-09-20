@@ -196,7 +196,8 @@
         "apiKeyPlaceholder": "Gemini API Key を入力"
       }
     },
-    "duplicateLiveIdsLoadFailed": "設定内のプロバイダー識別子を読み込めませんでした。設定を修正してから再度お試しください"
+    "duplicateLiveIdsLoadFailed": "設定内のプロバイダー識別子を読み込めませんでした。設定を修正してから再度お試しください",
+    "proxyScriptEnabledDesktopUpgraded": "プロキシスクリプトを有効にし、プロバイダーをローカルルーティングに切り替えました"
   },
   "claudeCode": {
     "needsRouting": "ルーティングが必要",
@@ -220,14 +221,14 @@
     "modelConfigTitle": "モデル設定",
     "modelModeLabel": "接続方式",
     "modelModeDirect": "直接接続",
-    "modelModeProxy": "モデルマッピング",
+    "modelModeProxy": "ローカルルーティング",
     "officialNotice": "Claude Desktop の公式プロバイダーは内蔵の 1P サインインを使用します。API キーやエンドポイントの設定は不要です。",
     "mode": "モデル処理方式",
     "modeDirect": "直結",
     "modeProxy": "ルーティング必要",
     "modelMappingToggle": "モデルマッピングが必要",
-    "modelMappingOffHint": "プロバイダーが Claude Desktop の三つの役割 ID（claude-sonnet-* / claude-opus-* / claude-haiku-*）を受け付ける場合のみ直結できます。それ以外のモデル名（claude-3-5-sonnet-… などの旧式 ID を含む）は「モデルマッピング」を選択してください。",
-    "modelMappingOnHint": "Claude Desktop は claude-sonnet-* / claude-opus-* / claude-haiku-* の三つの役割 ID のみ受け付けます。「モデルマッピング」を選択すると、CC Switch がこの三役割をプロバイダーの実モデルにマッピングし、使用中はローカルルーティングを起動したままにします。",
+    "modelMappingOffHint": "プロバイダーが Claude Desktop の三つの役割 ID（claude-sonnet-* / claude-opus-* / claude-haiku-*）を受け付ける場合のみ直結できます。それ以外のモデル名（claude-3-5-sonnet-… などの旧式 ID を含む）やプロキシスクリプトが必要な場合は「ローカルルーティング」を選択してください。",
+    "modelMappingOnHint": "Claude Desktop は claude-sonnet-* / claude-opus-* / claude-haiku-* の三つの役割 ID のみ受け付けます。「ローカルルーティング」を選択すると Claude Desktop は CC Switch のルーティングサービスに接続し、CC Switch がこの三役割をプロバイダーの実モデルにマッピングします。プロキシスクリプトもこのモードでのみ実行されます。",
     "routeMapTitle": "モデルマッピング",
     "routeMapHint": "Sonnet・Opus・Haiku の各区分に実際のリクエストモデルを入力してください。DeepSeek や Kimi などのブランド名はメニュー表示名に入れられます。空欄の区分は Sonnet（または最初に入力した区分）のモデルを引き継ぐため、サブ agent が呼び出す Haiku が常に利用可能になります。",
     "routeModelLabel": "モデル役割",
@@ -250,16 +251,11 @@
     "statusTitle": "Claude Desktop 設定の確認が必要です",
     "statusUnsupported": "このプラットフォームでは Claude Desktop 3P 設定の書き込みはまだサポートされていません。",
     "statusStaleRawModels": "Claude Desktop profile に Sonnet / Opus / Haiku の役割ファミリー以外のモデル ID が含まれています。新しい Claude Desktop では拒否される可能性があります。現在のプロバイダーへ再度切り替えると修復できます。",
-    "statusMissingRouteMappings": "現在のプロバイダーはモデルマッピングを有効にしていますが、有効なルートがありません。プロバイダーを編集し、少なくとも 1 つのマッピングを追加してください。",
+    "statusMissingRouteMappings": "現在のプロバイダーはローカルルーティングを有効にしていますが、有効なルートがありません。プロバイダーを編集して少なくとも一つのマッピングを追加してください。",
     "statusGatewayTokenMissing": "ローカルルーティング token がまだ生成されていません。このプロバイダーへ再度切り替えると新しい token が書き込まれます。",
     "statusBaseUrlMismatch": "Claude Desktop profile の URL が現在のプロバイダーと一致しません。現在: {{actual}}、期待値: {{expected}}。現在のプロバイダーへ再度切り替えると修復できます。",
-    "route": {
-      "tooltip": {
-        "active": "Claude Desktop ローカルルーティングは起動中です - {{address}}:{{port}}",
-        "inactive": "モデルマッピングや形式変換が必要なプロバイダー向けに Claude Desktop ローカルルーティングを起動します。設定アドレス: {{address}}:{{port}}"
-      },
-      "stopBlockedByTakeover": "別のアプリがプロキシテイクオーバーを使用しています。設定で該当アプリのテイクオーバーを無効にしてから、ローカルルーティングを停止してください。"
-    }
+    "savedRestartRequired": "保存しました。Claude Desktop を再起動すると反映されます",
+    "restartRequired": "Claude Desktop を再起動すると反映されます"
   },
   "notifications": {
     "providerAdded": "プロバイダーを追加しました",
@@ -2873,6 +2869,12 @@
         "active": "{{appLabel}} がルーティング中 - {{address}}:{{port}}\nホットスイッチングのためプロバイダを切り替え",
         "broken": "{{appLabel}} がルーティング中ですが、ルーティングサービスが実行されていません",
         "inactive": "{{appLabel}} のリクエストをローカルルーティング経由でルーティング"
+      },
+      "desktop": {
+        "localRoute": "ローカルルーティング · {{provider}}",
+        "direct": "直結 · {{provider}}",
+        "none": "プロバイダー未選択",
+        "hint": "Claude Desktop には個別のスイッチがありません。現在のプロバイダーの接続方式がローカルルーティングのときにルーティングサービスを経由します。プロバイダー編集画面で変更してください。"
       }
     },
     "failover": {

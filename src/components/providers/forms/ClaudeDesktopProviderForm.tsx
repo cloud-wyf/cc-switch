@@ -957,11 +957,11 @@ export function ClaudeDesktopProviderForm({
                     {needsModelMapping
                       ? t("claudeDesktop.modelMappingOnHint", {
                           defaultValue:
-                            "Claude Desktop 只接受 claude-sonnet-* / claude-opus-* / claude-haiku-* 三档角色 ID。选择模型映射后，CC Switch 会把这三档映射到供应商的实际模型，并在使用期间保持本地路由开启。",
+                            "Claude Desktop 只接受 claude-sonnet-* / claude-opus-* / claude-haiku-* 三档角色 ID。选择本地路由后，Claude Desktop 连接 CC Switch 的路由服务，由 CC Switch 把这三档映射到供应商的实际模型；代理脚本也只在此模式下执行。",
                         })
                       : t("claudeDesktop.modelMappingOffHint", {
                           defaultValue:
-                            "仅当供应商直接接受 Claude Desktop 可识别的三档角色 ID（claude-sonnet-* / claude-opus-* / claude-haiku-*）时才适用直连；其他模型名（含 claude-3-5-sonnet-… 等旧式 ID）请选择模型映射。",
+                            "仅当供应商直接接受 Claude Desktop 可识别的三档角色 ID（claude-sonnet-* / claude-opus-* / claude-haiku-*）时才适用直连；其他模型名（含 claude-3-5-sonnet-… 等旧式 ID）或需要代理脚本时请选择本地路由。",
                         })}
                   </p>
                 </div>
@@ -998,7 +998,7 @@ export function ClaudeDesktopProviderForm({
                       </SelectItem>
                       <SelectItem value="proxy">
                         {t("claudeDesktop.modelModeProxy", {
-                          defaultValue: "模型映射",
+                          defaultValue: "本地路由",
                         })}
                       </SelectItem>
                     </SelectContent>

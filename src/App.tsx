@@ -17,6 +17,7 @@ import {
   Wrench,
   History,
   BarChart2,
+  ScrollText,
   Download,
   FolderArchive,
   Search,
@@ -72,9 +73,9 @@ import { SettingsPage } from "@/components/settings/SettingsPage";
 import { UpdateBadge } from "@/components/UpdateBadge";
 import { EnvWarningBanner } from "@/components/env/EnvWarningBanner";
 import { ProxyToggle } from "@/components/proxy/ProxyToggle";
-import { ClaudeDesktopRouteToggle } from "@/components/proxy/ClaudeDesktopRouteToggle";
 import { FailoverToggle } from "@/components/proxy/FailoverToggle";
 import { RoutingActivationBrand } from "@/components/proxy/RoutingActivationBrand";
+import { ProxyEventLogViewer } from "@/components/proxy/ProxyEventLogViewer";
 import UsageScriptModal from "@/components/UsageScriptModal";
 import UnifiedMcpPanel from "@/components/mcp/UnifiedMcpPanel";
 import PromptPanel, {
@@ -247,6 +248,7 @@ function App() {
 
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null);
   const [usageProvider, setUsageProvider] = useState<Provider | null>(null);
+  const [eventLogOpen, setEventLogOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{
     provider: Provider;
     action: "remove" | "delete";
@@ -294,6 +296,19 @@ function App() {
   const { data, isLoading, refetch } = useProvidersQuery(activeApp, {
     isProxyRunning: currentAppUsesProxy && isProxyRunning,
   });
+  // Claude Desktop has no takeover switch: its current provider's access mode
+  // decides whether requests go through the local gateway.
+  const isCurrentAppRouted =
+    isProxyRunning &&
+    (activeApp === "claude-desktop"
+      ? data?.providers[data.currentProviderId]?.meta?.claudeDesktopMode ===
+        "proxy"
+      : isCurrentAppTakeoverActive);
+  const routingStatusReady =
+    proxyStatus !== undefined &&
+    (activeApp === "claude-desktop"
+      ? data !== undefined
+      : takeoverStatus !== undefined);
   const { data: piCurrentState } = usePiCurrentState(activeApp === "pi");
   const providers = useMemo(() => data?.providers ?? {}, [data]);
   const currentProviderId = data?.currentProviderId ?? "";
@@ -328,7 +343,6 @@ function App() {
     setAsDefaultModel,
   } = useProviderActions(
     activeApp,
-    currentAppUsesProxy && isProxyRunning,
     isProxyRunning && isCurrentAppTakeoverActive,
   );
   const handleEnablePiProvider = async (provider: Provider) => {
@@ -1324,11 +1338,9 @@ function App() {
             ) : (
               <div className="flex items-center gap-2">
                 <RoutingActivationBrand
-                  active={isProxyRunning && isCurrentAppTakeoverActive}
+                  active={isCurrentAppRouted}
                   contextKey={activeApp}
-                  ready={
-                    proxyStatus !== undefined && takeoverStatus !== undefined
-                  }
+                  ready={routingStatusReady}
                 />
                 <Button
                   variant="ghost"
@@ -1348,47 +1360,49 @@ function App() {
                     setCurrentView("settings");
                   }}
                 />
-                {isCurrentAppTakeoverActive && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => {
-                      setSettingsDefaultTab("usage");
-                      setCurrentView("settings");
-                    }}
-                    title={t("usage.title", {
-                      defaultValue: "使用统计",
-                    })}
-                    className="hover:bg-black/5 dark:hover:bg-white/5"
-                  >
-                    <BarChart2 className="w-4 h-4" />
-                  </Button>
-                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setSettingsDefaultTab("usage");
+                    setCurrentView("settings");
+                  }}
+                  title={t("usage.title", {
+                    defaultValue: "使用统计",
+                  })}
+                  className="hover:bg-black/5 dark:hover:bg-white/5"
+                >
+                  <BarChart2 className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setEventLogOpen(true)}
+                  title={t("proxy.eventLog.title", {
+                    defaultValue: "详细请求日志",
+                  })}
+                  className="hover:bg-black/5 dark:hover:bg-white/5"
+                >
+                  <ScrollText className="w-4 h-4" />
+                </Button>
               </div>
             )}
           </div>
 
           <div className="flex flex-1 min-w-0 items-center justify-end gap-1.5">
-            {currentView === "providers" &&
-              (activeApp === "claude-desktop" || proxyAppId) && (
-                <div
-                  className="flex shrink-0 items-center gap-1.5"
-                  style={{ WebkitAppRegion: "no-drag" } as any}
-                >
-                  {activeApp === "claude-desktop" ? (
-                    <ClaudeDesktopRouteToggle />
-                  ) : proxyAppId ? (
-                    <>
-                      {settingsData?.enableLocalProxy && (
-                        <ProxyToggle activeApp={proxyAppId} />
-                      )}
-                      {settingsData?.enableFailoverToggle && (
-                        <FailoverToggle activeApp={proxyAppId} />
-                      )}
-                    </>
-                  ) : null}
-                </div>
-              )}
+            {currentView === "providers" && proxyAppId && (
+              <div
+                className="flex shrink-0 items-center gap-1.5"
+                style={{ WebkitAppRegion: "no-drag" } as any}
+              >
+                {settingsData?.enableLocalProxy && (
+                  <ProxyToggle activeApp={proxyAppId} />
+                )}
+                {settingsData?.enableFailoverToggle && (
+                  <FailoverToggle activeApp={proxyAppId} />
+                )}
+              </div>
+            )}
             {currentView === "providers" &&
               (settingsData?.showProfileSwitcher ?? true) && (
                 <div
@@ -1770,6 +1784,11 @@ function App() {
         onSubmit={handleEditProvider}
         appId={activeApp}
         isProxyTakeover={isCurrentAppTakeoverActive}
+      />
+
+      <ProxyEventLogViewer
+        isOpen={eventLogOpen}
+        onClose={() => setEventLogOpen(false)}
       />
 
       {effectiveUsageProvider && (

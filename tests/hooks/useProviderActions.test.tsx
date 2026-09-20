@@ -214,7 +214,7 @@ describe("useProviderActions", () => {
       },
     });
 
-    const { result } = renderHook(() => useProviderActions("claude", false), {
+    const { result } = renderHook(() => useProviderActions("claude"), {
       wrapper,
     });
 
@@ -236,7 +236,7 @@ describe("useProviderActions", () => {
       },
     });
 
-    const { result } = renderHook(() => useProviderActions("codex", false), {
+    const { result } = renderHook(() => useProviderActions("codex"), {
       wrapper,
     });
 
@@ -256,7 +256,7 @@ describe("useProviderActions", () => {
       meta: { apiFormat: "anthropic" },
     });
 
-    const { result } = renderHook(() => useProviderActions("codex", false), {
+    const { result } = renderHook(() => useProviderActions("codex"), {
       wrapper,
     });
 
@@ -291,10 +291,9 @@ describe("useProviderActions", () => {
       }),
     ];
 
-    const { result } = renderHook(
-      () => useProviderActions("grokbuild", false),
-      { wrapper },
-    );
+    const { result } = renderHook(() => useProviderActions("grokbuild"), {
+      wrapper,
+    });
 
     for (const provider of providers) {
       await act(async () => {
@@ -319,10 +318,9 @@ describe("useProviderActions", () => {
           localProxyScriptEnabled: enabled,
         },
       });
-      const { result } = renderHook(
-        () => useProviderActions("codex", false, false),
-        { wrapper },
-      );
+      const { result } = renderHook(() => useProviderActions("codex"), {
+        wrapper,
+      });
 
       await act(async () => {
         await result.current.switchProvider(provider);
@@ -344,10 +342,9 @@ describe("useProviderActions", () => {
       },
     });
 
-    const { result } = renderHook(
-      () => useProviderActions("codex", true, false),
-      { wrapper },
-    );
+    const { result } = renderHook(() => useProviderActions("codex"), {
+      wrapper,
+    });
 
     await act(async () => {
       await result.current.switchProvider(provider);
@@ -370,8 +367,28 @@ describe("useProviderActions", () => {
       },
     });
 
+    const { result } = renderHook(() => useProviderActions("codex", true), {
+      wrapper,
+    });
+
+    await act(async () => {
+      await result.current.switchProvider(provider);
+    });
+
+    expect(toastWarningMock).not.toHaveBeenCalled();
+    expect(switchProviderMutateAsync).toHaveBeenCalledWith(provider.id);
+  });
+
+  it("does not warn for Claude Desktop local-route providers; the backend starts routing", async () => {
+    switchProviderMutateAsync.mockResolvedValue(undefined);
+    const { wrapper } = createWrapper();
+    const provider = createProvider({
+      category: "custom",
+      meta: { claudeDesktopMode: "proxy" },
+    });
+
     const { result } = renderHook(
-      () => useProviderActions("codex", true, true),
+      () => useProviderActions("claude-desktop", false),
       { wrapper },
     );
 
@@ -383,36 +400,6 @@ describe("useProviderActions", () => {
     expect(switchProviderMutateAsync).toHaveBeenCalledWith(provider.id);
   });
 
-  it("uses proxy process readiness for Claude Desktop routing", async () => {
-    switchProviderMutateAsync.mockResolvedValue(undefined);
-    const { wrapper } = createWrapper();
-    const provider = createProvider({
-      category: "custom",
-      meta: { claudeDesktopMode: "proxy" },
-    });
-
-    const { result, rerender } = renderHook(
-      ({ isProxyRunning }) =>
-        useProviderActions("claude-desktop", isProxyRunning, false),
-      { initialProps: { isProxyRunning: true }, wrapper },
-    );
-
-    await act(async () => {
-      await result.current.switchProvider(provider);
-    });
-    expect(toastWarningMock).not.toHaveBeenCalled();
-
-    rerender({ isProxyRunning: false });
-    await act(async () => {
-      await result.current.switchProvider(provider);
-    });
-
-    expect(toastWarningMock).toHaveBeenCalledTimes(1);
-    expect(toastWarningMock).toHaveBeenCalledWith(
-      expect.stringContaining("Claude Desktop 本地路由模式"),
-    );
-  });
-
   it("allows the native Codex official provider during takeover", async () => {
     switchProviderMutateAsync.mockResolvedValueOnce(undefined);
     const { wrapper } = createWrapper();
@@ -421,10 +408,9 @@ describe("useProviderActions", () => {
       category: "official",
     });
 
-    const { result } = renderHook(
-      () => useProviderActions("codex", true, true),
-      { wrapper },
-    );
+    const { result } = renderHook(() => useProviderActions("codex", true), {
+      wrapper,
+    });
 
     await act(async () => {
       await result.current.switchProvider(provider);
@@ -441,10 +427,9 @@ describe("useProviderActions", () => {
       category: "official",
     });
 
-    const { result } = renderHook(
-      () => useProviderActions("claude", true, true),
-      { wrapper },
-    );
+    const { result } = renderHook(() => useProviderActions("claude", true), {
+      wrapper,
+    });
 
     await act(async () => {
       await result.current.switchProvider(provider);
@@ -470,10 +455,9 @@ describe("useProviderActions", () => {
         },
       },
     });
-    const { result } = renderHook(
-      () => useProviderActions("codex", true, true),
-      { wrapper },
-    );
+    const { result } = renderHook(() => useProviderActions("codex", true), {
+      wrapper,
+    });
 
     await act(async () => {
       await result.current.switchProvider(provider);

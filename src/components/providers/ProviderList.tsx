@@ -342,7 +342,7 @@ export function ProviderList({
       messages.push(
         t("claudeDesktop.statusMissingRouteMappings", {
           defaultValue:
-            "当前供应商启用了模型映射，但没有有效路由；请编辑供应商并补全至少一个模型映射。",
+            "当前供应商启用了本地路由，但没有有效路由；请编辑供应商并补全至少一个模型映射。",
         }),
       );
     }

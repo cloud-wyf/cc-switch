@@ -1965,7 +1965,7 @@ async fn restore_proxy_state_on_startup(state: &store::AppState) {
     let apps_to_restore = enabled_proxy_apps_on_startup(&state.db).await;
 
     if apps_to_restore.is_empty() {
-        log::debug!("启动时无需恢复代理状态");
+        restore_claude_desktop_gateway_on_startup(state).await;
         return;
     }
 
@@ -1993,6 +1993,26 @@ async fn restore_proxy_state_on_startup(state: &store::AppState) {
                 }
             }
         }
+    }
+}
+
+/// Claude Desktop has no takeover flag: its current provider decides whether the
+/// gateway must listen. Bring it up before Claude Desktop probes the profile.
+async fn restore_claude_desktop_gateway_on_startup(state: &store::AppState) {
+    let app = app_config::AppType::ClaudeDesktop;
+    let current = services::provider::ProviderService::current(state, app.clone())
+        .ok()
+        .filter(|id| !id.is_empty());
+    let Some(id) = current else {
+        log::debug!("启动时无需恢复代理状态");
+        return;
+    };
+    match services::provider::proxy_script::activate_current(state, &app, &id).await {
+        Ok(()) if state.proxy_service.is_running().await => {
+            log::info!("✓ 已为 Claude Desktop 本地路由供应商启动路由服务");
+        }
+        Ok(()) => log::debug!("启动时无需恢复代理状态"),
+        Err(e) => log::error!("✗ 启动 Claude Desktop 路由服务失败: {e}"),
     }
 }
 

@@ -119,7 +119,7 @@ describe("ClaudeDesktopProviderForm", () => {
       const modelModePicker = screen.getByRole("combobox", {
         name: "接入方式",
       });
-      expect(modelModePicker).toHaveTextContent("模型映射");
+      expect(modelModePicker).toHaveTextContent("本地路由");
       expect(modelModePicker).toBeDisabled();
     },
   );
@@ -220,7 +220,7 @@ describe("ClaudeDesktopProviderForm", () => {
     ).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("combobox", { name: "接入方式" }));
-    await user.click(await screen.findByRole("option", { name: "模型映射" }));
+    await user.click(await screen.findByRole("option", { name: "本地路由" }));
 
     expect(screen.getByDisplayValue("upstream-sonnet")).toBeInTheDocument();
   });
