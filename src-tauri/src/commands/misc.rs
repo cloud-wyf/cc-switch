@@ -1629,7 +1629,7 @@ fn extend_mise_node_search_paths(paths: &mut Vec<std::path::PathBuf>, home: &Pat
 /// See `env_checker::check_system_env` for the same set of registry keys; here
 /// we read only the `Path` value.
 #[cfg(target_os = "windows")]
-fn effective_path_string() -> String {
+pub(crate) fn effective_path_string() -> String {
     use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
     use winreg::RegKey;
 

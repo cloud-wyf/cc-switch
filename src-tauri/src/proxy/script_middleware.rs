@@ -117,7 +117,13 @@ fn spawn_runner(source: &str) -> Result<Child, ProxyError> {
         .stderr(Stdio::piped())
         .kill_on_drop(true);
     #[cfg(windows)]
-    command.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    {
+        command.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        // A process relaunched by the in-app updater inherits only the machine
+        // PATH (#6061); `node` installed on the user PATH (nvm, vfox, npm
+        // prefix) is then invisible. Resolve against the registry-merged PATH.
+        command.env("PATH", crate::commands::misc::effective_path_string());
+    }
     command.spawn().map_err(|error| {
         script_error(format!(
             "无法启动 Node.js，请安装 Node.js 24 或更新版本并确保 node 在 PATH 中：{error}"
