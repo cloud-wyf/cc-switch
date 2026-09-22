@@ -733,7 +733,15 @@ impl RequestTrace {
             }
         }
         if events.is_empty() {
-            events.push(base);
+            let mut event = base;
+            let original = &self.0.original;
+            event["app_type"] = json!(guess_app(&original.url, &original.headers));
+            event["target"] = json!(local_purpose(
+                &original.method,
+                &original.url,
+                client.map(|r| r.status),
+            ));
+            events.push(event);
         }
         secrets.sort_by_key(|s| std::cmp::Reverse(s.len()));
         secrets.dedup();
@@ -741,6 +749,48 @@ impl RequestTrace {
             redact_values(event, &secrets);
         }
         events
+    }
+}
+
+/// 未进入转发的请求没有 attempt，按路径前缀和 UA 推断发起方。
+fn guess_app(url: &str, headers: &Value) -> Option<&'static str> {
+    let path = url.split('?').next().unwrap_or(url);
+    let by_path = [
+        ("/claude-desktop/", "claude-desktop"),
+        ("/claude/", "claude"),
+        ("/codex/", "codex"),
+        ("/grokbuild/", "grokbuild"),
+        ("/gemini/", "gemini"),
+        ("/v1beta/", "gemini"),
+    ];
+    if let Some((_, app)) = by_path.iter().find(|(prefix, _)| path.starts_with(prefix)) {
+        return Some(app);
+    }
+    let header = |name: &str| headers[name].as_str().unwrap_or("").to_ascii_lowercase();
+    let ua = header("user-agent");
+    let originator = header("originator");
+    if ua.starts_with("claude-cli/") || ua.contains("claude-code") {
+        Some("claude")
+    } else if ua.starts_with("codex_") || originator.starts_with("codex_") {
+        Some("codex")
+    } else if ua.starts_with("geminicli/") || ua.contains("gemini-cli") {
+        Some("gemini")
+    } else {
+        None
+    }
+}
+
+/// 未进入转发的请求在供应商列上说明它在做什么。
+fn local_purpose(method: &str, url: &str, status: Option<u16>) -> String {
+    let path = url.split('?').next().unwrap_or(url);
+    let tail = path.rsplit('/').next().unwrap_or("");
+    if method == "GET" && tail == "models" {
+        return "本地返回模型目录".into();
+    }
+    match status {
+        Some(404) => format!("未知路径 · {method} {path}"),
+        Some(status) if status >= 400 => format!("未转发 · {status} {method} {path}"),
+        _ => format!("本地处理 · {method} {path}"),
     }
 }
 

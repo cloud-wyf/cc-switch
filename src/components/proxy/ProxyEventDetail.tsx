@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Copy } from "lucide-react";
+import { Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useProxyEvent } from "@/lib/query/proxy";
 import {
@@ -14,7 +14,6 @@ import { getAppLabel } from "@/config/appConfig";
 
 interface ProxyEventDetailProps {
   id: number;
-  onBack: () => void;
 }
 
 const pretty = (value: unknown) =>
@@ -191,16 +190,12 @@ function Fact({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
-export function ProxyEventDetail({ id, onBack }: ProxyEventDetailProps) {
+export function ProxyEventDetail({ id }: ProxyEventDetailProps) {
   const { t } = useTranslation();
   const { data: event, isPending, isError } = useProxyEvent(id);
 
   return (
     <div className="space-y-4" data-testid="proxy-event-detail">
-      <Button type="button" variant="outline" size="sm" onClick={onBack}>
-        <ArrowLeft className="mr-2 h-4 w-4" />
-        {t("proxy.eventLog.viewer.detail.back")}
-      </Button>
       {isPending ? (
         <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
       ) : isError ? (

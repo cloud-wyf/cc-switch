@@ -3004,7 +3004,7 @@
         "refresh": "更新",
         "loadFailed": "詳細リクエストログを読み込めませんでした",
         "detail": {
-          "back": "一覧に戻る",
+          "title": "リクエスト詳細 #{{id}}",
           "notFound": "記録が存在しないか、既に削除されています",
           "overview": "概要",
           "requestId": "リクエスト ID",

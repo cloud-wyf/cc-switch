@@ -3005,7 +3005,7 @@
         "refresh": "重新整理",
         "loadFailed": "讀取詳細請求日誌失敗",
         "detail": {
-          "back": "返回列表",
+          "title": "請求詳情 #{{id}}",
           "notFound": "記錄不存在或已被清理",
           "overview": "概覽",
           "requestId": "請求追蹤 ID",

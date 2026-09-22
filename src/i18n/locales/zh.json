@@ -3004,7 +3004,7 @@
         "refresh": "刷新",
         "loadFailed": "读取详细请求日志失败",
         "detail": {
-          "back": "返回列表",
+          "title": "请求详情 #{{id}}",
           "notFound": "记录不存在或已被清理",
           "overview": "概览",
           "requestId": "请求追踪 ID",

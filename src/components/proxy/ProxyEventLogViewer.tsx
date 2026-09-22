@@ -96,14 +96,18 @@ export function ProxyEventLogViewer({
   return (
     <FullScreenPanel
       isOpen={isOpen}
-      title={t("proxy.eventLog.viewer.title")}
-      onClose={onClose}
+      title={
+        selectedId === null
+          ? t("proxy.eventLog.viewer.title")
+          : t("proxy.eventLog.viewer.detail.title", { id: selectedId })
+      }
+      onClose={selectedId === null ? onClose : () => setSelectedId(null)}
       contentClassName="space-y-4"
     >
       {selectedId === null ? (
         <ProxyEventLogList onSelect={setSelectedId} />
       ) : (
-        <ProxyEventDetail id={selectedId} onBack={() => setSelectedId(null)} />
+        <ProxyEventDetail id={selectedId} />
       )}
     </FullScreenPanel>
   );
@@ -394,7 +398,8 @@ export function ProxyEventLogList({
                       )}
                     >
                       {event.status === null || event.status === undefined
-                        ? t("proxy.eventLog.viewer.status.none")
+                        ? (event.client_status ??
+                          t("proxy.eventLog.viewer.status.none"))
                         : event.client_status !== null &&
                             event.client_status !== undefined &&
                             event.client_status !== event.status
