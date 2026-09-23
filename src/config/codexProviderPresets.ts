@@ -222,20 +222,17 @@ export const codexProviderPresets: CodexProviderPreset[] = [
     // 重注入
     apiFormat: "openai_responses",
     modelCatalog: modelCatalog([
-      // 照抄同页官方 models.json（2026-09-09 核对）：
-      // kimi-for-coding(-highspeed)=K2.7 Code、Thinking 恒 ON 无档位 → 单档
-      // high；k3/k3-256k 三档且官方 default_reasoning_level = "high"（与
-      // native 模板回落值相同，显式声明只为表单可见，MiniMax/MiMo 先例）。
-      // none 不列——该网关关思考=静默路由到 K2.6（换模型换计费）。网关
-      // effort 白名单 ultra/max/xhigh/high/medium/low/minimum/light/none，
-      // 未知值 400（Codex 的 minimal 不在内，档位子集已挡住选择器，用户自改
-      // 档位需自担）。四行 supports_parallel_tool_calls 均照抄官方 true
+      // 官方 Codex 指南（2026-09-15）：kimi-for-coding 已升级 K2.8 Preview，
+      // 最高 1M 上下文、low/high/max。高速版仍为 256K，独立保留其档位。
+      // k3 的 1M 权限取决于会员档位，k3-256k 固定 256K。
       {
         model: "kimi-for-coding",
-        displayName: "Kimi For Coding",
-        contextWindow: 262144,
+        displayName: "Kimi For Coding (K2.8 Preview)",
+        contextWindow: 1048576,
         supportsParallelToolCalls: true,
-        reasoningLevels: ["high"],
+        inputModalities: ["text", "image"],
+        reasoningLevels: ["low", "high", "max"],
+        defaultReasoningLevel: "high",
       },
       {
         model: "kimi-for-coding-highspeed",
@@ -273,11 +270,12 @@ export const codexProviderPresets: CodexProviderPreset[] = [
     config: generateThirdPartyConfig(
       "deepseek",
       "https://api.deepseek.com",
-      "deepseek-v4-flash",
+      "deepseek-flash",
     ),
     endpointCandidates: ["https://api.deepseek.com"],
     // DeepSeek 官方 Codex 文档（api-docs.deepseek.com → agent_integrations/codex）：
-    // deepseek-v4-flash 原生 Responses（wire_api=responses 对自家 base_url），无需路由接管转换。
+    // 当前官方推荐 deepseek-flash（V4.1 Flash）；旧 v4-flash 别名继续由后端兼容。
+    // deepseek-flash 原生 Responses（wire_api=responses 对自家 base_url），无需路由接管转换。
     // 后端按 deepseek.com host 直接镜像官方 models.json（freeform apply_patch +
     // GPT-5 harness + low/high/max 思考档，需 codex >= 0.144.0），这里只保留行清单与展示名。
     // 档位照抄官方 catalog（low/high/max 默认 high，2026-08-15 复核 flash/pro
@@ -286,8 +284,9 @@ export const codexProviderPresets: CodexProviderPreset[] = [
     apiFormat: "openai_responses",
     modelCatalog: modelCatalog([
       {
-        model: "deepseek-v4-flash",
-        displayName: "DeepSeek V4 Flash",
+        model: "deepseek-flash",
+        displayName: "DeepSeek V4.1 Flash",
+        inputModalities: ["text", "image"],
         contextWindow: 1048576,
         reasoningLevels: ["low", "high", "max"],
       },
@@ -295,6 +294,7 @@ export const codexProviderPresets: CodexProviderPreset[] = [
       {
         model: "deepseek-v4-pro",
         displayName: "DeepSeek V4 Pro",
+        inputModalities: ["text"],
         contextWindow: 1048576,
         reasoningLevels: ["low", "high", "max"],
       },
@@ -353,18 +353,18 @@ export const codexProviderPresets: CodexProviderPreset[] = [
   },
   {
     name: "MiniMax",
-    websiteUrl: "https://platform.minimaxi.com",
-    apiKeyUrl: "https://platform.minimaxi.com/subscribe/coding-plan",
+    websiteUrl: "https://platform.minimax.cn",
+    apiKeyUrl: "https://platform.minimax.cn/subscribe/token-plan",
     auth: generateThirdPartyAuth(""),
     config: generateThirdPartyConfig(
       "minimax",
-      "https://api.minimaxi.com/v1",
+      "https://api.minimax.cn/v1",
       "MiniMax-M3",
     ),
-    endpointCandidates: ["https://api.minimaxi.com/v1"],
+    endpointCandidates: ["https://api.minimax.cn/v1"],
     // MiniMax 官方 API 参考已列 /v1/responses 为正式端点（CN/intl 双区，POST /v1/responses），原生 Responses，无需路由接管转换
     apiFormat: "openai_responses",
-    // 官方 Codex catalog（platform.minimaxi.com/docs/token-plan/codex-cli）：
+    // 官方 Codex catalog（platform.minimax.cn/docs/token-plan/codex）：
     // shell_command 编辑、并行工具、文本+图像，不声明 freeform apply_patch。
     // 档位照抄官方 catalog：none/high（M3 的 effort 是思考开关，minimal/low/medium
     // 端点接受但与 high 行为完全等价，不给假差异档）。与模板默认一致故 Codex 侧

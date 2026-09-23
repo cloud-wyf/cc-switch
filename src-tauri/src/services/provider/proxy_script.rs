@@ -157,21 +157,29 @@ mod tests {
         assert!(prepare(&AppType::ClaudeDesktop, &mut provider));
         let meta = provider.meta.as_ref().unwrap();
         assert_eq!(meta.claude_desktop_mode, Some(ClaudeDesktopMode::Proxy));
-        assert_eq!(meta.claude_desktop_model_routes.len(), DEFAULT_PROXY_ROUTES.len());
+        assert_eq!(
+            meta.claude_desktop_model_routes.len(),
+            DEFAULT_PROXY_ROUTES.len()
+        );
         assert!(!prepare(&AppType::ClaudeDesktop, &mut provider));
     }
 
     #[test]
     fn prepare_keeps_existing_direct_routes() {
         let mut provider = desktop_provider(ClaudeDesktopMode::Direct);
-        provider.meta.as_mut().unwrap().claude_desktop_model_routes.insert(
-            "claude-opus-4-7".into(),
-            ClaudeDesktopModelRoute {
-                model: "claude-opus-4-7".into(),
-                label_override: None,
-                supports_1m: None,
-            },
-        );
+        provider
+            .meta
+            .as_mut()
+            .unwrap()
+            .claude_desktop_model_routes
+            .insert(
+                "claude-opus-4-7".into(),
+                ClaudeDesktopModelRoute {
+                    model: "claude-opus-4-7".into(),
+                    label_override: None,
+                    supports_1m: None,
+                },
+            );
         assert!(prepare(&AppType::ClaudeDesktop, &mut provider));
         let routes = &provider.meta.as_ref().unwrap().claude_desktop_model_routes;
         assert_eq!(routes.len(), 1);
@@ -185,10 +193,7 @@ mod tests {
         assert!(!prepare(&AppType::ClaudeDesktop, &mut provider));
         let mut claude = desktop_provider(ClaudeDesktopMode::Direct);
         assert!(!prepare(&AppType::Claude, &mut claude));
-        assert_eq!(
-            provider_mode(&claude),
-            ClaudeDesktopMode::Direct
-        );
+        assert_eq!(provider_mode(&claude), ClaudeDesktopMode::Direct);
     }
 
     #[tokio::test]

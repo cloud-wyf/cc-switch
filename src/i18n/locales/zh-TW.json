@@ -926,7 +926,8 @@
     "opencode": "OpenCode",
     "openclaw": "OpenClaw",
     "hermes": "Hermes",
-    "pi": "Pi"
+    "pi": "Pi",
+    "mcode": "MiniMax Code"
   },
   "pi": {
     "empty": {
@@ -993,7 +994,7 @@
       "effectiveBaseUrlRequired": "模型 {{id}} 必須直接設定或從供應商繼承基礎 URL",
       "duplicateModel": "模型 ID {{id}} 重複",
       "modelRequired": "請至少新增一個模型",
-      "providerKeyDuplicate": "該供應商標識已存在"
+      "providerKeyDuplicate": "該供應商識別碼已存在"
     },
     "current": {
       "readFailed": "無法讀取 Pi 供應商設定",
@@ -1317,6 +1318,9 @@
     "searchModelEmpty": "沒有符合的模型",
     "searchModelAriaLabel": "選擇模型",
     "fetchModelsSuccess": "取得 {{count}} 個模型",
+    "fetchedModelsTitle": "可用模型（{{count}}）",
+    "modelAlreadyAdded": "已新增",
+    "addSelectedModels": "新增所選模型（{{count}}）",
     "fetchModelsFailed": "取得模型清單失敗",
     "fetchModelsEmpty": "未找到可用模型",
     "fetchModelsNeedApiKey": "請先填寫 API Key",
@@ -1693,7 +1697,8 @@
       "gemini": "Gemini",
       "opencode": "OpenCode",
       "grokbuild": "Grok Build",
-      "pi": "Pi"
+      "pi": "Pi",
+      "mcode": "MiniMax Code"
     },
     "rawInputLabel": "原始",
     "sessionSync": {
@@ -1997,7 +2002,8 @@
         "grokbuild": "Grok Build",
         "opencode": "OpenCode",
         "openclaw": "OpenClaw",
-        "hermes": "Hermes"
+        "hermes": "Hermes",
+        "mcode": "MiniMax Code"
       }
     },
     "userLevelPath": "使用者級 MCP 設定路徑",

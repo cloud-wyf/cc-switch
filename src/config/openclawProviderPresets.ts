@@ -264,10 +264,10 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
   },
   {
     name: "MiniMax",
-    websiteUrl: "https://platform.minimaxi.com",
-    apiKeyUrl: "https://platform.minimaxi.com/subscribe/coding-plan",
+    websiteUrl: "https://platform.minimax.cn",
+    apiKeyUrl: "https://platform.minimax.cn/subscribe/token-plan",
     settingsConfig: {
-      baseUrl: "https://api.minimaxi.com/v1",
+      baseUrl: "https://api.minimax.cn/v1",
       apiKey: "",
       api: "openai-completions",
       models: [

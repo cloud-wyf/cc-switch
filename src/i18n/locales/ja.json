@@ -925,7 +925,8 @@
     "opencode": "OpenCode",
     "openclaw": "OpenClaw",
     "hermes": "Hermes",
-    "pi": "Pi"
+    "pi": "Pi",
+    "mcode": "MiniMax Code"
   },
   "pi": {
     "empty": {
@@ -1316,6 +1317,9 @@
     "searchModelEmpty": "一致するモデルがありません",
     "searchModelAriaLabel": "モデルを選択",
     "fetchModelsSuccess": "{{count}}件のモデルを取得",
+    "fetchedModelsTitle": "利用可能なモデル（{{count}}件）",
+    "modelAlreadyAdded": "追加済み",
+    "addSelectedModels": "選択したモデルを追加（{{count}}件）",
     "fetchModelsFailed": "モデル一覧の取得に失敗しました",
     "fetchModelsEmpty": "モデルが見つかりません",
     "fetchModelsNeedApiKey": "先に API Key を入力してください",
@@ -1692,7 +1696,8 @@
       "gemini": "Gemini",
       "opencode": "OpenCode",
       "grokbuild": "Grok Build",
-      "pi": "Pi"
+      "pi": "Pi",
+      "mcode": "MiniMax Code"
     },
     "rawInputLabel": "原始",
     "sessionSync": {
@@ -1996,7 +2001,8 @@
         "grokbuild": "Grok Build",
         "opencode": "OpenCode",
         "openclaw": "OpenClaw",
-        "hermes": "Hermes"
+        "hermes": "Hermes",
+        "mcode": "MiniMax Code"
       }
     },
     "userLevelPath": "ユーザーレベルの MCP パス",

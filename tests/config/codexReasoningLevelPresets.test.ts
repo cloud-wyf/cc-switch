@@ -40,7 +40,7 @@ describe("Codex preset pre-filled reasoning levels", () => {
   const EXPECTED: Array<[string, string, string[], string?]> = [
     // DeepSeek 直连照抄官方 catalog 镜像（Jason 2026-08-15 拍板：表单可见性
     // 优先，接受快照过时风险——官方目录变更时须同步）
-    ["DeepSeek", "deepseek-v4-flash", ["low", "high", "max"]],
+    ["DeepSeek", "deepseek-flash", ["low", "high", "max"]],
     ["DeepSeek", "deepseek-v4-pro", ["low", "high", "max"]],
     // MiniMax 官方 catalog=none/high（与模板默认一致，声明只为表单可见）
     ["MiniMax", "MiniMax-M3", ["none", "high"]],
@@ -62,8 +62,8 @@ describe("Codex preset pre-filled reasoning levels", () => {
     // Kimi Code 端点（原生 Responses 直连）：k3/k3-256k 官方 models.json 明写
     // default_reasoning_level "high"，与 native 模板回落值相同——照抄官方目录
     // 的显式声明（表单可见性优先，MiniMax/MiMo 先例）故仍有第四位期望；
-    // kimi-for-coding(-highspeed) Thinking 恒 ON 单档
-    ["Kimi For Coding", "kimi-for-coding", ["high"]],
+    // 标准 kimi-for-coding 已升级到 K2.8 Preview；highspeed 保留原来的单档目录。
+    ["Kimi For Coding", "kimi-for-coding", ["low", "high", "max"], "high"],
     ["Kimi For Coding", "kimi-for-coding-highspeed", ["high"]],
     ["Kimi For Coding", "k3", ["low", "high", "max"], "high"],
     ["Kimi For Coding", "k3-256k", ["low", "high", "max"], "high"],

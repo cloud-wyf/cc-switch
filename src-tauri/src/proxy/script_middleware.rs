@@ -118,7 +118,8 @@ fn spawn_runner(source: &str) -> Result<Child, ProxyError> {
         .kill_on_drop(true);
     #[cfg(windows)]
     {
-        command.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        // CREATE_NO_WINDOW
+        command.creation_flags(0x08000000);
         // A process relaunched by the in-app updater inherits only the machine
         // PATH (#6061); `node` installed on the user PATH (nvm, vfox, npm
         // prefix) is then invisible. Resolve against the registry-merged PATH.

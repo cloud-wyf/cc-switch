@@ -24,14 +24,17 @@ describe("Codex third-party configuration authentication", () => {
 });
 
 describe("DeepSeek official preset modalities", () => {
-  it("inherits the official vision-capable catalog without a text-only override", () => {
+  it("keeps vision on V4.1 Flash and text-only on V4 Pro", () => {
     const preset = codexProviderPresets.find(
       (item) => item.name === "DeepSeek",
     );
-    expect(preset).toBeDefined();
-    expect(preset!.modelCatalog!.length).toBeGreaterThan(0);
-    for (const model of preset!.modelCatalog!) {
-      expect(model.inputModalities, model.model).toBeUndefined();
-    }
+    expect(
+      Object.fromEntries(
+        (preset?.modelCatalog ?? []).map((m) => [m.model, m.inputModalities]),
+      ),
+    ).toEqual({
+      "deepseek-flash": ["text", "image"],
+      "deepseek-v4-pro": ["text"],
+    });
   });
 });

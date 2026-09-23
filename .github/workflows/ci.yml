@@ -46,6 +46,8 @@ jobs:
         run: pnpm format:check
       - name: Unit tests
         run: pnpm test:unit
+      - name: Build frontend
+        run: pnpm build:renderer
       - name: Create frontend dist placeholder
         shell: pwsh
         run: New-Item -ItemType Directory -Path "dist" -Force | Out-Null

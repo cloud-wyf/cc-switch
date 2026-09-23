@@ -183,9 +183,7 @@ describe("ProxyEventLogViewer", () => {
     expect(detail).toHaveTextContent("proxy.eventLog.viewer.detail.changed");
     expect(detail).toHaveTextContent("[REDACTED]");
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "proxy.eventLog.viewer.detail.back" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "common.back" }));
     expect(await screen.findByTestId("proxy-event-list")).toBeInTheDocument();
   });
 

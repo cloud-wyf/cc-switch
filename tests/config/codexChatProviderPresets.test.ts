@@ -30,7 +30,7 @@ describe("Codex native Responses provider presets", () => {
         "DeepSeek",
         {
           contextWindows: {
-            "deepseek-v4-flash": 1048576,
+            "deepseek-flash": 1048576,
             "deepseek-v4-pro": 1048576,
           },
         },
@@ -63,7 +63,7 @@ describe("Codex native Responses provider presets", () => {
         {
           baseUrl: "https://api.kimi.com/coding/v1",
           contextWindows: {
-            "kimi-for-coding": 262144,
+            "kimi-for-coding": 1048576,
             "kimi-for-coding-highspeed": 262144,
             k3: 1048576,
             "k3-256k": 262144,

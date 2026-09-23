@@ -179,3 +179,16 @@ Windows 符号链接测试需要相应权限。若在创建测试链接时返回
 - 格式检查：本次其余修改文件及新指南通过 Prettier；三种语言的 `2.1-add.md`、`4.5-model-test.md` 和 `codex_deepseek_catalog_template.json` 共 7 个文件在同步前已经不符合当前 Prettier 格式，保留原有排版并记录，不做无关整篇重排。
 - 本机验证日志位于已忽略的 `release/validation/upstream-v3.20.3/`。本次没有触发云端构建、上传安装包或发布 Release。
 - 交付检查结果时保留待提交的合并状态，没有提交、推送或创建自用版本 Tag。后续提交须保留上游作为合并父提交；实时状态以 `git status` 和 `git log` 为准。
+
+### 2026-09-23：同步 v3.20.4
+
+- 同步前自用提交：`21dd9881`（自用版 `3.20.4-6`）。
+- 上游 Tag：`v3.20.4`；固定提交：`43e1d99084ed9b2f5dc252fd35c5adaf29d6876e`。共同基线：`d695a2d77fd9081eafd3e9eedcbf2a97b3410928`；本次处理 48 个上游提交。
+- 应用版本四处统一为 `3.20.4`；`Cargo.lock` 保留自用依赖，只改 `cc-switch` 包版本。
+- 纳入 MiniMax Code 应用支持、OpenCode 拉取模型批量添加、技能安装与大仓库修复、提示词外部编辑刷新、代理转换修复（工具描述、图片 detail、additional_tools、GPT-5.6 max effort、Copilot stop 参数）、WSL 版本探测、Codex 账号绑定恢复、DeepSeek V4.1 Flash、MiniMax 新官方端点、Kimi For Coding K2.8 等更新。
+- 数据库：自用 v19/v20（详细请求日志迁移）保持不变，上游 v19 的 `enabled_mcode` 列改为 v20 → v21 迁移，`SCHEMA_VERSION` 为 21。
+- 10 组预设名单与同步前一致；保留条目的上游字段更新全部纳入（逐字段比对无遗漏）。新的 MiniMax Code 预设由 Pi 预设派生，随 Pi 名单自动收敛。
+- 未引入：Kimi Global / Kimi For Coding Global 变体、Soshow、FluxA 等新增合作预设及推广文案、关于页 GitHub Star 提示、多语言 README、CHANGELOG、发布说明和赞助横幅。CI 仅在 Windows x64 任务中吸收新增的前端构建步骤。
+- 自用测试随上游调整：DeepSeek 预设改为断言官方模态（Flash 文本+图像，Pro 纯文本）；修正上一版详情页去掉返回按钮后未同步的 `ProxyEventLogViewer` 测试；`cargo fmt` 修正两处既有格式问题。
+- 已通过：版本一致性、锁定依赖安装、TypeScript、Prettier、前端单测（`App.test.tsx` 全量下的超时为既有负载噪声，单独运行 9 项全过）、前端生产构建、Rust 格式、Windows x64 Clippy（`-D warnings`）。
+- Windows x64 后端测试：库测试 2,940 项通过、10 项忽略；失败仅为既有的符号链接权限（错误 1314）3 项及其连带的卸载备份用例。

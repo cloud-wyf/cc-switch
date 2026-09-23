@@ -925,7 +925,8 @@
     "opencode": "OpenCode",
     "openclaw": "OpenClaw",
     "hermes": "Hermes",
-    "pi": "Pi"
+    "pi": "Pi",
+    "mcode": "MiniMax Code"
   },
   "pi": {
     "empty": {
@@ -1316,6 +1317,9 @@
     "searchModelEmpty": "No matching models.",
     "searchModelAriaLabel": "Select model",
     "fetchModelsSuccess": "Found {{count}} models",
+    "fetchedModelsTitle": "Available models ({{count}})",
+    "modelAlreadyAdded": "Already added",
+    "addSelectedModels": "Add selected ({{count}})",
     "fetchModelsFailed": "Failed to fetch models",
     "fetchModelsEmpty": "No models found",
     "fetchModelsNeedApiKey": "Please fill in API Key first",
@@ -1692,7 +1696,8 @@
       "gemini": "Gemini",
       "opencode": "OpenCode",
       "grokbuild": "Grok Build",
-      "pi": "Pi"
+      "pi": "Pi",
+      "mcode": "MiniMax Code"
     },
     "rawInputLabel": "Raw",
     "sessionSync": {
@@ -1996,7 +2001,8 @@
         "grokbuild": "Grok Build",
         "opencode": "OpenCode",
         "openclaw": "OpenClaw",
-        "hermes": "Hermes"
+        "hermes": "Hermes",
+        "mcode": "MiniMax Code"
       }
     },
     "userLevelPath": "User-level MCP path",

@@ -215,11 +215,11 @@ export const hermesProviderPresets: HermesProviderPreset[] = [
   },
   {
     name: "MiniMax",
-    websiteUrl: "https://platform.minimaxi.com",
-    apiKeyUrl: "https://platform.minimaxi.com/subscribe/coding-plan",
+    websiteUrl: "https://platform.minimax.cn",
+    apiKeyUrl: "https://platform.minimax.cn/subscribe/token-plan",
     settingsConfig: {
       name: "minimax",
-      base_url: "https://api.minimaxi.com/v1",
+      base_url: "https://api.minimax.cn/v1",
       api_key: "",
       api_mode: "chat_completions",
       models: [{ id: "MiniMax-M3", name: "MiniMax M3" }],

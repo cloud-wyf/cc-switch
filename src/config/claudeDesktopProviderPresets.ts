@@ -162,10 +162,15 @@ export const claudeDesktopProviderPresets: ClaudeDesktopProviderPreset[] = [
     baseUrl: "https://api.deepseek.com/anthropic",
     mode: "proxy",
     apiFormat: "anthropic",
+    // supports1m：两个档位钉的都是 1M 窗口模型（本仓 Codex catalog 记
+    // deepseek-v4-pro / deepseek-flash 均 1048576；haiku 档的
+    // deepseek-v4-flash 被官方端点路由到 V4.1 Flash，窗口同档）。[1m] 只是
+    // Claude Desktop 本地标记，匹配前会被剥掉，不会随请求发往上游
     modelRoutes: brandedRoutes(
       "deepseek-v4-pro",
       "deepseek-v4-pro",
       "deepseek-v4-flash",
+      true,
     ),
     icon: "deepseek",
     iconColor: "#1E88E5",
@@ -184,10 +189,10 @@ export const claudeDesktopProviderPresets: ClaudeDesktopProviderPreset[] = [
   },
   {
     name: "MiniMax",
-    websiteUrl: "https://platform.minimaxi.com",
-    apiKeyUrl: "https://platform.minimaxi.com/subscribe/coding-plan",
+    websiteUrl: "https://platform.minimax.cn",
+    apiKeyUrl: "https://platform.minimax.cn/subscribe/token-plan",
     category: "cn_official",
-    baseUrl: "https://api.minimaxi.com/anthropic",
+    baseUrl: "https://api.minimax.cn/anthropic",
     mode: "proxy",
     apiFormat: "anthropic",
     modelRoutes: brandedRoutes("MiniMax-M3", "MiniMax-M3", "MiniMax-M3", true),
