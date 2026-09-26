@@ -1145,191 +1145,203 @@ impl ProxyService {
 
     /// 为指定应用开启/关闭 Live 接管
     ///
-    /// - 开启：自动启动代理服务，仅接管当前 app 的 Live 配置
-    /// - 关闭：仅恢复当前 app 的 Live 配置；若无其它接管，则自动停止代理服务
+    /// - 开启：路由未运行则自动启动，仅接管当前 app 的 Live 配置
+    /// - 关闭：仅恢复当前 app 的 Live 配置；路由保持运行，只在用户显式关闭或退出时停止
     pub async fn set_takeover_for_app(&self, app_type: &str, enabled: bool) -> Result<(), String> {
         let app = AppType::from_str(app_type).map_err(|e| format!("无效的应用类型: {e}"))?;
         if !app.supports_local_proxy() {
             return Err(format!("{} 不支持本地路由", app.as_str()));
         }
+        let _guard = self.switch_locks.lock_for_app(app.as_str()).await;
+
+        if !enabled {
+            return self.disable_takeover_for_app(&app).await;
+        }
+
+        // 本次拉起的路由在接管失败时一并收回，失败的开启不留副作用
+        let started = !self.is_running().await;
+        if started {
+            self.start().await?;
+        }
+        let result = self.enable_takeover_for_app(&app).await;
+        if started && result.is_err() {
+            let _ = self.stop().await;
+        }
+        result
+    }
+
+    async fn enable_takeover_for_app(&self, app: &AppType) -> Result<(), String> {
         let app_type_str = app.as_str();
-        let _guard = self.switch_locks.lock_for_app(app_type_str).await;
+        // 2) 已接管则直接返回（幂等）；但如果缺少备份或占位符残留，需要重建接管
+        let current_config = self
+            .db
+            .get_proxy_config_for_app(app_type_str)
+            .await
+            .map_err(|e| format!("获取 {app_type_str} 配置失败: {e}"))?;
 
-        if enabled {
-            // 1) 代理服务未运行则自动启动
-            if !self.is_running().await {
-                self.start().await?;
+        let mut restore_existing_backup_before_takeover = false;
+        if current_config.enabled {
+            let has_backup = match self.db.get_live_backup(app_type_str).await {
+                Ok(v) => v.is_some(),
+                Err(e) => {
+                    log::warn!("读取 {app_type_str} 备份失败（将继续重建接管）: {e}");
+                    false
+                }
+            };
+            let live_matches_current_proxy =
+                match self.live_takeover_matches_current_proxy(app).await {
+                    Ok(value) => value,
+                    Err(e) => {
+                        log::warn!("检测 {app_type_str} 接管配置失败（将继续重建接管）: {e}");
+                        false
+                    }
+                };
+
+            // 必须 backup 存在，且 live 确实指向当前代理地址，才算真接管。
+            // 只看占位符会把半接管/旧端口残留误判为可复用，导致开启接管后
+            // live 文件仍停留在普通供应商配置。
+            if has_backup && live_matches_current_proxy {
+                if matches!(app, AppType::Codex) {
+                    if let Some(provider_id) =
+                        crate::settings::get_effective_current_provider(&self.db, app)
+                            .map_err(|error| error.to_string())?
+                    {
+                        if let Some(account_id) = self
+                            .db
+                            .get_provider_by_id(&provider_id, app_type_str)
+                            .map_err(|error| error.to_string())?
+                            .filter(crate::proxy::providers::is_codex_official_provider)
+                            .and_then(|provider| provider.meta)
+                            .and_then(|meta| meta.managed_account_id_for("codex_oauth"))
+                            .filter(|id| !id.trim().is_empty())
+                        {
+                            self.codex_oauth_manager
+                                .ensure_account_exists(account_id.trim())
+                                .await
+                                .map_err(|error| error.to_string())?;
+                        }
+                    }
+                }
+                self.refresh_active_target_from_current_provider(app).await;
+                return Ok(());
             }
+            restore_existing_backup_before_takeover = has_backup;
 
-            // 2) 已接管则直接返回（幂等）；但如果缺少备份或占位符残留，需要重建接管
-            let current_config = self
+            log::warn!(
+                    "{app_type_str} 标记为已接管，但 backup={has_backup} live_matches_current_proxy={live_matches_current_proxy}，正在重新接管并补齐 Live"
+                );
+        }
+
+        // 3) 备份 Live 配置（严格：目标 app 不存在则报错）
+        if restore_existing_backup_before_takeover {
+            self.restore_live_config_for_app_inner(app).await?;
+        } else {
+            self.backup_live_config_strict(app).await?;
+
+            // 4) 同步 Live Token 到数据库（仅当前 app）
+            if let Err(e) = self.sync_live_to_provider(app).await {
+                let _ = self.db.delete_live_backup(app_type_str).await;
+                return Err(e);
+            }
+        }
+
+        // The persistent Official backup intentionally excludes auth.json
+        // because its refresh token keeps rotating during takeover. Keep an
+        // exact in-memory pre-write snapshot for activation failures so a
+        // partial managed write can still restore the user's prior login.
+        let codex_live_before_takeover = if matches!(app, AppType::Codex) {
+            Some(
+                crate::codex_config::CodexLiveStateSnapshot::capture()
+                    .map_err(|error| format!("捕获 Codex 接管前状态失败: {error}"))?,
+            )
+        } else {
+            None
+        };
+
+        // 5) 写入接管配置（仅当前 app）
+        if let Err(e) = self.takeover_live_config_strict(app).await {
+            log::error!("{app_type_str} 接管 Live 配置失败，尝试恢复: {e}");
+            match self
+                .rollback_failed_takeover_activation(app, codex_live_before_takeover.as_ref())
+                .await
+            {
+                Ok(()) => {
+                    // 恢复成功才清理备份，避免失败场景下丢失唯一可回滚来源
+                    let _ = self.db.delete_live_backup(app_type_str).await;
+                }
+                Err(restore_err) => {
+                    log::error!(
+                            "{app_type_str} 恢复 Live 配置失败，将保留备份以便下次启动恢复: {restore_err}"
+                        );
+                }
+            }
+            return Err(e);
+        }
+
+        // 6) 设置 proxy_config.enabled = true
+        let enable_result = async {
+            let mut updated_config = self
                 .db
                 .get_proxy_config_for_app(app_type_str)
                 .await
                 .map_err(|e| format!("获取 {app_type_str} 配置失败: {e}"))?;
-
-            let mut restore_existing_backup_before_takeover = false;
-            if current_config.enabled {
-                let has_backup = match self.db.get_live_backup(app_type_str).await {
-                    Ok(v) => v.is_some(),
-                    Err(e) => {
-                        log::warn!("读取 {app_type_str} 备份失败（将继续重建接管）: {e}");
-                        false
-                    }
-                };
-                let live_matches_current_proxy =
-                    match self.live_takeover_matches_current_proxy(&app).await {
-                        Ok(value) => value,
-                        Err(e) => {
-                            log::warn!("检测 {app_type_str} 接管配置失败（将继续重建接管）: {e}");
-                            false
-                        }
-                    };
-
-                // 必须 backup 存在，且 live 确实指向当前代理地址，才算真接管。
-                // 只看占位符会把半接管/旧端口残留误判为可复用，导致开启接管后
-                // live 文件仍停留在普通供应商配置。
-                if has_backup && live_matches_current_proxy {
-                    if matches!(app, AppType::Codex) {
-                        if let Some(provider_id) =
-                            crate::settings::get_effective_current_provider(&self.db, &app)
-                                .map_err(|error| error.to_string())?
-                        {
-                            if let Some(account_id) = self
-                                .db
-                                .get_provider_by_id(&provider_id, app_type_str)
-                                .map_err(|error| error.to_string())?
-                                .filter(crate::proxy::providers::is_codex_official_provider)
-                                .and_then(|provider| provider.meta)
-                                .and_then(|meta| meta.managed_account_id_for("codex_oauth"))
-                                .filter(|id| !id.trim().is_empty())
-                            {
-                                self.codex_oauth_manager
-                                    .ensure_account_exists(account_id.trim())
-                                    .await
-                                    .map_err(|error| error.to_string())?;
-                            }
-                        }
-                    }
-                    self.refresh_active_target_from_current_provider(&app).await;
-                    return Ok(());
-                }
-                restore_existing_backup_before_takeover = has_backup;
-
-                log::warn!(
-                    "{app_type_str} 标记为已接管，但 backup={has_backup} live_matches_current_proxy={live_matches_current_proxy}，正在重新接管并补齐 Live"
-                );
-            }
-
-            // 3) 备份 Live 配置（严格：目标 app 不存在则报错）
-            if restore_existing_backup_before_takeover {
-                self.restore_live_config_for_app_inner(&app).await?;
-            } else {
-                self.backup_live_config_strict(&app).await?;
-
-                // 4) 同步 Live Token 到数据库（仅当前 app）
-                if let Err(e) = self.sync_live_to_provider(&app).await {
+            updated_config.enabled = true;
+            self.db
+                .update_proxy_config_for_app(updated_config)
+                .await
+                .map_err(|e| format!("设置 {app_type_str} enabled 状态失败: {e}"))
+        }
+        .await;
+        if let Err(error) = enable_result {
+            log::error!("{app_type_str} 提交接管状态失败，尝试恢复 Live: {error}");
+            match self
+                .rollback_failed_takeover_activation(app, codex_live_before_takeover.as_ref())
+                .await
+            {
+                Ok(()) => {
                     let _ = self.db.delete_live_backup(app_type_str).await;
-                    return Err(e);
                 }
-            }
-
-            // The persistent Official backup intentionally excludes auth.json
-            // because its refresh token keeps rotating during takeover. Keep an
-            // exact in-memory pre-write snapshot for activation failures so a
-            // partial managed write can still restore the user's prior login.
-            let codex_live_before_takeover = if matches!(&app, AppType::Codex) {
-                Some(
-                    crate::codex_config::CodexLiveStateSnapshot::capture()
-                        .map_err(|error| format!("捕获 Codex 接管前状态失败: {error}"))?,
-                )
-            } else {
-                None
-            };
-
-            // 5) 写入接管配置（仅当前 app）
-            if let Err(e) = self.takeover_live_config_strict(&app).await {
-                log::error!("{app_type_str} 接管 Live 配置失败，尝试恢复: {e}");
-                match self
-                    .rollback_failed_takeover_activation(&app, codex_live_before_takeover.as_ref())
-                    .await
-                {
-                    Ok(()) => {
-                        // 恢复成功才清理备份，避免失败场景下丢失唯一可回滚来源
-                        let _ = self.db.delete_live_backup(app_type_str).await;
-                    }
-                    Err(restore_err) => {
-                        log::error!(
-                            "{app_type_str} 恢复 Live 配置失败，将保留备份以便下次启动恢复: {restore_err}"
-                        );
-                    }
-                }
-                return Err(e);
-            }
-
-            // 6) 设置 proxy_config.enabled = true
-            let enable_result = async {
-                let mut updated_config = self
-                    .db
-                    .get_proxy_config_for_app(app_type_str)
-                    .await
-                    .map_err(|e| format!("获取 {app_type_str} 配置失败: {e}"))?;
-                updated_config.enabled = true;
-                self.db
-                    .update_proxy_config_for_app(updated_config)
-                    .await
-                    .map_err(|e| format!("设置 {app_type_str} enabled 状态失败: {e}"))
-            }
-            .await;
-            if let Err(error) = enable_result {
-                log::error!("{app_type_str} 提交接管状态失败，尝试恢复 Live: {error}");
-                match self
-                    .rollback_failed_takeover_activation(&app, codex_live_before_takeover.as_ref())
-                    .await
-                {
-                    Ok(()) => {
-                        let _ = self.db.delete_live_backup(app_type_str).await;
-                    }
-                    Err(restore_error) => {
-                        log::error!(
+                Err(restore_error) => {
+                    log::error!(
                             "{app_type_str} 恢复 Live 配置失败，将保留备份以便下次恢复: {restore_error}"
                         );
-                    }
-                }
-                return Err(error);
-            }
-
-            // 7) 兼容旧逻辑：写入 any-of 标志（失败不影响功能）
-            let _ = self.db.set_live_takeover_active(true).await;
-
-            self.refresh_active_target_from_current_provider(&app).await;
-
-            // 8) Warn if the current provider is official (risk of account ban via proxy)
-            if let Ok(Some(current_id)) =
-                crate::settings::get_effective_current_provider(&self.db, &app)
-            {
-                if let Ok(Some(provider)) = self.db.get_provider_by_id(&current_id, app_type_str) {
-                    if provider.category.as_deref() == Some("official")
-                        && !crate::services::provider::official_provider_supports_proxy_takeover(
-                            &app, &provider,
-                        )
-                    {
-                        if let Some(handle) = self.app_handle.read().await.as_ref() {
-                            let _ = handle.emit(
-                                "proxy-official-warning",
-                                serde_json::json!({
-                                    "appType": app_type_str,
-                                    "providerName": provider.name,
-                                }),
-                            );
-                        }
-                    }
                 }
             }
-
-            return Ok(());
+            return Err(error);
         }
 
+        // 7) 兼容旧逻辑：写入 any-of 标志（失败不影响功能）
+        let _ = self.db.set_live_takeover_active(true).await;
+
+        self.refresh_active_target_from_current_provider(app).await;
+
+        // 8) Warn if the current provider is official (risk of account ban via proxy)
+        if let Ok(Some(current_id)) = crate::settings::get_effective_current_provider(&self.db, app)
+        {
+            if let Ok(Some(provider)) = self.db.get_provider_by_id(&current_id, app_type_str) {
+                if provider.category.as_deref() == Some("official")
+                    && !crate::services::provider::official_provider_supports_proxy_takeover(
+                        app, &provider,
+                    )
+                {
+                    if let Some(handle) = self.app_handle.read().await.as_ref() {
+                        let _ = handle.emit(
+                            "proxy-official-warning",
+                            serde_json::json!({
+                                "appType": app_type_str,
+                                "providerName": provider.name,
+                            }),
+                        );
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn disable_takeover_for_app(&self, app: &AppType) -> Result<(), String> {
+        let app_type_str = app.as_str();
         // 关闭接管：检查 enabled 状态
         let current_config = self
             .db
@@ -1346,7 +1358,7 @@ impl ProxyService {
         // 必须走 with_fallback 版本：备份 → SSOT → 清理占位符 的三层兜底。
         // 简版 restore_live_config_for_app 在备份缺失时会静默 Ok(())，
         // 留下接管时写入的占位符（代理地址/PROXY_MANAGED token），客户端无法工作。
-        self.restore_live_config_for_app_with_fallback_inner(&app)
+        self.restore_live_config_for_app_with_fallback_inner(app)
             .await?;
 
         // 2) 删除该 app 的备份（避免长期存储敏感 Token）
@@ -1373,8 +1385,7 @@ impl ProxyService {
             .await
             .map_err(|e| format!("清除 {app_type_str} 健康状态失败: {e}"))?;
 
-        // 5) 若无其它接管，更新旧标志，并停止代理服务
-        // 检查是否还有其它 app 的 enabled = true
+        // 5) 若无其它接管，更新旧标志；路由本身保持运行
         let any_enabled = self
             .db
             .is_live_takeover_active()
@@ -1383,11 +1394,6 @@ impl ProxyService {
 
         if !any_enabled {
             let _ = self.db.set_live_takeover_active(false).await;
-
-            if self.is_running().await {
-                // 此时没有任何 app 处于接管状态，停止服务即可
-                let _ = self.stop().await;
-            }
         }
 
         Ok(())
@@ -4265,6 +4271,79 @@ mod tests {
         assert!(service.switch_proxy_target("pi", "missing").await.is_err());
     }
 
+    #[tokio::test]
+    #[serial]
+    async fn disabling_last_takeover_keeps_router_running() {
+        let _home = TempHome::new();
+        crate::settings::reload_settings().expect("reload settings");
+        let db = Arc::new(Database::memory().expect("init db"));
+        use_ephemeral_proxy_port(&db).await;
+        let service = ProxyService::new(db.clone());
+        let config = r#"model_provider = "rightcode"
+
+[model_providers.rightcode]
+name = "RightCode"
+base_url = "https://rightcode.example/v1"
+wire_api = "responses"
+"#;
+        crate::codex_config::write_codex_live_atomic(
+            &json!({ "OPENAI_API_KEY": "rightcode-key" }),
+            Some(config),
+        )
+        .expect("seed live config");
+        let mut provider = Provider::with_id(
+            "rightcode".to_string(),
+            "RightCode".to_string(),
+            json!({ "auth": { "OPENAI_API_KEY": "rightcode-key" }, "config": config }),
+            None,
+        );
+        provider.category = Some("custom".to_string());
+        db.save_provider("codex", &provider).expect("save provider");
+        db.set_current_provider("codex", "rightcode")
+            .expect("set current provider");
+        crate::settings::set_current_provider(&AppType::Codex, Some("rightcode"))
+            .expect("set local current provider");
+
+        // Claude Desktop's local route only needs the listener; it never registers a takeover.
+        service.start().await.expect("start router");
+        service
+            .set_takeover_for_app("codex", true)
+            .await
+            .expect("enable Codex takeover");
+        service
+            .set_takeover_for_app("codex", false)
+            .await
+            .expect("disable Codex takeover");
+
+        assert!(
+            service.is_running().await,
+            "disabling an app takeover must not stop the shared router"
+        );
+        service.stop().await.expect("stop router");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn failed_takeover_only_reverts_router_it_started() {
+        let _home = TempHome::new();
+        crate::settings::reload_settings().expect("reload settings");
+        let db = Arc::new(Database::memory().expect("init db"));
+        use_ephemeral_proxy_port(&db).await;
+        let service = ProxyService::new(db);
+
+        // No Codex live config, so the takeover fails after the router is up.
+        assert!(service.set_takeover_for_app("codex", true).await.is_err());
+        assert!(!service.is_running().await);
+
+        service.start().await.expect("start router");
+        assert!(service.set_takeover_for_app("codex", true).await.is_err());
+        assert!(
+            service.is_running().await,
+            "a failed takeover must not stop a router it did not start"
+        );
+        service.stop().await.expect("stop router");
+    }
+
     async fn running_codex_base_url(service: &ProxyService) -> String {
         let status = service.get_status().await.expect("get proxy status");
         format!("http://127.0.0.1:{}/v1", status.port)
@@ -5936,7 +6015,7 @@ wire_api = "responses"
             .set_takeover_for_app("codex", true)
             .await
             .expect_err("enabled DB failure must abort takeover");
-        service.stop().await.expect("stop test proxy");
+        assert!(!service.is_running().await);
 
         assert!(
             error.contains("forced Codex takeover enabled failure"),
