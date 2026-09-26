@@ -138,6 +138,16 @@ export type ProxyEventStatusFilter =
   | "4xx"
   | "5xx"
   | "none";
+// 请求用途，由后端按原始路径判断。
+export type ProxyEventKind =
+  | "chat"
+  | "count_tokens"
+  | "models"
+  | "probe"
+  | "compact"
+  | "search"
+  | "image"
+  | "other";
 export type ProxyEventSortKey =
   | "id"
   | "duration_ms"
@@ -146,11 +156,14 @@ export type ProxyEventSortKey =
   | "client_status"
   | "target"
   | "model"
-  | "app_type";
+  | "app_type"
+  | "kind";
 
 // 详细请求日志列表查询；未设置的字段不过滤。
 export interface ProxyEventQuery {
-  appType?: string;
+  // 隐藏这些应用；发起方未知的记录不受影响。
+  excludeAppTypes?: string[];
+  excludeKinds?: ProxyEventKind[];
   providerId?: string;
   target?: string;
   model?: string;
@@ -195,6 +208,7 @@ export interface ProxyEventSummary {
   finish_reason: string;
   error: string | null;
   fwd_url: string | null;
+  kind: ProxyEventKind | null;
 }
 
 export interface ProxyEventPage {

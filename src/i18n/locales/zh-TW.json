@@ -2973,11 +2973,26 @@
         },
         "filters": {
           "app": "應用程式",
+          "kind": "類型",
+          "allApps": "全部應用程式",
+          "allKinds": "全部類型",
+          "showAll": "顯示全部",
+          "reset": "重設篩選（{{count}}）",
           "status": "狀態",
           "script": "腳本",
           "model": "模型",
           "target": "供應商",
           "search": "搜尋請求 ID、位址或錯誤"
+        },
+        "kinds": {
+          "chat": "對話",
+          "count_tokens": "計算 Token",
+          "models": "查詢模型",
+          "probe": "連通檢查",
+          "compact": "壓縮",
+          "search": "搜尋",
+          "image": "圖像",
+          "other": "其他"
         },
         "status": {
           "all": "全部狀態",
@@ -2995,6 +3010,7 @@
         "columns": {
           "time": "時間",
           "app": "應用程式",
+          "kind": "類型",
           "provider": "供應商",
           "model": "模型",
           "status": "狀態",
@@ -3004,6 +3020,7 @@
         },
         "scriptUsed": "腳本",
         "routeChanged": "改路由",
+        "notForwarded": "未轉發",
         "noData": "沒有符合條件的記錄",
         "page": "第 {{page}} / {{pages}} 頁",
         "prev": "上一頁",

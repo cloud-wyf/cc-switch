@@ -144,6 +144,9 @@ impl Database {
             if let Err(e) = Self::migrate_legacy_proxy_events(&conn) {
                 log::warn!("迁移旧版详细代理日志失败: {e}");
             }
+            if let Err(e) = Self::backfill_proxy_event_kinds(&conn) {
+                log::warn!("补齐详细代理日志类型失败: {e}");
+            }
         }
 
         // Pre-migration backup: only when upgrading from an existing database

@@ -2972,11 +2972,26 @@
         },
         "filters": {
           "app": "アプリ",
+          "kind": "種類",
+          "allApps": "すべてのアプリ",
+          "allKinds": "すべての種類",
+          "showAll": "すべて表示",
+          "reset": "フィルターをリセット（{{count}}）",
           "status": "ステータス",
           "script": "スクリプト",
           "model": "モデル",
           "target": "プロバイダー",
           "search": "リクエスト ID、URL、エラーを検索"
+        },
+        "kinds": {
+          "chat": "対話",
+          "count_tokens": "トークン計算",
+          "models": "モデル一覧",
+          "probe": "接続確認",
+          "compact": "圧縮",
+          "search": "検索",
+          "image": "画像",
+          "other": "その他"
         },
         "status": {
           "all": "すべてのステータス",
@@ -2994,6 +3009,7 @@
         "columns": {
           "time": "時刻",
           "app": "アプリ",
+          "kind": "種類",
           "provider": "プロバイダー",
           "model": "モデル",
           "status": "ステータス",
@@ -3003,6 +3019,7 @@
         },
         "scriptUsed": "スクリプト",
         "routeChanged": "経路変更",
+        "notForwarded": "未転送",
         "noData": "条件に一致する記録はありません",
         "page": "{{page}} / {{pages}} ページ",
         "prev": "前のページ",

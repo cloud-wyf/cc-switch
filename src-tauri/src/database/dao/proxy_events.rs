@@ -2,7 +2,7 @@
 
 use crate::database::{lock_conn, to_json_string, Database};
 use crate::error::AppError;
-use rusqlite::{params_from_iter, types::Value as SqlValue, Connection};
+use rusqlite::{params, params_from_iter, types::Value as SqlValue, Connection};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::path::Path;
@@ -12,12 +12,13 @@ pub(crate) const CONFIG_KEY: &str = "proxy_event_log_config";
 pub(crate) const EVENTS_FILE: &str = "proxy-events.db";
 const MAX_BODY_LIMIT: usize = 1024 * 1024;
 const MAX_PURGE_DAYS: u32 = 365;
-/// 保留天数之外的硬上限，防止客户端重试风暴在几分钟内写满磁盘。
+/// 每种请求类型各自的行数上限：保留天数之外再防客户端重试风暴几分钟内写满磁盘，
+/// 按类型分开算，count_tokens 之类的突发不会挤掉对话记录。
 pub(crate) const MAX_ROWS: u32 = 2000;
 const MAX_PAGE_SIZE: u32 = 200;
 const DEFAULT_PAGE_SIZE: u32 = 50;
 const COLUMNS: &str = "request_id,app_type,provider_id,session_id,attempt,forward_seq,script_enabled,script_used,request_changed,route_changed,target,upstream,run_at,seq,started_at,created_at,duration_ms,method,url,request_model,model,status,client_status,total_bytes,upstream_header_ms,upstream_duration_ms,stream_error,rewritten,error,finish_reason,mods,orig_headers,orig_body,script_url,script_headers,script_body,fwd_url,fwd_method,fwd_headers,fwd_body,resp_headers,resp_body,client_headers,client_body";
-const SUMMARY_COLUMNS: &str = "id,request_id,app_type,provider_id,session_id,attempt,forward_seq,script_enabled,script_used,request_changed,route_changed,target,started_at,created_at,duration_ms,method,url,request_model,model,status,client_status,total_bytes,upstream_header_ms,upstream_duration_ms,finish_reason,error,fwd_url";
+const SUMMARY_COLUMNS: &str = "id,request_id,app_type,provider_id,session_id,attempt,forward_seq,script_enabled,script_used,request_changed,route_changed,target,started_at,created_at,duration_ms,method,url,request_model,model,status,client_status,total_bytes,upstream_header_ms,upstream_duration_ms,finish_reason,error,fwd_url,kind";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -41,7 +42,10 @@ impl Default for ProxyEventLogConfig {
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct ProxyEventQuery {
-    pub app_type: Option<String>,
+    /// 隐藏这些应用；发起方未知的记录不受影响。
+    pub exclude_app_types: Vec<String>,
+    /// 隐藏这些请求类型。
+    pub exclude_kinds: Vec<String>,
     pub provider_id: Option<String>,
     pub target: Option<String>,
     pub model: Option<String>,
@@ -78,13 +82,50 @@ fn present(value: &Option<String>) -> Option<&str> {
     value.as_deref().map(str::trim).filter(|s| !s.is_empty())
 }
 
+/// 请求用途，只看原始请求的方法和路径，与代理路由表对应；认不出的归 other。
+fn request_kind(method: &str, url: &str) -> &'static str {
+    const BY_SUFFIX: [(&str, &str); 12] = [
+        ("/messages", "chat"),
+        ("/chat/completions", "chat"),
+        ("/responses", "chat"),
+        (":generateContent", "chat"),
+        (":streamGenerateContent", "chat"),
+        ("/messages/count_tokens", "count_tokens"),
+        (":countTokens", "count_tokens"),
+        ("/responses/compact", "compact"),
+        ("/alpha/search", "search"),
+        ("/images/generations", "image"),
+        ("/images/edits", "image"),
+        ("/api/hello", "probe"),
+    ];
+    let path = url.split('?').next().unwrap_or(url);
+    if method == "GET" && path.contains("/models") {
+        return "models";
+    }
+    BY_SUFFIX
+        .iter()
+        .find(|(suffix, _)| path.ends_with(suffix))
+        .map_or("other", |(_, kind)| kind)
+}
+
 impl ProxyEventQuery {
     fn conditions(&self) -> (String, Vec<SqlValue>) {
         let mut clauses: Vec<String> = Vec::new();
         let mut params: Vec<SqlValue> = Vec::new();
-        if let Some(app) = present(&self.app_type) {
-            params.push(SqlValue::Text(app.into()));
-            clauses.push(format!("app_type = ?{}", params.len()));
+        for (column, hidden) in [
+            ("app_type", &self.exclude_app_types),
+            ("kind", &self.exclude_kinds),
+        ] {
+            if hidden.is_empty() {
+                continue;
+            }
+            let first = params.len() + 1;
+            params.extend(hidden.iter().map(|value| SqlValue::Text(value.clone())));
+            let slots: Vec<String> = (first..=params.len()).map(|i| format!("?{i}")).collect();
+            clauses.push(format!(
+                "COALESCE({column}, '') NOT IN ({})",
+                slots.join(",")
+            ));
         }
         if let Some(id) = present(&self.provider_id) {
             params.push(SqlValue::Text(id.into()));
@@ -152,6 +193,7 @@ impl ProxyEventQuery {
             Some("target") => "target",
             Some("model") => "model",
             Some("app_type") => "app_type",
+            Some("kind") => "kind",
             _ => "id",
         };
         let direction = if self.sort_dir.as_deref() == Some("asc") {
@@ -202,8 +244,52 @@ impl Database {
     }
 
     pub(crate) fn create_proxy_event_tables(conn: &Connection) -> Result<(), AppError> {
+        // 旧库的表没有 kind 列，先补上，SCHEMA 里的 kind 索引才建得起来。
+        let columns: Vec<String> = conn
+            .prepare("SELECT name FROM pragma_table_info('proxy_request_events', 'events')")
+            .and_then(|mut statement| {
+                statement
+                    .query_map([], |row| row.get::<_, String>(0))?
+                    .collect()
+            })
+            .map_err(|e| AppError::Database(format!("读取详细代理日志表结构失败: {e}")))?;
+        if !columns.is_empty() && !columns.iter().any(|name| name == "kind") {
+            conn.execute_batch("ALTER TABLE events.proxy_request_events ADD COLUMN kind TEXT;")
+                .map_err(|e| AppError::Database(format!("为详细代理日志添加类型列失败: {e}")))?;
+        }
         conn.execute_batch(SCHEMA)
             .map_err(|e| AppError::Database(format!("创建详细代理日志表失败: {e}")))
+    }
+
+    /// 给还没有类型的记录补上类型：加 kind 列之前写入的，以及刚从旧版主库搬来的。
+    pub(crate) fn backfill_proxy_event_kinds(conn: &Connection) -> Result<usize, AppError> {
+        let rows: Vec<(i64, String, String)> = conn
+            .prepare("SELECT id, method, url FROM events.proxy_request_events WHERE kind IS NULL")
+            .and_then(|mut statement| {
+                statement
+                    .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
+                    .collect()
+            })
+            .map_err(|e| AppError::Database(format!("读取待补类型的详细代理日志失败: {e}")))?;
+        if rows.is_empty() {
+            return Ok(0);
+        }
+        let tx = conn
+            .unchecked_transaction()
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        {
+            let mut update = tx
+                .prepare("UPDATE events.proxy_request_events SET kind = ?1 WHERE id = ?2")
+                .map_err(|e| AppError::Database(e.to_string()))?;
+            for (id, method, url) in &rows {
+                update
+                    .execute(params![request_kind(method, url), id])
+                    .map_err(|e| AppError::Database(format!("补齐详细代理日志类型失败: {e}")))?;
+            }
+        }
+        tx.commit().map_err(|e| AppError::Database(e.to_string()))?;
+        log::info!("已为 {} 条详细代理日志补齐请求类型", rows.len());
+        Ok(rows.len())
     }
 
     /// 旧版本把事件表建在主库；启动时把行搬到附加库，然后删除主库表。
@@ -266,7 +352,7 @@ impl Database {
         self.set_setting(CONFIG_KEY, &to_json_string(config)?)
     }
 
-    /// 一批记录在一个事务内写入，流式转发期间不持有 SQLite 锁；写入后按行数上限裁掉最旧的记录。
+    /// 一批记录在一个事务内写入，流式转发期间不持有 SQLite 锁；写入后按类型各自裁掉超出上限的最旧记录。
     pub(crate) fn save_proxy_events(&self, events: &[Value]) -> Result<(), AppError> {
         if events.is_empty() {
             return Ok(());
@@ -282,21 +368,32 @@ impl Database {
                 .map(|name| format!("json_extract(?1, '$.{name}')"))
                 .collect::<Vec<_>>()
                 .join(",");
-            let sql =
-                format!("INSERT INTO events.proxy_request_events ({COLUMNS}) SELECT {values}");
+            let sql = format!(
+                "INSERT INTO events.proxy_request_events ({COLUMNS},kind) SELECT {values},?2"
+            );
             let mut statement = tx
                 .prepare_cached(&sql)
                 .map_err(|e| AppError::Database(e.to_string()))?;
+            let mut kinds = Vec::new();
             for event in events {
+                let kind = request_kind(
+                    event["method"].as_str().unwrap_or_default(),
+                    event["url"].as_str().unwrap_or_default(),
+                );
                 statement
-                    .execute([event.to_string()])
+                    .execute(params![event.to_string(), kind])
                     .map_err(|e| AppError::Database(format!("写入详细代理日志失败: {e}")))?;
+                kinds.push(kind);
             }
-            tx.execute(
-                "DELETE FROM events.proxy_request_events WHERE id <= (SELECT id FROM events.proxy_request_events ORDER BY id DESC LIMIT 1 OFFSET ?1)",
-                [MAX_ROWS],
-            )
-            .map_err(|e| AppError::Database(format!("裁剪详细代理日志失败: {e}")))?;
+            kinds.sort_unstable();
+            kinds.dedup();
+            for kind in kinds {
+                tx.execute(
+                    "DELETE FROM events.proxy_request_events WHERE kind = ?1 AND id <= (SELECT id FROM events.proxy_request_events WHERE kind = ?1 ORDER BY id DESC LIMIT 1 OFFSET ?2)",
+                    params![kind, MAX_ROWS],
+                )
+                .map_err(|e| AppError::Database(format!("裁剪详细代理日志失败: {e}")))?;
+            }
         }
         tx.commit().map_err(|e| AppError::Database(e.to_string()))
     }
@@ -511,6 +608,8 @@ mod tests {
             .unwrap();
             assert_eq!(Database::migrate_legacy_proxy_events(&conn).unwrap(), 1);
             assert_eq!(Database::migrate_legacy_proxy_events(&conn).unwrap(), 0);
+            // 旧版主库没有 kind 列，搬过来的记录由启动时的回填补上类型。
+            assert_eq!(Database::backfill_proxy_event_kinds(&conn).unwrap(), 1);
             let in_main: i64 = conn
                 .query_row(
                     "SELECT COUNT(*) FROM main.sqlite_master WHERE name = 'proxy_request_events'",
@@ -523,6 +622,152 @@ mod tests {
         let page = db.list_proxy_events(&ProxyEventQuery::default()).unwrap();
         assert_eq!(page.total, 1);
         assert_eq!(page.items[0]["request_id"], "legacy");
+        assert_eq!(page.items[0]["kind"], "other");
+    }
+
+    #[test]
+    fn old_tables_gain_the_kind_column_and_rows_are_backfilled() {
+        let db = Database::memory().unwrap();
+        {
+            let conn = db.conn.lock().unwrap();
+            conn.execute_batch(
+                "DROP INDEX events.idx_proxy_events_kind; ALTER TABLE events.proxy_request_events DROP COLUMN kind;",
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO events.proxy_request_events (request_id,target,run_at,seq,started_at,created_at,duration_ms,method,url,finish_reason) VALUES ('old','','r',1,'s',5,1,'HEAD','/claude-desktop/api/hello','completed')",
+                [],
+            )
+            .unwrap();
+            Database::create_proxy_event_tables(&conn).unwrap();
+            Database::create_proxy_event_tables(&conn).unwrap();
+            assert_eq!(Database::backfill_proxy_event_kinds(&conn).unwrap(), 1);
+            assert_eq!(Database::backfill_proxy_event_kinds(&conn).unwrap(), 0);
+        }
+        let page = db.list_proxy_events(&ProxyEventQuery::default()).unwrap();
+        assert_eq!(page.items[0]["kind"], "probe");
+    }
+
+    #[test]
+    fn request_kind_follows_the_proxy_routes() {
+        for (method, url, kind) in [
+            ("POST", "/v1/messages?beta=true", "chat"),
+            ("POST", "/claude/v1/messages", "chat"),
+            ("POST", "/claude-desktop/v1/messages?beta=true", "chat"),
+            ("POST", "/codex/v1/chat/completions", "chat"),
+            ("POST", "/v1/v1/responses", "chat"),
+            ("POST", "/grokbuild/v1/responses", "chat"),
+            (
+                "POST",
+                "/gemini/v1beta/models/gemini-2.5-pro:streamGenerateContent?alt=sse",
+                "chat",
+            ),
+            (
+                "POST",
+                "/claude-desktop/v1/messages/count_tokens?beta=true",
+                "count_tokens",
+            ),
+            (
+                "POST",
+                "/v1beta/models/gemini-2.5-pro:countTokens",
+                "count_tokens",
+            ),
+            ("GET", "/claude-desktop/v1/models", "models"),
+            ("GET", "/v1/models", "models"),
+            ("GET", "/v1beta/models/gemini-2.5-pro", "models"),
+            ("POST", "/codex/v1/responses/compact", "compact"),
+            ("POST", "/v1/alpha/search", "search"),
+            ("POST", "/images/generations", "image"),
+            ("POST", "/v1/images/edits", "image"),
+            ("HEAD", "/claude-desktop/api/hello", "probe"),
+            ("POST", "/v1/messages/batches", "other"),
+            ("POST", "/api/event_logging/batch", "other"),
+        ] {
+            assert_eq!(request_kind(method, url), kind, "{method} {url}");
+        }
+    }
+
+    #[test]
+    fn row_cap_is_per_kind_so_bursts_cannot_evict_chat() {
+        let db = Database::memory().unwrap();
+        let chats: Vec<Value> = (0..MAX_ROWS)
+            .map(|i| event(&format!("c{i}"), i64::from(i), json!({})))
+            .collect();
+        db.save_proxy_events(&chats).unwrap();
+        let counts: Vec<Value> = (0..(MAX_ROWS + 3))
+            .map(|i| {
+                event(
+                    &format!("t{i}"),
+                    i64::from(i),
+                    json!({"url": "/claude-desktop/v1/messages/count_tokens?beta=true"}),
+                )
+            })
+            .collect();
+        db.save_proxy_events(&counts).unwrap();
+        for (hidden, oldest) in [("count_tokens", "c0"), ("chat", "t3")] {
+            let page = db
+                .list_proxy_events(&ProxyEventQuery {
+                    exclude_kinds: vec![hidden.into()],
+                    sort_dir: Some("asc".into()),
+                    page_size: 1,
+                    ..Default::default()
+                })
+                .unwrap();
+            assert_eq!(page.total, u64::from(MAX_ROWS), "hidden {hidden}");
+            assert_eq!(page.items[0]["request_id"], oldest);
+        }
+    }
+
+    #[test]
+    fn exclusions_hide_apps_and_kinds_but_keep_unknown_apps() {
+        let db = Database::memory().unwrap();
+        db.save_proxy_events(&[
+            event("codex-chat", 1, json!({})),
+            event(
+                "desktop-count",
+                2,
+                json!({"app_type": "claude-desktop", "url": "/claude-desktop/v1/messages/count_tokens?beta=true"}),
+            ),
+            event(
+                "unknown-probe",
+                3,
+                json!({"app_type": null, "method": "HEAD", "url": "/claude-desktop/api/hello"}),
+            ),
+        ])
+        .unwrap();
+        let ids = |query: ProxyEventQuery| -> Vec<String> {
+            db.list_proxy_events(&ProxyEventQuery {
+                sort_dir: Some("asc".into()),
+                ..query
+            })
+            .unwrap()
+            .items
+            .iter()
+            .map(|e| e["request_id"].as_str().unwrap().to_string())
+            .collect()
+        };
+        assert_eq!(
+            ids(ProxyEventQuery {
+                exclude_app_types: vec!["codex".into()],
+                ..Default::default()
+            }),
+            ["desktop-count", "unknown-probe"]
+        );
+        assert_eq!(
+            ids(ProxyEventQuery {
+                exclude_kinds: vec!["count_tokens".into(), "probe".into()],
+                ..Default::default()
+            }),
+            ["codex-chat"]
+        );
+        assert_eq!(
+            ids(ProxyEventQuery {
+                exclude_app_types: vec!["claude-desktop".into()],
+                exclude_kinds: vec!["chat".into()],
+                ..Default::default()
+            }),
+            ["unknown-probe"]
+        );
     }
 
     #[test]
@@ -591,12 +836,13 @@ mod tests {
         let searched = db
             .list_proxy_events(&ProxyEventQuery {
                 search: Some("状态码 500".into()),
-                app_type: Some("codex".into()),
+                exclude_app_types: vec!["claude".into()],
                 ..Default::default()
             })
             .unwrap();
         assert_eq!(searched.total, 1);
         assert_eq!(searched.items[0]["target"], "any router");
+        assert_eq!(searched.items[0]["kind"], "chat");
         let by_model = db
             .list_proxy_events(&ProxyEventQuery {
                 model: Some("astra".into()),

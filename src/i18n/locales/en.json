@@ -2972,11 +2972,26 @@
         },
         "filters": {
           "app": "App",
+          "kind": "Type",
+          "allApps": "All apps",
+          "allKinds": "All types",
+          "showAll": "Show all",
+          "reset": "Reset filters ({{count}})",
           "status": "Status",
           "script": "Script",
           "model": "Model",
           "target": "Provider",
           "search": "Search request ID, URL, or error"
+        },
+        "kinds": {
+          "chat": "Chat",
+          "count_tokens": "Count tokens",
+          "models": "Models",
+          "probe": "Connectivity check",
+          "compact": "Compact",
+          "search": "Search",
+          "image": "Images",
+          "other": "Other"
         },
         "status": {
           "all": "All statuses",
@@ -2994,6 +3009,7 @@
         "columns": {
           "time": "Time",
           "app": "App",
+          "kind": "Type",
           "provider": "Provider",
           "model": "Model",
           "status": "Status",
@@ -3003,6 +3019,7 @@
         },
         "scriptUsed": "Script",
         "routeChanged": "Rerouted",
+        "notForwarded": "Not forwarded",
         "noData": "No matching records",
         "page": "Page {{page}} / {{pages}}",
         "prev": "Previous page",

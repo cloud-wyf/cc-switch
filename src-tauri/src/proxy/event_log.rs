@@ -736,11 +736,6 @@ impl RequestTrace {
             let mut event = base;
             let original = &self.0.original;
             event["app_type"] = json!(guess_app(&original.url, &original.headers));
-            event["target"] = json!(local_purpose(
-                &original.method,
-                &original.url,
-                client.map(|r| r.status),
-            ));
             events.push(event);
         }
         secrets.sort_by_key(|s| std::cmp::Reverse(s.len()));
@@ -777,20 +772,6 @@ fn guess_app(url: &str, headers: &Value) -> Option<&'static str> {
         Some("gemini")
     } else {
         None
-    }
-}
-
-/// 未进入转发的请求在供应商列上说明它在做什么。
-fn local_purpose(method: &str, url: &str, status: Option<u16>) -> String {
-    let path = url.split('?').next().unwrap_or(url);
-    let tail = path.rsplit('/').next().unwrap_or("");
-    if method == "GET" && tail == "models" {
-        return "本地返回模型目录".into();
-    }
-    match status {
-        Some(404) => format!("未知路径 · {method} {path}"),
-        Some(status) if status >= 400 => format!("未转发 · {status} {method} {path}"),
-        _ => format!("本地处理 · {method} {path}"),
     }
 }
 

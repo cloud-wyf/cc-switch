@@ -219,8 +219,20 @@ export function ProxyEventDetail({ id }: ProxyEventDetailProps) {
                 value={event.app_type ? getAppLabel(event.app_type) : null}
               />
               <Fact
+                label={t("proxy.eventLog.viewer.columns.kind")}
+                value={
+                  event.kind
+                    ? t(`proxy.eventLog.viewer.kinds.${event.kind}`)
+                    : null
+                }
+              />
+              <Fact
                 label={t("proxy.eventLog.viewer.columns.provider")}
-                value={event.target}
+                value={
+                  event.attempt === 0
+                    ? t("proxy.eventLog.viewer.notForwarded")
+                    : event.target
+                }
               />
               <Fact
                 label={t("proxy.eventLog.viewer.columns.model")}
@@ -236,7 +248,8 @@ export function ProxyEventDetail({ id }: ProxyEventDetailProps) {
                 label={t("proxy.eventLog.viewer.columns.status")}
                 value={
                   event.status === null || event.status === undefined
-                    ? t("proxy.eventLog.viewer.status.none")
+                    ? (event.client_status?.toString() ??
+                      t("proxy.eventLog.viewer.status.none"))
                     : event.client_status !== null &&
                         event.client_status !== undefined &&
                         event.client_status !== event.status

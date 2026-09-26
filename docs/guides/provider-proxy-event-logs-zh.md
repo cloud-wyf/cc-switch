@@ -2,11 +2,30 @@
 
 CC Switch 在 `~/.cc-switch/proxy-events.db` 的 `proxy_request_events` 表保存本地代理请求的详细报文。它是独立于主配置库的文件，主库以附加库 `events` 的方式打开它，因此数据库备份、备份恢复和 WebDAV/S3 配置同步都不包含详细日志。表结构沿用旧代理的原始请求、转发请求、上游响应、客户端响应四个方向，并增加供应商、脚本执行和重试归属。旧代理库的历史记录不自动导入；旧版本写在主库里的记录会在升级后第一次启动时搬到独立文件。
 
-在 **设置 → 路由 → 本地路由 → 详细请求日志** 点击 **查看日志** 可以按应用、供应商、模型、状态、脚本执行情况筛选和排序，点击一行查看该次调用的全部报文。
+在 **设置 → 路由 → 本地路由 → 详细请求日志** 点击 **查看日志** 可以按应用、请求类型、供应商、模型、状态、脚本执行情况筛选和排序，点击一行查看该次调用的全部报文。应用和请求类型是多选，取消勾选即隐藏该项；全部筛选条件保存在本机，重新打开时恢复，有筛选生效时工具栏显示 **重置过滤** 一键清空。
 
 ## 记录范围
 
 本地代理收到的 API 请求都会经过日志采样，包括没有启用供应商脚本的请求，以及 Claude Desktop 的本地网关请求。`/health`、`/status` 不记录。供应商测速、余额查询和客户端直接访问远程供应商的请求不经过本地代理，因此不在这张表内。
+
+没有进入转发的请求（`attempt=0`），例如路由表里没有的路径直接返回 404，或 Claude Desktop 的模型目录由本地返回，也会记录一行：没有供应商，列表的供应商列显示“未转发”，应用按路径前缀和 User-Agent 推断。
+
+## 请求类型
+
+`kind` 按原始请求的方法和路径判断，与代理路由表对应：
+
+| 类型       | `kind`         | 识别规则                                                                                                    |
+| ---------- | -------------- | ----------------------------------------------------------------------------------------------------------- |
+| 对话       | `chat`         | `/messages`、`/chat/completions`、`/responses`，以及 Gemini 的 `:generateContent`、`:streamGenerateContent` |
+| 计算 Token | `count_tokens` | `/messages/count_tokens`、Gemini 的 `:countTokens`                                                          |
+| 查询模型   | `models`       | 路径含 `/models` 的 GET 请求                                                                                |
+| 连通检查   | `probe`        | `/api/hello`，Claude Code 启动时的 HEAD 探测                                                                |
+| 压缩       | `compact`      | `/responses/compact`                                                                                        |
+| 搜索       | `search`       | `/alpha/search`                                                                                             |
+| 图像       | `image`        | `/images/generations`、`/images/edits`                                                                      |
+| 其他       | `other`        | 以上都不匹配                                                                                                |
+
+类型只看路径，不解析正文：Claude Code 的标题生成、上下文压缩等附带调用同样走 `/messages`，也归为对话。Claude Code 做上下文用量分析时会一次并发约 25 个 `count_tokens`，Claude Desktop 网关没有这个路由，全部 404；它们不是重试，不会转发到上游。升级前写入的记录在应用启动时按同一规则补齐类型。
 
 原始请求在进入供应商映射和脚本之前采样；转发请求在原生 HTTP 传输之前采样；上游响应在协议转换和脚本改写之前采样；客户端响应在全部处理完成之后采样。只有脚本真正执行时才记录 `script_*` 报文字段，即宿主准备好、即将交给脚本的请求，便于区分模型映射与脚本修改。
 
@@ -19,7 +38,8 @@ SSE 按读取进度采样，不为了日志提前读完或缓存完整响应。�
 | 字段                                         | 含义                                                                                              |
 | -------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | `request_id`                                 | 本次客户端 HTTP 请求的追踪 ID，同一请求的所有记录相同；与用量表的上游响应 ID 独立                 |
-| `app_type`、`provider_id`、`target`          | 应用、实际尝试的供应商 ID、当时的供应商名称                                                       |
+| `app_type`、`provider_id`、`target`          | 应用、实际尝试的供应商 ID、当时的供应商名称；未转发的请求后两项为空                               |
+| `kind`                                       | 请求类型，见上一节                                                                                |
 | `session_id`                                 | 与当前代理用量统计使用相同的会话标识                                                              |
 | `attempt`                                    | 本次请求的供应商尝试序号；故障转移或整流后重试会递增                                              |
 | `forward_seq`                                | 本次尝试的上游调用序号；`0` 表示未观察到宿主上游调用                                              |
@@ -62,7 +82,7 @@ SSE 按读取进度采样，不为了日志提前读完或缓存完整响应。�
 
 ## 大小和保留期限
 
-默认启用，每个方向最多保存 **65536 字节（64 KiB）**，保留 **7 天**。应用启动及运行期间每天清理一次过期详细日志，自动备份关闭时仍会清理。此外固定只保留最新的 **2000** 条记录，客户端重试风暴不会在几分钟内写满磁盘。清理只影响 `proxy_request_events`，不删除用量统计和供应商配置。
+默认启用，每个方向最多保存 **65536 字节（64 KiB）**，保留 **7 天**。应用启动及运行期间每天清理一次过期详细日志，自动备份关闭时仍会清理。此外每种请求类型各自只保留最新的 **2000** 条记录：客户端重试风暴不会在几分钟内写满磁盘，`count_tokens` 之类的突发也只挤掉同类型的旧记录，不会挤掉对话记录。清理只影响 `proxy_request_events`，不删除用量统计和供应商配置。
 
 在 **设置 → 路由 → 本地路由 → 详细请求日志** 中修改，点击 **保存** 后持久化；代理运行或停止时均可设置：
 
@@ -90,10 +110,17 @@ SSE 按读取进度采样，不为了日志提前读完或缓存完整响应。�
 ```sql
 -- 最近的调用及脚本执行情况
 SELECT started_at, request_id, attempt, forward_seq,
-       app_type, target, script_used, request_changed, route_changed,
+       app_type, kind, target, script_used, request_changed, route_changed,
        request_model, model, status, client_status, duration_ms, finish_reason
 FROM proxy_request_events
 ORDER BY id DESC LIMIT 50;
+
+-- 各应用、各类型的记录数和失败数
+SELECT app_type, kind, COUNT(*) AS total,
+       SUM(client_status IS NULL OR client_status >= 400) AS failed
+FROM proxy_request_events
+GROUP BY app_type, kind
+ORDER BY total DESC;
 
 -- 只看实际被脚本改到其他地址的请求
 SELECT started_at, target, script_url, fwd_url, model

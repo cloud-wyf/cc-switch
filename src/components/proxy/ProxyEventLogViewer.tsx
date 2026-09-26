@@ -3,12 +3,22 @@ import { useTranslation } from "react-i18next";
 import {
   ArrowDown,
   ArrowUp,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   RefreshCw,
+  X,
 } from "lucide-react";
 import { FullScreenPanel } from "@/components/common/FullScreenPanel";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -28,6 +38,7 @@ import {
 import { useProxyEvents } from "@/lib/query/proxy";
 import { formatDuration } from "@/lib/proxyEvents";
 import type {
+  ProxyEventKind,
   ProxyEventQuery,
   ProxyEventSortKey,
   ProxyEventStatusFilter,
@@ -38,7 +49,18 @@ import { cn } from "@/lib/utils";
 import { ProxyEventDetail } from "./ProxyEventDetail";
 
 const PAGE_SIZE = 50;
+const FILTERS_STORAGE_KEY = "cc-switch.proxyEventLog.filters";
 const APP_OPTIONS: string[] = [...PROXY_APP_IDS, "claude-desktop"];
+const KIND_OPTIONS: ProxyEventKind[] = [
+  "chat",
+  "count_tokens",
+  "models",
+  "probe",
+  "compact",
+  "search",
+  "image",
+  "other",
+];
 const STATUS_OPTIONS: ProxyEventStatusFilter[] = [
   "success",
   "error",
@@ -49,14 +71,17 @@ const STATUS_OPTIONS: ProxyEventStatusFilter[] = [
 const SORTABLE: Array<{ column: string; key: ProxyEventSortKey }> = [
   { column: "time", key: "id" },
   { column: "app", key: "app_type" },
+  { column: "kind", key: "kind" },
   { column: "provider", key: "target" },
   { column: "model", key: "model" },
   { column: "status", key: "status" },
   { column: "duration", key: "duration_ms" },
 ];
 
+// 应用和类型记住的是隐藏项：以后新增的应用和类型默认可见，不会被旧的选择藏掉。
 interface Filters {
-  appType: string;
+  hiddenApps: string[];
+  hiddenKinds: ProxyEventKind[];
   status: ProxyEventStatusFilter | "all";
   script: "all" | "used" | "unused";
   model: string;
@@ -65,13 +90,44 @@ interface Filters {
 }
 
 const EMPTY_FILTERS: Filters = {
-  appType: "all",
+  hiddenApps: [],
+  hiddenKinds: [],
   status: "all",
   script: "all",
   model: "",
   target: "",
   search: "",
 };
+
+const knownOptions = <T,>(value: unknown, options: readonly T[]): T[] =>
+  Array.isArray(value)
+    ? options.filter((option) => value.includes(option))
+    : [];
+
+const text = (value: unknown) => (typeof value === "string" ? value : "");
+
+// 存储可能来自旧版本或被改坏，逐项校验，认不出的项回到默认值。
+function readFilters(): Filters {
+  try {
+    const saved = JSON.parse(
+      window.localStorage.getItem(FILTERS_STORAGE_KEY) ?? "{}",
+    );
+    return {
+      hiddenApps: knownOptions(saved.hiddenApps, APP_OPTIONS),
+      hiddenKinds: knownOptions(saved.hiddenKinds, KIND_OPTIONS),
+      status: STATUS_OPTIONS.includes(saved.status) ? saved.status : "all",
+      script:
+        saved.script === "used" || saved.script === "unused"
+          ? saved.script
+          : "all",
+      model: text(saved.model),
+      target: text(saved.target),
+      search: text(saved.search),
+    };
+  } catch {
+    return EMPTY_FILTERS;
+  }
+}
 
 function useDebounced<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -120,13 +176,75 @@ function statusTone(event: ProxyEventSummary): string {
   return "text-red-600 dark:text-red-400";
 }
 
+interface MultiFilterProps<T extends string> {
+  label: string;
+  allLabel: string;
+  options: readonly T[];
+  hidden: T[];
+  optionLabel: (option: T) => string;
+  onChange: (hidden: T[]) => void;
+}
+
+function MultiFilter<T extends string>({
+  label,
+  allLabel,
+  options,
+  hidden,
+  optionLabel,
+  onChange,
+}: MultiFilterProps<T>) {
+  const { t } = useTranslation();
+  const toggle = (option: T, show: boolean) =>
+    onChange(
+      options.filter((item) =>
+        item === option ? !show : hidden.includes(item),
+      ),
+    );
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className="flex h-8 w-[150px] items-center justify-between whitespace-nowrap rounded-md border border-border-default bg-background px-3 text-xs shadow-sm focus:border-border-active focus:outline-none"
+        aria-label={label}
+      >
+        <span className="truncate">
+          {hidden.length === 0
+            ? allLabel
+            : `${label} ${options.length - hidden.length}/${options.length}`}
+        </span>
+        <ChevronDown className="h-4 w-4 opacity-50" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-[150px]">
+        {options.map((option) => (
+          <DropdownMenuCheckboxItem
+            key={option}
+            className="pl-8 pr-2 text-xs"
+            checked={!hidden.includes(option)}
+            onCheckedChange={(checked) => toggle(option, checked)}
+            onSelect={(event) => event.preventDefault()}
+          >
+            {optionLabel(option)}
+          </DropdownMenuCheckboxItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="text-xs"
+          disabled={hidden.length === 0}
+          onSelect={() => onChange([])}
+        >
+          {t("proxy.eventLog.viewer.filters.showAll")}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function ProxyEventLogList({
   onSelect,
 }: {
   onSelect: (id: number) => void;
 }) {
   const { t } = useTranslation();
-  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const [filters, setFilters] = useState<Filters>(readFilters);
   const [sortBy, setSortBy] = useState<ProxyEventSortKey>("id");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(0);
@@ -135,7 +253,8 @@ export function ProxyEventLogList({
   const search = useDebounced(filters.search, 300);
 
   const query: ProxyEventQuery = {
-    appType: filters.appType === "all" ? undefined : filters.appType,
+    excludeAppTypes: filters.hiddenApps,
+    excludeKinds: filters.hiddenKinds,
     status: filters.status === "all" ? undefined : filters.status,
     scriptUsed:
       filters.script === "all" ? undefined : filters.script === "used",
@@ -151,11 +270,32 @@ export function ProxyEventLogList({
     useProxyEvents(query);
 
   useEffect(() => {
+    window.localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filters));
+  }, [filters]);
+
+  useEffect(() => {
     setPage(0);
-  }, [filters.appType, filters.status, filters.script, model, target, search]);
+  }, [
+    filters.hiddenApps,
+    filters.hiddenKinds,
+    filters.status,
+    filters.script,
+    model,
+    target,
+    search,
+  ]);
 
   const update = (patch: Partial<Filters>) =>
     setFilters((current) => ({ ...current, ...patch }));
+  const active = [
+    filters.hiddenApps.length > 0,
+    filters.hiddenKinds.length > 0,
+    filters.status !== "all",
+    filters.script !== "all",
+    filters.model.trim() !== "",
+    filters.target.trim() !== "",
+    filters.search.trim() !== "",
+  ].filter(Boolean).length;
   const toggleSort = (key: ProxyEventSortKey) => {
     if (sortBy === key) {
       setSortDir((current) => (current === "desc" ? "asc" : "desc"));
@@ -173,25 +313,22 @@ export function ProxyEventLogList({
   return (
     <div className="space-y-4" data-testid="proxy-event-list">
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card/50 p-2">
-        <Select
-          value={filters.appType}
-          onValueChange={(value) => update({ appType: value })}
-        >
-          <SelectTrigger
-            className="h-8 w-[150px] text-xs"
-            aria-label={t("proxy.eventLog.viewer.filters.app")}
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("common.all")}</SelectItem>
-            {APP_OPTIONS.map((app) => (
-              <SelectItem key={app} value={app}>
-                {getAppLabel(app)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <MultiFilter
+          label={t("proxy.eventLog.viewer.filters.app")}
+          allLabel={t("proxy.eventLog.viewer.filters.allApps")}
+          options={APP_OPTIONS}
+          hidden={filters.hiddenApps}
+          optionLabel={getAppLabel}
+          onChange={(hiddenApps) => update({ hiddenApps })}
+        />
+        <MultiFilter
+          label={t("proxy.eventLog.viewer.filters.kind")}
+          allLabel={t("proxy.eventLog.viewer.filters.allKinds")}
+          options={KIND_OPTIONS}
+          hidden={filters.hiddenKinds}
+          optionLabel={(kind) => t(`proxy.eventLog.viewer.kinds.${kind}`)}
+          onChange={(hiddenKinds) => update({ hiddenKinds })}
+        />
         <Select
           value={filters.status}
           onValueChange={(value) =>
@@ -260,6 +397,18 @@ export function ProxyEventLogList({
           value={filters.search}
           onChange={(event) => update({ search: event.target.value })}
         />
+        {active > 0 && (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-8"
+            onClick={() => setFilters(EMPTY_FILTERS)}
+          >
+            <X className="mr-1 h-3.5 w-3.5" />
+            {t("proxy.eventLog.viewer.filters.reset", { count: active })}
+          </Button>
+        )}
         <Button
           type="button"
           size="sm"
@@ -341,7 +490,7 @@ export function ProxyEventLogList({
               {isPending ? (
                 <TableRow>
                   <TableCell
-                    colSpan={8}
+                    colSpan={9}
                     className="text-center text-muted-foreground"
                   >
                     {t("common.loading")}
@@ -350,7 +499,7 @@ export function ProxyEventLogList({
               ) : items.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={8}
+                    colSpan={9}
                     className="text-center text-muted-foreground"
                   >
                     {t("proxy.eventLog.viewer.noData")}
@@ -371,10 +520,24 @@ export function ProxyEventLogList({
                       {event.app_type ? getAppLabel(event.app_type) : "—"}
                     </TableCell>
                     <TableCell
+                      className="whitespace-nowrap text-xs"
+                      title={`${event.method} ${event.url}`}
+                    >
+                      {event.kind
+                        ? t(`proxy.eventLog.viewer.kinds.${event.kind}`)
+                        : "—"}
+                    </TableCell>
+                    <TableCell
                       className="max-w-[160px] truncate text-sm"
                       title={event.target}
                     >
-                      {event.target}
+                      {event.attempt === 0 ? (
+                        <span className="text-muted-foreground">
+                          {t("proxy.eventLog.viewer.notForwarded")}
+                        </span>
+                      ) : (
+                        event.target
+                      )}
                     </TableCell>
                     <TableCell className="max-w-[200px] truncate font-mono text-xs">
                       {event.request_model &&

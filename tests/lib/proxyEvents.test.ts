@@ -30,6 +30,7 @@ const base: ProxyEventDetail = {
   finish_reason: "completed",
   error: null,
   fwd_url: "https://api.deepseek.com/responses",
+  kind: "chat",
   fwd_method: "POST",
   orig_body: {
     encoding: "json",

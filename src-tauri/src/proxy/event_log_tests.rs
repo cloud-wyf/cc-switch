@@ -756,3 +756,39 @@ async fn logging_can_be_disabled_without_affecting_forwarding() {
     proxy.stop().await.unwrap();
     server.abort();
 }
+
+#[tokio::test]
+async fn unforwarded_requests_record_kind_and_initiator_without_a_provider() {
+    let db = Arc::new(Database::memory().unwrap());
+    let (proxy, url) = proxy(
+        db.clone(),
+        &provider("unused", "http://127.0.0.1:9", None, false),
+    )
+    .await;
+    let client = reqwest::Client::builder().no_proxy().build().unwrap();
+    let count = client
+        .post(format!(
+            "{url}/claude-desktop/v1/messages/count_tokens?beta=true"
+        ))
+        .json(&json!({"model":"claude-opus-5","messages":[]}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(count.status().as_u16(), 404);
+    wait_rows(&db, 1).await;
+    let hello = client
+        .head(format!("{url}/claude-desktop/api/hello"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(hello.status().as_u16(), 404);
+    let events = wait_rows(&db, 2).await;
+    for (event, kind) in events.iter().zip(["count_tokens", "probe"]) {
+        assert_eq!(event["kind"], kind, "{event:#}");
+        assert_eq!(event["app_type"], "claude-desktop");
+        assert_eq!(event["attempt"], 0);
+        assert_eq!(event["target"], "");
+        assert_eq!(event["client_status"], 404);
+    }
+    proxy.stop().await.unwrap();
+}

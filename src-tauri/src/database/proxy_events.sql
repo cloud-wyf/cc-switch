@@ -46,9 +46,11 @@ CREATE TABLE IF NOT EXISTS events.proxy_request_events (
     resp_body TEXT,
     client_headers TEXT,
     client_body TEXT,
+    kind TEXT,
     UNIQUE(request_id, attempt, forward_seq)
 ) STRICT;
 CREATE INDEX IF NOT EXISTS events.idx_proxy_events_created ON proxy_request_events(created_at);
 CREATE INDEX IF NOT EXISTS events.idx_proxy_events_provider ON proxy_request_events(app_type, provider_id, created_at);
 CREATE INDEX IF NOT EXISTS events.idx_proxy_events_script ON proxy_request_events(script_used, created_at);
 CREATE INDEX IF NOT EXISTS events.idx_proxy_events_status ON proxy_request_events(status, created_at);
+CREATE INDEX IF NOT EXISTS events.idx_proxy_events_kind ON proxy_request_events(kind, id);
