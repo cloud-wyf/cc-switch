@@ -98,6 +98,8 @@ pnpm build
 
 #### 每次发布：GitHub 优先，额度不足转本机
 
+每次向 `main` 推送会改变应用的提交（源码、依赖、配置），都要紧接着发布一个新版本；只推送源码时，已安装的应用检测不到更新。纯文档改动不需要发版。
+
 1. 按上文规则同步四处版本号，例如下一个自用修订 `3.20.2-2`；运行 `node scripts/validate-release.mjs` 检查一致性。
 2. 提交发布源码并推送对应 Tag，例如 `v3.20.2-2`。运行发布命令时，当前工作目录必须干净，HEAD 必须与远程 Tag 指向同一提交。
 3. 在本机项目目录执行：
@@ -106,6 +108,8 @@ pnpm build
 pnpm release:check --tag v3.20.2-2
 pnpm release --tag v3.20.2-2
 ```
+
+本仓库的 GitHub Actions 免费额度已用完，第 3 步默认直接用 `pnpm release:local --tag v3.20.2-2`，在本机构建、签名并上传到本仓库的 Release。推送 Tag 触发的云端任务会在几秒内因额度失败，确认它已结束（`gh run list --workflow release.yml -L 1`）后再运行。额度恢复后可改回 `pnpm release`，优先使用云端构建。
 
 `release:check` 只读检查源码、Tag、远程工作流和本机签名配置，不触发构建或上传。它不替代本机工具链的实际打包验证。省略 `--tag` 时，使用当前 `package.json` 的版本号。
 
