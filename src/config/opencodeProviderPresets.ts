@@ -1,7 +1,8 @@
 import type { ProviderCategory, OpenCodeProviderConfig } from "../types";
 import type { PresetTheme, TemplateValueConfig } from "./claudeProviderPresets";
+import type { PresetFamilyFields } from "./presetFamilies";
 
-export interface OpenCodeProviderPreset {
+export interface OpenCodeProviderPreset extends PresetFamilyFields {
   name: string;
   nameKey?: string; // i18n key for localized display name
   websiteUrl: string;
@@ -9,6 +10,7 @@ export interface OpenCodeProviderPreset {
   settingsConfig: OpenCodeProviderConfig;
   isOfficial?: boolean;
   isPartner?: boolean;
+  primePartner?: boolean; // 旧版的置顶合作伙伴标记；v7 起界面不再读取，新预设不写
   partnerPromotionKey?: string;
   category?: ProviderCategory;
   templateValues?: Record<string, TemplateValueConfig>;
@@ -276,24 +278,13 @@ export const OPENCODE_PRESET_MODEL_VARIANTS: Record<
   ],
 };
 
-/**
- * Look up preset metadata for a model by npm package and model ID.
- * Returns enrichment fields (options, limit, modalities) that can be
- * merged into a model definition when the user's config doesn't already
- * provide them.
- */
-export function getPresetModelDefaults(
-  npm: string,
-  modelId: string,
-): PresetModelVariant | undefined {
-  const models = OPENCODE_PRESET_MODEL_VARIANTS[npm];
-  if (!models) return undefined;
-  return models.find((m) => m.id === modelId);
-}
-
 export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
   {
     name: "Kimi",
+    family: "kimi",
+    planKey: "payg",
+    regionKey: "cn",
+
     websiteUrl: "https://platform.kimi.com",
     apiKeyUrl: "https://platform.kimi.com/console/api-keys",
     settingsConfig: {
@@ -305,11 +296,24 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
         setCacheKey: true,
       },
       models: {
-        "kimi-k2.7-code": { name: "Kimi K2.7 Code" },
-        "kimi-k3": { name: "Kimi K3" },
+        "kimi-k2.7-code": { name: "Kimi K2.7 Code", reasoning: true },
+        "kimi-k3": { name: "Kimi K3", reasoning: true },
+        "kimi-k2.7-code-highspeed": {
+          name: "Kimi K2.7 Code HighSpeed",
+          reasoning: true,
+          limit: { context: 262144, output: 262144 },
+          modalities: { input: ["text", "image"], output: ["text"] },
+        },
+        "kimi-k2.6": {
+          name: "Kimi K2.6",
+          reasoning: true,
+          limit: { context: 262144, output: 262144 },
+          modalities: { input: ["text", "image"], output: ["text"] },
+        },
       },
     },
     category: "cn_official",
+
     icon: "kimi",
     iconColor: "#6366F1",
     templateValues: {
@@ -328,6 +332,10 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
   },
   {
     name: "Kimi For Coding",
+    family: "kimi",
+    planKey: "coding",
+    regionKey: "cn",
+
     websiteUrl: "https://www.kimi.com/code/",
     apiKeyUrl: "https://platform.kimi.com/console/api-keys",
     settingsConfig: {
@@ -339,7 +347,7 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
         setCacheKey: true,
       },
       models: {
-        "kimi-for-coding": { name: "Kimi For Coding" },
+        "kimi-for-coding": { name: "Kimi For Coding", reasoning: true },
       },
     },
     category: "cn_official",
@@ -371,8 +379,18 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
         setCacheKey: true,
       },
       models: {
-        "deepseek-v4-pro": { name: "DeepSeek V4 Pro" },
-        "deepseek-v4-flash": { name: "DeepSeek V4 Flash" },
+        "deepseek-v4-pro": {
+          name: "DeepSeek V4 Pro",
+          reasoning: true,
+          limit: { context: 1000000, output: 384000 },
+          modalities: { input: ["text"], output: ["text"] },
+        },
+        "deepseek-flash": {
+          name: "DeepSeek V4.1 Flash",
+          reasoning: true,
+          limit: { context: 1000000, output: 384000 },
+          modalities: { input: ["text", "image"], output: ["text"] },
+        },
       },
     },
     category: "cn_official",
@@ -388,6 +406,8 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
   },
   {
     name: "Zhipu GLM",
+    family: "zhipu",
+    regionKey: "cn",
     websiteUrl: "https://open.bigmodel.cn",
     apiKeyUrl: "https://www.bigmodel.cn/claude-code",
     settingsConfig: {
@@ -399,7 +419,13 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
         setCacheKey: true,
       },
       models: {
-        "glm-5.1": { name: "GLM-5.1" },
+        "glm-5.3": { name: "GLM-5.3", reasoning: true },
+        "glm-5.3-flash": {
+          name: "GLM-5.3-Flash",
+          reasoning: true,
+          limit: { context: 1048576, output: 131072 },
+          modalities: { input: ["text", "image"], output: ["text"] },
+        },
       },
     },
     category: "cn_official",
@@ -421,6 +447,8 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
   },
   {
     name: "MiniMax",
+    family: "minimax",
+    regionKey: "cn",
     websiteUrl: "https://platform.minimax.cn",
     apiKeyUrl: "https://platform.minimax.cn/subscribe/token-plan",
     settingsConfig: {

@@ -1,11 +1,11 @@
 # CC Switch User Manual
 
-> All-in-One Assistant for Claude Code / Claude Desktop / Codex / Gemini CLI / OpenCode / OpenClaw / Hermes
+> All-in-One Assistant for Claude Code / Claude Desktop / Codex / Gemini CLI / Grok Build / OpenCode / OpenClaw / Hermes / Pi / MiniMax Code
 
 ## Table of Contents
 
 ```
-CC Switch User Manual
+📚 CC Switch User Manual
 │
 ├── 1. Getting Started
 │   ├── 1.1 Introduction
@@ -29,12 +29,12 @@ CC Switch User Manual
 │   ├── 3.4 Session Manager
 │   └── 3.5 Workspace & Memory
 │
-├── 4. Proxy & High Availability
-│   ├── 4.1 Proxy Service
-│   ├── 4.2 App Takeover
+├── 4. Local Routing & High Availability
+│   ├── 4.1 Local Routing Service
+│   ├── 4.2 App Routing
 │   ├── 4.3 Failover
 │   ├── 4.4 Usage Statistics
-│   └── 4.5 Model Test
+│   └── 4.5 Connectivity Check
 │
 └── 5. FAQ
     ├── 5.1 Configuration Files
@@ -61,7 +61,7 @@ CC Switch User Manual
 |------|-------------|
 | [2.1-add.md](./2-providers/2.1-add.md) | Using presets, custom configuration, universal providers |
 | [2.2-switch.md](./2-providers/2.2-switch.md) | Main UI switching, tray switching, activation methods |
-| [2.3-edit.md](./2-providers/2.3-edit.md) | Edit configuration, modify API Key, backfill mechanism |
+| [2.3-edit.md](./2-providers/2.3-edit.md) | Edit configuration, modify API Key, global settings and edit conflicts |
 | [2.4-sort-duplicate.md](./2-providers/2.4-sort-duplicate.md) | Drag-to-reorder, duplicate provider, delete |
 | [2.5-usage-query.md](./2-providers/2.5-usage-query.md) | Usage query, remaining balance, multi-plan display |
 | [2.6-claude-desktop.md](./2-providers/2.6-claude-desktop.md) | Claude Desktop third-party providers, direct mode, and model mapping |
@@ -76,15 +76,15 @@ CC Switch User Manual
 | [3.4-sessions.md](./3-extensions/3.4-sessions.md) | Session Manager: browse, search, resume, delete sessions |
 | [3.5-workspace.md](./3-extensions/3.5-workspace.md) | Workspace files and daily memory (OpenClaw) |
 
-### 4. Proxy & High Availability
+### 4. Local Routing & High Availability
 
 | File | Description |
 |------|-------------|
-| [4.1-service.md](./4-proxy/4.1-service.md) | Start proxy, configuration, running status |
+| [4.1-service.md](./4-proxy/4.1-service.md) | Start local routing, configuration, API format conversion |
 | [4.2-routing.md](./4-proxy/4.2-routing.md) | App routing, configuration changes, status indicators |
 | [4.3-failover.md](./4-proxy/4.3-failover.md) | Failover queue, circuit breaker, health status |
 | [4.4-usage.md](./4-proxy/4.4-usage.md) | Usage statistics, trend charts, pricing configuration |
-| [4.5-model-test.md](./4-proxy/4.5-model-test.md) | Model test, health check, latency testing |
+| [4.5-model-test.md](./4-proxy/4.5-model-test.md) | Connectivity check, check parameters |
 
 ### 5. FAQ
 
@@ -101,7 +101,7 @@ CC Switch User Manual
 - **Installation issues**: See [1.2 Installation Guide](./1-getting-started/1.2-installation.md)
 - **Configure providers**: See [2.1 Add Provider](./2-providers/2.1-add.md)
 - **Use Claude Desktop**: See [2.6 Claude Desktop](./2-providers/2.6-claude-desktop.md)
-- **Using proxy**: See [4.1 Proxy Service](./4-proxy/4.1-service.md)
+- **Use local routing**: See [4.1 Local Routing Service](./4-proxy/4.1-service.md)
 - **Having trouble**: See [5.2 FAQ](./5-faq/5.2-questions.md)
 
 Use this manual as a local configuration reference. See the [project instructions](../../../README.md) for installation and updates.

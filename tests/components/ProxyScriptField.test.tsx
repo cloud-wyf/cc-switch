@@ -121,7 +121,7 @@ describe("per-provider proxy script persistence", () => {
       <ProviderForm
         {...props}
         initialData={{
-          meta: { localProxyScript: source, costMultiplier: "2" },
+          meta: { localProxyScript: source, customUserAgent: "test-agent" },
         }}
       />,
     );
@@ -140,7 +140,7 @@ describe("per-provider proxy script persistence", () => {
     expect(saved.meta).toEqual({
       localProxyScript: source,
       localProxyScriptEnabled: false,
-      costMultiplier: "2",
+      customUserAgent: "test-agent",
     });
 
     unmount();
@@ -180,7 +180,7 @@ describe("per-provider proxy script persistence", () => {
         initialData={{
           meta: {
             localProxyScript: "export default (_request, next) => next();",
-            costMultiplier: "2",
+            customUserAgent: "test-agent",
           },
         }}
       />,
@@ -198,7 +198,7 @@ describe("per-provider proxy script persistence", () => {
           meta: {
             localProxyScript: "export default () => new Response('local');",
             localProxyScriptEnabled: true,
-            costMultiplier: "2",
+            customUserAgent: "test-agent",
           },
         }),
       ),
@@ -210,7 +210,7 @@ describe("per-provider proxy script persistence", () => {
         meta: {
           localProxyScript: undefined,
           localProxyScriptEnabled: undefined,
-          costMultiplier: "2",
+          customUserAgent: "test-agent",
         },
       }),
     );
@@ -225,14 +225,14 @@ describe("per-provider proxy script persistence", () => {
         submitLabel="保存"
         onCancel={vi.fn()}
         onSubmit={onSubmit}
-        initialData={{ meta: { costMultiplier: "2" } }}
+        initialData={{ meta: { customUserAgent: "test-agent" } }}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: "保存供应商" }));
     expect(onSubmit.mock.lastCall![0].meta).toEqual({
       localProxyScript: undefined,
       localProxyScriptEnabled: undefined,
-      costMultiplier: "2",
+      customUserAgent: "test-agent",
     });
   });
 

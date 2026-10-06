@@ -10,6 +10,7 @@
  */
 import { ProviderCategory } from "../types";
 import type { PresetTheme } from "./claudeProviderPresets";
+import type { PresetFamilyFields } from "./presetFamilies";
 
 export type ClaudeDesktopApiFormat =
   | "anthropic"
@@ -40,13 +41,14 @@ export const CLAUDE_DESKTOP_ROLE_ROUTE_IDS = {
 
 export type ClaudeDesktopRoleId = keyof typeof CLAUDE_DESKTOP_ROLE_ROUTE_IDS;
 
-export interface ClaudeDesktopProviderPreset {
+export interface ClaudeDesktopProviderPreset extends PresetFamilyFields {
   name: string;
   nameKey?: string;
   websiteUrl: string;
   apiKeyUrl?: string;
   category?: ProviderCategory;
   isPartner?: boolean;
+  primePartner?: boolean; // 旧版的置顶合作伙伴标记；v7 起界面不再读取，新预设不写
   partnerPromotionKey?: string;
 
   baseUrl: string;
@@ -131,6 +133,10 @@ export const claudeDesktopProviderPresets: ClaudeDesktopProviderPreset[] = [
   },
   {
     name: "Kimi",
+    family: "kimi",
+    planKey: "payg",
+    regionKey: "cn",
+
     websiteUrl: "https://platform.kimi.com",
     category: "cn_official",
     baseUrl: "https://api.moonshot.cn/anthropic",
@@ -141,11 +147,16 @@ export const claudeDesktopProviderPresets: ClaudeDesktopProviderPreset[] = [
       "kimi-k2.7-code",
       "kimi-k2.7-code",
     ),
+
     icon: "kimi",
     iconColor: "#6366F1",
   },
   {
     name: "Kimi For Coding",
+    family: "kimi",
+    planKey: "coding",
+    regionKey: "cn",
+
     websiteUrl: "https://www.kimi.com/code/",
     category: "cn_official",
     baseUrl: "https://api.kimi.com/coding/",
@@ -169,7 +180,7 @@ export const claudeDesktopProviderPresets: ClaudeDesktopProviderPreset[] = [
     modelRoutes: brandedRoutes(
       "deepseek-v4-pro",
       "deepseek-v4-pro",
-      "deepseek-v4-flash",
+      "deepseek-flash",
       true,
     ),
     icon: "deepseek",
@@ -177,18 +188,22 @@ export const claudeDesktopProviderPresets: ClaudeDesktopProviderPreset[] = [
   },
   {
     name: "Zhipu GLM",
+    family: "zhipu",
+    regionKey: "cn",
     websiteUrl: "https://open.bigmodel.cn",
     apiKeyUrl: "https://www.bigmodel.cn/claude-code",
     category: "cn_official",
     baseUrl: "https://open.bigmodel.cn/api/anthropic",
     mode: "proxy",
     apiFormat: "anthropic",
-    modelRoutes: brandedRoutes("glm-5.1", "glm-5.1", "glm-5.1"),
+    modelRoutes: brandedRoutes("glm-5.3", "glm-5.3", "glm-5.3"),
     icon: "zhipu",
     iconColor: "#0F62FE",
   },
   {
     name: "MiniMax",
+    family: "minimax",
+    regionKey: "cn",
     websiteUrl: "https://platform.minimax.cn",
     apiKeyUrl: "https://platform.minimax.cn/subscribe/token-plan",
     category: "cn_official",

@@ -213,7 +213,7 @@ function MultiFilter<T extends string>({
         </span>
         <ChevronDown className="h-4 w-4 opacity-50" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="min-w-[150px]">
+      <DropdownMenuContent align="start" className="z-[100] min-w-[150px]">
         {options.map((option) => (
           <DropdownMenuCheckboxItem
             key={option}

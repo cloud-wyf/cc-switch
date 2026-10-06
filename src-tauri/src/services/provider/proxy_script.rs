@@ -89,10 +89,12 @@ pub(crate) async fn activate_current(
                 state.proxy_service.start().await.map(|_| ())
             }
         } else {
-            state
-                .proxy_service
-                .set_takeover_for_app(app.as_str(), true)
-                .await
+            let stack_mode = crate::mode::state::stack_mode(
+                &crate::live::engine::DeviceStore::for_device(),
+                app.as_str(),
+            )
+            .map_err(|error| error.to_string())?;
+            crate::mode::controller::enter_with_route(state, app, stack_mode, Some(id)).await
         };
         activation
             .map_err(|error| format!("供应商配置已保存，但启用脚本所需的本地路由失败：{error}"))?;

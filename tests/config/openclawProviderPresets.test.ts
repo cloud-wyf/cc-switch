@@ -36,11 +36,9 @@ describe("OpenClaw provider defaults", () => {
       "my-deepseek",
     );
 
-    expect(rebased.model?.primary).toBe("my-deepseek/deepseek-v4-flash");
+    expect(rebased.model?.primary).toBe("my-deepseek/deepseek-flash");
     expect(rebased.model?.fallbacks).toEqual(["my-deepseek/deepseek-v4-pro"]);
-    expect(rebased.modelCatalog).toHaveProperty(
-      "my-deepseek/deepseek-v4-flash",
-    );
+    expect(rebased.modelCatalog).toHaveProperty("my-deepseek/deepseek-flash");
     expect(rebased.modelCatalog).toHaveProperty("my-deepseek/deepseek-v4-pro");
     expect(rebased.modelCatalog).not.toHaveProperty(
       "deepseek/deepseek-v4-flash",

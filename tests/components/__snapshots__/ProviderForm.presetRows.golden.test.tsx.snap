@@ -1,0 +1,376 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ProviderForm 预设新增行金标 > claude > Claude Official 1`] = `
+{
+  "apiKeyLocations": [],
+  "row": {
+    "icon": "anthropic",
+    "iconColor": "#D4915D",
+    "meta": {
+      "endpointAutoSelect": true,
+    },
+    "name": "Claude Official",
+    "notes": "",
+    "presetCategory": "official",
+    "presetId": "claude-<index>",
+    "settingsConfig": {
+      "env": {},
+    },
+    "websiteUrl": "https://www.anthropic.com/claude-code",
+  },
+}
+`;
+
+exports[`ProviderForm 预设新增行金标 > claude > DeepSeek 1`] = `
+{
+  "apiKeyLocations": [
+    "settingsConfig.env.ANTHROPIC_AUTH_TOKEN",
+  ],
+  "row": {
+    "icon": "deepseek",
+    "iconColor": "#1E88E5",
+    "meta": {
+      "apiFormat": "anthropic",
+      "endpointAutoSelect": true,
+    },
+    "name": "DeepSeek",
+    "notes": "",
+    "presetCategory": "cn_official",
+    "presetId": "claude-<index>",
+    "settingsConfig": {
+      "env": {
+        "ANTHROPIC_AUTH_TOKEN": "sk-golden-test",
+        "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-flash",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-v4-pro",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-v4-pro",
+        "ANTHROPIC_MODEL": "deepseek-v4-pro",
+      },
+    },
+    "websiteUrl": "https://platform.deepseek.com",
+  },
+}
+`;
+
+exports[`ProviderForm 预设新增行金标 > claude > Kimi For Coding 1`] = `
+{
+  "apiKeyLocations": [
+    "settingsConfig.env.ANTHROPIC_AUTH_TOKEN",
+  ],
+  "row": {
+    "icon": "kimi",
+    "iconColor": "#6366F1",
+    "meta": {
+      "apiFormat": "anthropic",
+      "endpointAutoSelect": true,
+    },
+    "name": "Kimi For Coding",
+    "notes": "",
+    "presetCategory": "cn_official",
+    "presetId": "claude-<index>",
+    "settingsConfig": {
+      "env": {
+        "ANTHROPIC_AUTH_TOKEN": "sk-golden-test",
+        "ANTHROPIC_BASE_URL": "https://api.kimi.com/coding/",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "kimi-for-coding",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL": "kimi-for-coding",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL": "kimi-for-coding",
+        "ANTHROPIC_MODEL": "kimi-for-coding",
+        "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "262144",
+        "CLAUDE_CODE_MAX_CONTEXT_TOKENS": "262144",
+      },
+    },
+    "websiteUrl": "https://www.kimi.com/code/",
+  },
+}
+`;
+
+exports[`ProviderForm 预设新增行金标 > claude > MiniMax 1`] = `
+{
+  "apiKeyLocations": [
+    "settingsConfig.env.ANTHROPIC_AUTH_TOKEN",
+  ],
+  "row": {
+    "icon": "minimax",
+    "iconColor": "#FF6B6B",
+    "meta": {
+      "apiFormat": "anthropic",
+      "endpointAutoSelect": true,
+    },
+    "name": "MiniMax",
+    "notes": "",
+    "presetCategory": "cn_official",
+    "presetId": "claude-<index>",
+    "settingsConfig": {
+      "env": {
+        "ANTHROPIC_AUTH_TOKEN": "sk-golden-test",
+        "ANTHROPIC_BASE_URL": "https://api.minimax.cn/anthropic",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "MiniMax-M3[1M]",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL": "MiniMax-M3[1M]",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL": "MiniMax-M3[1M]",
+        "ANTHROPIC_MODEL": "MiniMax-M3[1M]",
+        "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "1000000",
+      },
+    },
+    "websiteUrl": "https://platform.minimax.cn",
+  },
+}
+`;
+
+exports[`ProviderForm 预设新增行金标 > claude > Zhipu GLM 1`] = `
+{
+  "apiKeyLocations": [
+    "settingsConfig.env.ANTHROPIC_AUTH_TOKEN",
+  ],
+  "row": {
+    "icon": "zhipu",
+    "iconColor": "#0F62FE",
+    "meta": {
+      "apiFormat": "anthropic",
+      "endpointAutoSelect": true,
+    },
+    "name": "Zhipu GLM",
+    "notes": "",
+    "presetCategory": "cn_official",
+    "presetId": "claude-<index>",
+    "settingsConfig": {
+      "env": {
+        "ANTHROPIC_AUTH_TOKEN": "sk-golden-test",
+        "ANTHROPIC_BASE_URL": "https://open.bigmodel.cn/api/anthropic",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "glm-5.3",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL": "glm-5.3",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL": "glm-5.3",
+        "ANTHROPIC_MODEL": "glm-5.3",
+      },
+    },
+    "websiteUrl": "https://open.bigmodel.cn",
+  },
+}
+`;
+
+exports[`ProviderForm 预设新增行金标 > codex > DeepSeek 1`] = `
+{
+  "apiKeyLocations": [
+    "settingsConfig.auth.OPENAI_API_KEY",
+  ],
+  "row": {
+    "icon": "deepseek",
+    "iconColor": "#1E88E5",
+    "meta": {
+      "apiFormat": "openai_responses",
+      "endpointAutoSelect": true,
+    },
+    "name": "DeepSeek",
+    "notes": "",
+    "presetCategory": "cn_official",
+    "presetId": "codex-<index>",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": "sk-golden-test",
+      },
+      "config": "model_provider = "custom"
+model = "deepseek-flash"
+model_reasoning_effort = "high"
+disable_response_storage = true
+
+[model_providers.custom]
+name = "deepseek"
+base_url = "https://api.deepseek.com"
+wire_api = "responses"
+requires_openai_auth = true",
+      "modelCatalog": {
+        "models": [
+          {
+            "contextWindow": 1048576,
+            "displayName": "DeepSeek V4.1 Flash",
+            "inputModalities": [
+              "text",
+              "image",
+            ],
+            "model": "deepseek-flash",
+            "reasoningLevels": [
+              "low",
+              "high",
+              "max",
+            ],
+          },
+          {
+            "contextWindow": 1048576,
+            "displayName": "DeepSeek V4 Pro",
+            "inputModalities": [
+              "text",
+            ],
+            "model": "deepseek-v4-pro",
+            "reasoningLevels": [
+              "low",
+              "high",
+              "max",
+            ],
+          },
+        ],
+      },
+    },
+    "websiteUrl": "https://platform.deepseek.com",
+  },
+}
+`;
+
+exports[`ProviderForm 预设新增行金标 > codex > MiniMax 1`] = `
+{
+  "apiKeyLocations": [
+    "settingsConfig.auth.OPENAI_API_KEY",
+  ],
+  "row": {
+    "icon": "minimax",
+    "iconColor": "#FF6B6B",
+    "meta": {
+      "apiFormat": "openai_responses",
+      "endpointAutoSelect": true,
+    },
+    "name": "MiniMax",
+    "notes": "",
+    "presetCategory": "cn_official",
+    "presetId": "codex-<index>",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": "sk-golden-test",
+      },
+      "config": "model_provider = "custom"
+model = "MiniMax-M3"
+model_reasoning_effort = "high"
+disable_response_storage = true
+
+[model_providers.custom]
+name = "minimax"
+base_url = "https://api.minimax.cn/v1"
+wire_api = "responses"
+requires_openai_auth = true",
+      "modelCatalog": {
+        "models": [
+          {
+            "baseInstructions": "You are Codex, a coding agent based on MiniMax-M3. You and the user share the same workspace and collaborate to achieve the user's goals.",
+            "contextWindow": 1000000,
+            "displayName": "MiniMax-M3",
+            "inputModalities": [
+              "text",
+              "image",
+            ],
+            "model": "MiniMax-M3",
+            "reasoningLevels": [
+              "none",
+              "high",
+            ],
+            "supportsParallelToolCalls": true,
+          },
+        ],
+      },
+    },
+    "websiteUrl": "https://platform.minimax.cn",
+  },
+}
+`;
+
+exports[`ProviderForm 预设新增行金标 > codex > OpenAI Official 1`] = `
+{
+  "apiKeyLocations": [],
+  "row": {
+    "icon": "openai",
+    "iconColor": "#00A67E",
+    "meta": {
+      "endpointAutoSelect": true,
+    },
+    "name": "OpenAI Official",
+    "notes": "",
+    "presetCategory": "official",
+    "presetId": "codex-<index>",
+    "settingsConfig": {
+      "auth": {},
+      "config": "",
+    },
+    "websiteUrl": "https://chatgpt.com/codex",
+  },
+}
+`;
+
+exports[`ProviderForm 预设新增行金标 > codex > Zhipu GLM 1`] = `
+{
+  "apiKeyLocations": [
+    "settingsConfig.auth.OPENAI_API_KEY",
+  ],
+  "row": {
+    "icon": "zhipu",
+    "iconColor": "#0F62FE",
+    "meta": {
+      "apiFormat": "openai_responses",
+      "endpointAutoSelect": true,
+    },
+    "name": "Zhipu GLM",
+    "notes": "",
+    "presetCategory": "cn_official",
+    "presetId": "codex-<index>",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": "sk-golden-test",
+      },
+      "config": "model_provider = "custom"
+model = "glm-5.3"
+model_reasoning_effort = "high"
+disable_response_storage = true
+
+[model_providers.custom]
+name = "zhipu_glm"
+base_url = "https://open.bigmodel.cn/api/v1"
+wire_api = "responses"
+requires_openai_auth = true",
+      "modelCatalog": {
+        "models": [
+          {
+            "contextWindow": 1048576,
+            "defaultReasoningLevel": "max",
+            "displayName": "GLM-5.3",
+            "inputModalities": [
+              "text",
+            ],
+            "model": "glm-5.3",
+            "reasoningLevels": [
+              "low",
+              "high",
+              "max",
+            ],
+            "supportsParallelToolCalls": true,
+          },
+          {
+            "contextWindow": 1048576,
+            "defaultReasoningLevel": "max",
+            "displayName": "GLM-5.3-Flash",
+            "inputModalities": [
+              "text",
+              "image",
+            ],
+            "model": "glm-5.3-flash",
+            "reasoningLevels": [
+              "low",
+              "high",
+              "max",
+            ],
+            "supportsParallelToolCalls": true,
+          },
+          {
+            "contextWindow": 204800,
+            "displayName": "GLM-5-Turbo",
+            "inputModalities": [
+              "text",
+            ],
+            "model": "glm-5-turbo",
+            "reasoningLevels": [
+              "max",
+            ],
+            "supportsParallelToolCalls": true,
+          },
+        ],
+      },
+    },
+    "websiteUrl": "https://open.bigmodel.cn",
+  },
+}
+`;

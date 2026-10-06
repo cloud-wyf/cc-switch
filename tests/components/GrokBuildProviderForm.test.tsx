@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
+import { renderWithQueryClient as render } from "../utils/testQueryClient";
 import userEvent from "@testing-library/user-event";
 import { parse as parseToml } from "smol-toml";
 import { describe, expect, it, vi } from "vitest";
@@ -53,6 +54,28 @@ describe("GrokBuildProviderForm", () => {
     expect(JSON.parse(onSubmit.mock.calls[0][0].settingsConfig)).toEqual({
       config: "",
     });
+  });
+
+  it("points the get-API-key link at the preset's apiKeyUrl", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <GrokBuildProviderForm
+        submitLabel="Save"
+        onSubmit={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /Example Grok/ }));
+
+    const websiteInput = container.querySelector<HTMLInputElement>(
+      'input[name="websiteUrl"]',
+    );
+    expect(websiteInput?.value).toBe("https://grok.example");
+    expect(screen.getByRole("link", { name: /API Key/ })).toHaveAttribute(
+      "href",
+      "https://grok.example/keys",
+    );
   });
 
   it("submits a complete config.toml payload with Grok defaults", async () => {
@@ -309,4 +332,13 @@ context_window = 500000
       screen.queryByText(/Codex 不会把 model_max_output_tokens/),
     ).toBeNull();
   });
+});
+
+vi.mock("@/config/grokBuildProviderPresets", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/config/grokBuildProviderPresets")>();
+  const { grokPresetFixture } = await import(
+    "../fixtures/customProviderPresets"
+  );
+  return { ...actual, grokBuildProviderPresets: [grokPresetFixture] };
 });

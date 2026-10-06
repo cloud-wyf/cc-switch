@@ -1,0 +1,33 @@
+{
+  "version": "4.0.3-1",
+  "items": [
+    {
+      "type": "new",
+      "zh": "升级至 4.0 界面，新增侧边栏及直连、路由、聚合模式",
+      "zh-TW": "升級至 4.0 介面，新增側邊欄及直連、路由、聚合模式",
+      "en": "Updated to the 4.0 interface with a sidebar and Direct, Route, and Aggregation modes",
+      "ja": "4.0 の画面に更新し、サイドバーと直接・ルート・集約モードを追加"
+    },
+    {
+      "type": "improve",
+      "zh": "保留代理脚本和详细请求日志，脚本开关兼容聚合模式",
+      "zh-TW": "保留代理腳本和詳細請求日誌，腳本開關相容聚合模式",
+      "en": "Kept proxy scripts and detailed request logs; script toggles now support Aggregation mode",
+      "ja": "プロキシスクリプトと詳細ログを維持し、スクリプト切替が集約モードに対応"
+    },
+    {
+      "type": "fix",
+      "zh": "保留单应用退出后共享路由继续运行，修复日志筛选菜单遮挡",
+      "zh-TW": "保留單一應用退出後共用路由繼續執行，修復日誌篩選選單遮擋",
+      "en": "Shared routing stays active when one app exits; log filter menus now display above overlays",
+      "ja": "単一アプリ終了後も共有ルートを維持し、ログ絞り込みメニューの重なりを修正"
+    },
+    {
+      "type": "new",
+      "zh": "MCP 支持同步到 Pi，升级保留现有配置及独立日志",
+      "zh-TW": "MCP 支援同步到 Pi，升級保留現有設定及獨立日誌",
+      "en": "MCP can sync to Pi; upgrades preserve existing settings and the separate request log database",
+      "ja": "MCP の Pi 同期に対応し、更新時も既存設定と独立したリクエストログを維持"
+    }
+  ]
+}

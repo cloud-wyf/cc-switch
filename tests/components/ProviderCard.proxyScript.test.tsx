@@ -68,8 +68,7 @@ function renderCard(provider: Provider, appId: AppId = "codex") {
         provider={provider}
         appId={appId}
         isCurrent
-        isProxyRunning={false}
-        onSwitch={vi.fn()}
+        presentation={{ tone: "direct", buttons: [], chips: [] }}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onConfigureUsage={vi.fn()}
@@ -86,7 +85,7 @@ describe("ProviderCard proxy script toggle", () => {
     expect(screen.getByRole("switch", { name: "代理脚本" })).toBeChecked();
     unmount();
 
-    renderCard({ ...scripted(), meta: { costMultiplier: "2" } });
+    renderCard({ ...scripted(), meta: { customUserAgent: "test-agent" } });
     expect(screen.queryByRole("switch", { name: "代理脚本" })).toBeNull();
   });
 

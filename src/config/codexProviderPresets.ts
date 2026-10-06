@@ -9,8 +9,9 @@ import type {
   PromptCacheRoutingMode,
 } from "../types";
 import type { PresetTheme } from "./claudeProviderPresets";
+import type { PresetFamilyFields } from "./presetFamilies";
 
-export interface CodexProviderPreset {
+export interface CodexProviderPreset extends PresetFamilyFields {
   name: string;
   nameKey?: string; // i18n key for localized display name
   websiteUrl: string;
@@ -20,6 +21,7 @@ export interface CodexProviderPreset {
   config: string; // 将写入 ~/.codex/config.toml（TOML 字符串）
   isOfficial?: boolean; // 标识是否为官方预设
   isPartner?: boolean; // 标识是否为商业合作伙伴
+  primePartner?: boolean; // 旧版的置顶合作伙伴标记；v7 起界面不再读取，新预设不写
   partnerPromotionKey?: string; // 合作伙伴促销信息的 i18n key
   category?: ProviderCategory; // 新增：分类
   isCustomTemplate?: boolean; // 标识是否为自定义模板
@@ -142,6 +144,10 @@ export const codexProviderPresets: CodexProviderPreset[] = [
   },
   {
     name: "Kimi",
+    family: "kimi",
+    planKey: "payg",
+    regionKey: "cn",
+
     websiteUrl: "https://platform.kimi.com",
     apiKeyUrl: "https://platform.kimi.com/console/api-keys",
     auth: generateThirdPartyAuth(""),
@@ -196,11 +202,16 @@ export const codexProviderPresets: CodexProviderPreset[] = [
       },
     ]),
     category: "cn_official",
+
     icon: "kimi",
     iconColor: "#6366F1",
   },
   {
     name: "Kimi For Coding",
+    family: "kimi",
+    planKey: "coding",
+    regionKey: "cn",
+
     websiteUrl: "https://www.kimi.com/code/",
     apiKeyUrl: "https://www.kimi.com/code/",
     auth: generateThirdPartyAuth(""),
@@ -305,6 +316,8 @@ export const codexProviderPresets: CodexProviderPreset[] = [
   },
   {
     name: "Zhipu GLM",
+    family: "zhipu",
+    regionKey: "cn",
     websiteUrl: "https://open.bigmodel.cn",
     apiKeyUrl: "https://www.bigmodel.cn/claude-code",
     auth: generateThirdPartyAuth(""),
@@ -327,13 +340,28 @@ export const codexProviderPresets: CodexProviderPreset[] = [
     // 档位/上下文/模态照抄官方 models.json：glm-5.3 low/high/max 默认 max；
     // glm-5-turbo 官方档位为空、默认 max——cc-switch 表达不了空档位（回落会得到
     // 模板 none/high，none 在原生直连下没有转换层兜底、会原样发给严格网关），
-    // 按官方默认收成单档 max。两模型 input_modalities=["text"]、并行工具调用 true
+    // 按官方默认收成单档 max。两模型为纯文本、并行工具调用 true。
+    // glm-5.3-flash 例外：官方 Codex models.json 尚未收录（2026-09-26 核对），
+    // 依据是模型页 docs.bigmodel.cn/cn/guide/models/vlm/glm-5.3-flash——原生
+    // 多模态、1M 上下文、「文本参数与 GLM-5.3 保持一致」、GLM Coding Plan 已全量
+    // 开放；档位与并行工具调用据此对齐 glm-5.3。预设自带这一行，用户就不必把
+    // glm-5.3 行改名成 flash（改名会连带继承该行隐藏的 ["text"] 声明，Codex
+    // 因此拦截图片，见 #7688）。
     modelCatalog: modelCatalog([
       {
         model: "glm-5.3",
         displayName: "GLM-5.3",
         contextWindow: 1048576,
         inputModalities: ["text"],
+        supportsParallelToolCalls: true,
+        reasoningLevels: ["low", "high", "max"],
+        defaultReasoningLevel: "max",
+      },
+      {
+        model: "glm-5.3-flash",
+        displayName: "GLM-5.3-Flash",
+        contextWindow: 1048576,
+        inputModalities: ["text", "image"],
         supportsParallelToolCalls: true,
         reasoningLevels: ["low", "high", "max"],
         defaultReasoningLevel: "max",
@@ -353,6 +381,8 @@ export const codexProviderPresets: CodexProviderPreset[] = [
   },
   {
     name: "MiniMax",
+    family: "minimax",
+    regionKey: "cn",
     websiteUrl: "https://platform.minimax.cn",
     apiKeyUrl: "https://platform.minimax.cn/subscribe/token-plan",
     auth: generateThirdPartyAuth(""),

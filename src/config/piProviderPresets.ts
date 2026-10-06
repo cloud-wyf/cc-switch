@@ -10,6 +10,7 @@ import {
   resolvePiThinkingProfile,
   type PiThinkingLevelMap,
 } from "./piThinkingProfiles";
+import type { PresetFamilyFields } from "./presetFamilies";
 
 export type PiApiFormat =
   | "openai-completions"
@@ -23,7 +24,7 @@ export type PiPresetModel = PiCatalogModel & {
   compat?: Record<string, unknown>;
 };
 
-export interface PiProviderPreset {
+export interface PiProviderPreset extends PresetFamilyFields {
   name: string;
   nameKey?: string;
   providerKey: string;
@@ -40,6 +41,7 @@ export interface PiProviderPreset {
   };
   category?: ProviderCategory;
   isPartner?: boolean;
+  primePartner?: boolean;
   partnerPromotionKey?: string;
   theme?: PresetTheme;
   icon?: string;
@@ -68,6 +70,9 @@ const KIMI_K3_COMPAT = {
 const piProviderPresetDefinitions: PiProviderPreset[] = [
   {
     name: "Kimi",
+    family: "kimi",
+    planKey: "payg",
+    regionKey: "cn",
     providerKey: "cc-switch-kimi",
     websiteUrl: "https://platform.kimi.com",
     apiKeyUrl: "https://platform.kimi.com/console/api-keys",
@@ -88,14 +93,23 @@ const piProviderPresetDefinitions: PiProviderPreset[] = [
           }),
           compat: { ...KIMI_K3_COMPAT },
         },
+        piModel("moonshotai/kimi-k2.7-code-highspeed", {
+          id: "kimi-k2.7-code-highspeed",
+          thinkingProfile: "offUnsupported",
+        }),
+        piModel("moonshotai/kimi-k2.6", { id: "kimi-k2.6" }),
       ],
     },
     category: "cn_official",
+
     icon: "kimi",
     iconColor: "#6366F1",
   },
   {
     name: "Kimi For Coding",
+    family: "kimi",
+    planKey: "coding",
+    regionKey: "cn",
     providerKey: "cc-switch-kimi-for-coding",
     websiteUrl: "https://www.kimi.com/code/",
     apiKeyUrl: "https://platform.kimi.com/console/api-keys",
@@ -113,6 +127,7 @@ const piProviderPresetDefinitions: PiProviderPreset[] = [
       ],
     },
     category: "cn_official",
+
     icon: "kimi",
     iconColor: "#6366F1",
   },
@@ -131,8 +146,8 @@ const piProviderPresetDefinitions: PiProviderPreset[] = [
           id: "deepseek-v4-pro",
           thinkingProfile: "deepseekV4",
         }),
-        piModel("deepseek/deepseek-v4-flash", {
-          id: "deepseek-v4-flash",
+        piModel("deepseek/deepseek-flash", {
+          id: "deepseek-flash",
           thinkingProfile: "deepseekV4",
         }),
       ],
@@ -143,6 +158,8 @@ const piProviderPresetDefinitions: PiProviderPreset[] = [
   },
   {
     name: "Zhipu GLM",
+    family: "zhipu",
+    regionKey: "cn",
     providerKey: "cc-switch-zhipu-glm",
     websiteUrl: "https://open.bigmodel.cn",
     apiKeyUrl: "https://www.bigmodel.cn/claude-code",
@@ -152,9 +169,10 @@ const piProviderPresetDefinitions: PiProviderPreset[] = [
       api: "openai-completions",
       apiKey: "",
       models: [
-        piModel("zai/glm-5.1", {
-          id: "glm-5.1",
+        piModel("zai/glm-5.3", {
+          id: "glm-5.3",
         }),
+        piModel("zai/glm-5.3-flash", { id: "glm-5.3-flash" }),
       ],
     },
     category: "cn_official",
@@ -163,6 +181,8 @@ const piProviderPresetDefinitions: PiProviderPreset[] = [
   },
   {
     name: "MiniMax",
+    family: "minimax",
+    regionKey: "cn",
     providerKey: "cc-switch-mini-max",
     websiteUrl: "https://platform.minimax.cn",
     apiKeyUrl: "https://platform.minimax.cn/subscribe/token-plan",

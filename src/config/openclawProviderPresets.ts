@@ -1,6 +1,8 @@
 /**
  * OpenClaw provider presets configuration
  * OpenClaw uses models.providers structure with custom provider configs
+ * 费用为标准 USD / 百万 tokens 估算，优先使用供应商公布的单价。
+ * 套餐和中转参考价不包含订阅费用或账户折扣。
  */
 import type {
   ProviderCategory,
@@ -8,6 +10,7 @@ import type {
   OpenClawDefaultModel,
 } from "../types";
 import type { PresetTheme, TemplateValueConfig } from "./claudeProviderPresets";
+import type { PresetFamilyFields } from "./presetFamilies";
 
 /** Suggested default model configuration for a preset */
 export interface OpenClawSuggestedDefaults {
@@ -17,7 +20,7 @@ export interface OpenClawSuggestedDefaults {
   modelCatalog?: Record<string, { alias?: string }>;
 }
 
-export interface OpenClawProviderPreset {
+export interface OpenClawProviderPreset extends PresetFamilyFields {
   name: string;
   nameKey?: string; // i18n key for localized display name
   websiteUrl: string;
@@ -26,6 +29,7 @@ export interface OpenClawProviderPreset {
   settingsConfig: OpenClawProviderConfig;
   isOfficial?: boolean;
   isPartner?: boolean;
+  primePartner?: boolean; // 旧版的置顶合作伙伴标记；v7 起界面不再读取，新预设不写
   partnerPromotionKey?: string;
   category?: ProviderCategory;
   /** Template variable definitions */
@@ -100,6 +104,10 @@ export const openclawApiProtocols = [
 export const openclawProviderPresets: OpenClawProviderPreset[] = [
   {
     name: "Kimi",
+    family: "kimi",
+    planKey: "payg",
+    regionKey: "cn",
+
     websiteUrl: "https://platform.kimi.com",
     apiKeyUrl: "https://platform.kimi.com/console/api-keys",
     settingsConfig: {
@@ -119,9 +127,28 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
           contextWindow: 1048576,
           cost: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 0 },
         },
+        {
+          id: "kimi-k2.7-code-highspeed",
+          name: "Kimi K2.7 Code HighSpeed",
+          reasoning: true,
+          input: ["text", "image"],
+          contextWindow: 262144,
+          maxTokens: 262144,
+          cost: { input: 1.9, output: 8, cacheRead: 0.38 },
+        },
+        {
+          id: "kimi-k2.6",
+          name: "Kimi K2.6",
+          reasoning: true,
+          input: ["text", "image"],
+          contextWindow: 262144,
+          maxTokens: 262144,
+          cost: { input: 0.95, output: 4, cacheRead: 0.16 },
+        },
       ],
     },
     category: "cn_official",
+
     icon: "kimi",
     iconColor: "#6366F1",
     templateValues: {
@@ -144,6 +171,10 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
   },
   {
     name: "Kimi For Coding",
+    family: "kimi",
+    planKey: "coding",
+    regionKey: "cn",
+
     websiteUrl: "https://www.kimi.com/code/",
     apiKeyUrl: "https://platform.kimi.com/console/api-keys",
     settingsConfig: {
@@ -193,13 +224,16 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
           id: "deepseek-v4-pro",
           name: "DeepSeek V4 Pro",
           contextWindow: 1000000,
-          cost: { input: 0.435, output: 0.87, cacheRead: 0.003625 },
+          cost: { input: 1.32, output: 3.96, cacheRead: 0.044, cacheWrite: 0 },
         },
         {
-          id: "deepseek-v4-flash",
-          name: "DeepSeek V4 Flash",
+          id: "deepseek-flash",
+          name: "DeepSeek V4.1 Flash",
           contextWindow: 1000000,
-          cost: { input: 0.14, output: 0.28 },
+          cost: { input: 0.3, output: 1.2, cacheRead: 0.006, cacheWrite: 0 },
+          input: ["text", "image"],
+          reasoning: true,
+          maxTokens: 384000,
         },
       ],
     },
@@ -215,17 +249,19 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
     },
     suggestedDefaults: {
       model: {
-        primary: "deepseek/deepseek-v4-flash",
+        primary: "deepseek/deepseek-flash",
         fallbacks: ["deepseek/deepseek-v4-pro"],
       },
       modelCatalog: {
-        "deepseek/deepseek-v4-flash": { alias: "Flash" },
+        "deepseek/deepseek-flash": { alias: "Flash" },
         "deepseek/deepseek-v4-pro": { alias: "Pro" },
       },
     },
   },
   {
     name: "Zhipu GLM",
+    family: "zhipu",
+    regionKey: "cn",
     websiteUrl: "https://open.bigmodel.cn",
     apiKeyUrl: "https://www.bigmodel.cn/claude-code",
     settingsConfig: {
@@ -234,10 +270,19 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
       api: "openai-completions",
       models: [
         {
-          id: "glm-5.1",
-          name: "GLM-5.1",
-          contextWindow: 128000,
+          id: "glm-5.3",
+          name: "GLM-5.3",
+          contextWindow: 1048576,
           cost: { input: 1.4, output: 4.4, cacheRead: 0.26 },
+        },
+        {
+          id: "glm-5.3-flash",
+          name: "GLM-5.3-Flash",
+          reasoning: true,
+          input: ["text", "image"],
+          contextWindow: 1048576,
+          maxTokens: 131072,
+          cost: { input: 0.15, output: 0.5, cacheRead: 0.03 },
         },
       ],
     },
@@ -258,12 +303,14 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
       },
     },
     suggestedDefaults: {
-      model: { primary: "zhipu/glm-5.1" },
-      modelCatalog: { "zhipu/glm-5.1": { alias: "GLM" } },
+      model: { primary: "zhipu/glm-5.3" },
+      modelCatalog: { "zhipu/glm-5.3": { alias: "GLM" } },
     },
   },
   {
     name: "MiniMax",
+    family: "minimax",
+    regionKey: "cn",
     websiteUrl: "https://platform.minimax.cn",
     apiKeyUrl: "https://platform.minimax.cn/subscribe/token-plan",
     settingsConfig: {
@@ -278,6 +325,7 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
           input: ["text", "image"],
           contextWindow: 1000000,
           maxTokens: 131072,
+          cost: { input: 0.3, output: 1.2, cacheRead: 0.06, cacheWrite: 0 },
         },
       ],
     },

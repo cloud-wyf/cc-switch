@@ -468,9 +468,7 @@ impl Database {
         }
         if reclaimed_rows > 0 {
             let conn = lock_conn!(self.conn);
-            if let Err(e) =
-                conn.execute_batch("PRAGMA incremental_vacuum; PRAGMA events.incremental_vacuum;")
-            {
+            if let Err(e) = Self::incremental_vacuum_on_conn(&conn) {
                 log::warn!("Periodic incremental vacuum failed: {e}");
             }
         }

@@ -2,6 +2,7 @@
  * 预设供应商配置模板
  */
 import { ProviderCategory } from "../types";
+import type { PresetFamilyFields } from "./presetFamilies";
 
 export interface TemplateValueConfig {
   label: string;
@@ -22,7 +23,7 @@ export interface PresetTheme {
   textColor?: string;
 }
 
-export interface ProviderPreset {
+export interface ProviderPreset extends PresetFamilyFields {
   name: string;
   nameKey?: string; // i18n key for localized display name
   websiteUrl: string;
@@ -31,6 +32,7 @@ export interface ProviderPreset {
   settingsConfig: object;
   isOfficial?: boolean; // 标识是否为官方预设
   isPartner?: boolean; // 标识是否为商业合作伙伴
+  primePartner?: boolean; // 旧版的置顶合作伙伴标记；v7 起界面不再读取，新预设不写
   partnerPromotionKey?: string; // 合作伙伴促销信息的 i18n key
   category?: ProviderCategory; // 新增：分类
   // 新增：指定该预设所使用的 API Key 字段名（默认 ANTHROPIC_AUTH_TOKEN）
@@ -91,6 +93,10 @@ export const providerPresets: ProviderPreset[] = [
   },
   {
     name: "Kimi",
+    family: "kimi",
+    planKey: "payg",
+    regionKey: "cn",
+
     websiteUrl: "https://platform.kimi.com",
     settingsConfig: {
       env: {
@@ -103,11 +109,16 @@ export const providerPresets: ProviderPreset[] = [
       },
     },
     category: "cn_official",
+
     icon: "kimi",
     iconColor: "#6366F1",
   },
   {
     name: "Kimi For Coding",
+    family: "kimi",
+    planKey: "coding",
+    regionKey: "cn",
+
     websiteUrl: "https://www.kimi.com/code/",
     settingsConfig: {
       env: {
@@ -137,7 +148,7 @@ export const providerPresets: ProviderPreset[] = [
         ANTHROPIC_BASE_URL: "https://api.deepseek.com/anthropic",
         ANTHROPIC_AUTH_TOKEN: "",
         ANTHROPIC_MODEL: "deepseek-v4-pro",
-        ANTHROPIC_DEFAULT_HAIKU_MODEL: "deepseek-v4-flash",
+        ANTHROPIC_DEFAULT_HAIKU_MODEL: "deepseek-flash",
         ANTHROPIC_DEFAULT_SONNET_MODEL: "deepseek-v4-pro",
         ANTHROPIC_DEFAULT_OPUS_MODEL: "deepseek-v4-pro",
       },
@@ -150,16 +161,18 @@ export const providerPresets: ProviderPreset[] = [
   },
   {
     name: "Zhipu GLM",
+    family: "zhipu",
+    regionKey: "cn",
     websiteUrl: "https://open.bigmodel.cn",
     apiKeyUrl: "https://www.bigmodel.cn/claude-code",
     settingsConfig: {
       env: {
         ANTHROPIC_BASE_URL: "https://open.bigmodel.cn/api/anthropic",
         ANTHROPIC_AUTH_TOKEN: "",
-        ANTHROPIC_MODEL: "glm-5.1",
-        ANTHROPIC_DEFAULT_HAIKU_MODEL: "glm-5.1",
-        ANTHROPIC_DEFAULT_SONNET_MODEL: "glm-5.1",
-        ANTHROPIC_DEFAULT_OPUS_MODEL: "glm-5.1",
+        ANTHROPIC_MODEL: "glm-5.3",
+        ANTHROPIC_DEFAULT_HAIKU_MODEL: "glm-5.3",
+        ANTHROPIC_DEFAULT_SONNET_MODEL: "glm-5.3",
+        ANTHROPIC_DEFAULT_OPUS_MODEL: "glm-5.3",
       },
     },
     category: "cn_official",
@@ -168,14 +181,14 @@ export const providerPresets: ProviderPreset[] = [
   },
   {
     name: "MiniMax",
+    family: "minimax",
+    regionKey: "cn",
     websiteUrl: "https://platform.minimax.cn",
     apiKeyUrl: "https://platform.minimax.cn/subscribe/token-plan",
     settingsConfig: {
       env: {
         ANTHROPIC_BASE_URL: "https://api.minimax.cn/anthropic",
         ANTHROPIC_AUTH_TOKEN: "",
-        API_TIMEOUT_MS: "3000000",
-        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: 1,
         CLAUDE_CODE_AUTO_COMPACT_WINDOW: "1000000",
         ANTHROPIC_MODEL: "MiniMax-M3[1M]",
         ANTHROPIC_DEFAULT_SONNET_MODEL: "MiniMax-M3[1M]",

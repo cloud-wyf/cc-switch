@@ -1,11 +1,11 @@
 # CC Switch ユーザーマニュアル
 
-> Claude Code / Claude Desktop / Codex / Gemini CLI / OpenCode / OpenClaw / Hermes オールインワンアシスタント
+> Claude Code / Claude Desktop / Codex / Gemini CLI / Grok Build / OpenCode / OpenClaw / Hermes / Pi / MiniMax Code オールインワンアシスタント
 
 ## 目次構成
 
 ```
-CC Switch ユーザーマニュアル
+📚 CC Switch ユーザーマニュアル
 │
 ├── 1. はじめに
 │   ├── 1.1 ソフトウェア紹介
@@ -29,12 +29,12 @@ CC Switch ユーザーマニュアル
 │   ├── 3.4 セッションマネージャー
 │   └── 3.5 ワークスペースとメモリー
 │
-├── 4. プロキシと高可用性
-│   ├── 4.1 プロキシサービス
-│   ├── 4.2 アプリケーション接管
+├── 4. ローカルルーティングと高可用性
+│   ├── 4.1 ローカルルーティングサービス
+│   ├── 4.2 アプリケーションルーティング
 │   ├── 4.3 フェイルオーバー
 │   ├── 4.4 使用量統計
-│   └── 4.5 モデルテスト
+│   └── 4.5 接続チェック
 │
 └── 5. よくある質問
     ├── 5.1 設定ファイルの説明
@@ -61,7 +61,7 @@ CC Switch ユーザーマニュアル
 |------|------|
 | [2.1-add.md](./2-providers/2.1-add.md) | プリセットの使用、カスタム設定、統一プロバイダー |
 | [2.2-switch.md](./2-providers/2.2-switch.md) | メイン画面での切り替え、トレイでの切り替え、反映方法 |
-| [2.3-edit.md](./2-providers/2.3-edit.md) | 設定の編集、API Key の変更、バックフィル機能 |
+| [2.3-edit.md](./2-providers/2.3-edit.md) | 設定の編集、API Key の変更、グローバル設定と編集の競合 |
 | [2.4-sort-duplicate.md](./2-providers/2.4-sort-duplicate.md) | ドラッグで並べ替え、プロバイダーの複製、削除 |
 | [2.5-usage-query.md](./2-providers/2.5-usage-query.md) | 使用量クエリ、残額表示、複数プラン表示 |
 | [2.6-claude-desktop.md](./2-providers/2.6-claude-desktop.md) | Claude Desktop サードパーティプロバイダー、直結モード、モデルマッピング |
@@ -76,15 +76,15 @@ CC Switch ユーザーマニュアル
 | [3.4-sessions.md](./3-extensions/3.4-sessions.md) | セッションマネージャー：閲覧、検索、再開、削除 |
 | [3.5-workspace.md](./3-extensions/3.5-workspace.md) | ワークスペースファイルとデイリーメモリー（OpenClaw） |
 
-### 4. プロキシと高可用性
+### 4. ローカルルーティングと高可用性
 
 | ファイル | 内容 |
 |------|------|
-| [4.1-service.md](./4-proxy/4.1-service.md) | プロキシの起動、設定項目、実行状態 |
+| [4.1-service.md](./4-proxy/4.1-service.md) | ローカルルーティングの起動、設定項目、API フォーマット変換 |
 | [4.2-routing.md](./4-proxy/4.2-routing.md) | アプリケーションルーティング、設定変更、ステータス表示 |
 | [4.3-failover.md](./4-proxy/4.3-failover.md) | フェイルオーバーキュー、サーキットブレーカー、ヘルスステータス |
 | [4.4-usage.md](./4-proxy/4.4-usage.md) | 使用量統計、トレンドグラフ、料金設定 |
-| [4.5-model-test.md](./4-proxy/4.5-model-test.md) | モデルテスト、ヘルスチェック、レイテンシテスト |
+| [4.5-model-test.md](./4-proxy/4.5-model-test.md) | 接続チェック、チェックパラメータ |
 
 ### 5. よくある質問
 
@@ -101,7 +101,7 @@ CC Switch ユーザーマニュアル
 - **インストールの問題**：[1.2 インストールガイド](./1-getting-started/1.2-installation.md) をご確認ください
 - **プロバイダーの設定**：[2.1 プロバイダーの追加](./2-providers/2.1-add.md) をご確認ください
 - **Claude Desktop の利用**：[2.6 Claude Desktop](./2-providers/2.6-claude-desktop.md) をご確認ください
-- **プロキシの使用**：[4.1 プロキシサービス](./4-proxy/4.1-service.md) をご確認ください
+- **ローカルルーティングの使用**：[4.1 ローカルルーティングサービス](./4-proxy/4.1-service.md) をご確認ください
 - **お困りの方**：[5.2 FAQ](./5-faq/5.2-questions.md) をご確認ください
 
 このマニュアルはローカル設定の参考用です。インストールと更新は[プロジェクトの説明](../../../README.md)を参照してください。

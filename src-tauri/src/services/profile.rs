@@ -204,7 +204,12 @@ impl ProfileService {
 
         for app in scope.apps().iter() {
             if let Some(slot) = payload.providers.get_mut(app) {
-                *slot = crate::settings::get_effective_current_provider(&state.db, app)?;
+                // 和应用快照时一致：代理模式下记的是代理路由到的那家。
+                *slot = crate::mode::current::provider_for(
+                    &state.db,
+                    app,
+                    crate::mode::current::Purpose::InUse,
+                )?;
             }
             if let Some(slot) = payload.mcp.get_mut(app) {
                 *slot = Some(
@@ -322,7 +327,10 @@ impl ProfileService {
     /// 旧项目仍保留离开时的配置，回来时状态一致。自动保存失败时作为 warning
     /// 继续，不阻塞切换。
     ///
-    /// 应用指定项目的快照到当前分组内的所有应用。返回 warnings。
+    /// 应用指定项目的快照到当前分组内的所有应用。
+    ///
+    /// 供应商按应用当前的模式切换：直连模式改直连指针，代理模式改代理路由；不再为了
+    /// 避开代理先退出代理模式。
     pub fn apply(
         state: &AppState,
         profile_id: &str,
@@ -358,16 +366,7 @@ impl ProfileService {
         for app in scope.apps().iter() {
             let app_str = app.as_str();
 
-            // 1. 切换项目前无条件关闭当前应用的代理接管。
-            // 接管态下 live 文件属于代理；用户希望切换工作目录时总是退出当前
-            // 代理环境，再按快照写入真实供应商配置。
-            if let Err(e) = state.proxy_service.disable_takeover_for_app_sync(app) {
-                warnings.push(format!(
-                    "[{app_str}] auto-disable proxy takeover before profile switch failed: {e}"
-                ));
-            }
-
-            // 2. 供应商
+            // 1. 供应商
             if let Some(Some(target_pid)) = payload.providers.get(app) {
                 let providers = state.db.get_all_providers(app_str)?;
                 if !providers.contains_key(target_pid) {
@@ -375,7 +374,11 @@ impl ProfileService {
                         "[{app_str}] provider '{target_pid}' no longer exists, skipped"
                     ));
                 } else {
-                    let current = crate::settings::get_effective_current_provider(&state.db, app)?;
+                    let current = crate::mode::current::provider_for(
+                        &state.db,
+                        app,
+                        crate::mode::current::Purpose::InUse,
+                    )?;
                     if current.as_deref() != Some(target_pid.as_str()) {
                         match ProviderService::switch(state, app.clone(), target_pid) {
                             Ok(result) => warnings.extend(result.warnings),
@@ -387,7 +390,7 @@ impl ProfileService {
                 }
             }
 
-            // 3. MCP diff（最小 toggle：仅动目标态≠当前态的条目；None = 该侧未拍过，不动）
+            // 2. MCP diff（最小 toggle：仅动目标态≠当前态的条目；None = 该侧未拍过，不动）
             if let Some(Some(target_ids)) = payload.mcp.get(app) {
                 let servers = state.db.get_all_mcp_servers()?;
                 let current: Vec<(String, bool)> = servers
@@ -407,7 +410,7 @@ impl ProfileService {
                 }
             }
 
-            // 4. Skills diff（SkillService 返回 anyhow::Result，收进 warning）
+            // 3. Skills diff（SkillService 返回 anyhow::Result，收进 warning）
             if let Some(Some(target_ids)) = payload.skills.get(app) {
                 let skills = state.db.get_all_installed_skills()?;
                 let current: Vec<(String, bool)> = skills
@@ -429,7 +432,7 @@ impl ProfileService {
                 }
             }
 
-            // 5. Prompt（None = 不动；已激活则幂等跳过，避免无谓的文件写与备份）
+            // 4. Prompt（None = 不动；已激活则幂等跳过，避免无谓的文件写与备份）
             if let Some(Some(target_prompt)) = payload.prompts.get(app) {
                 let prompts = state.db.get_prompts(app_str)?;
                 match prompts.get(target_prompt) {
