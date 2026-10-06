@@ -1,0 +1,26 @@
+{
+  "version": "4.0.3-2",
+  "items": [
+    {
+      "type": "improve",
+      "zh": "代理日志移至侧栏「用量统计」下方，可独立查看",
+      "zh-TW": "代理日誌移至側欄「用量統計」下方，可獨立查看",
+      "en": "Proxy logs now have a dedicated page below Usage in the sidebar",
+      "ja": "プロキシログをサイドバーの「使用量」の下に移し、専用ページで表示"
+    },
+    {
+      "type": "improve",
+      "zh": "日志详情保留侧栏，继续记忆筛选与上次打开的页面",
+      "zh-TW": "日誌詳情保留側欄，繼續記憶篩選與上次開啟的頁面",
+      "en": "The sidebar stays visible in log details; filters and the last visited page are remembered",
+      "ja": "ログ詳細でもサイドバーを維持し、絞り込み条件と前回のページを記憶"
+    },
+    {
+      "type": "improve",
+      "zh": "精简供应商页头，日志参数统一留在本地路由设置",
+      "zh-TW": "精簡供應商頁首，日誌參數統一留在本機路由設定",
+      "en": "Simplified the provider header; log settings remain under Local Routing",
+      "ja": "プロバイダーページのヘッダーを整理し、ログ設定をローカルルート設定に集約"
+    }
+  ]
+}

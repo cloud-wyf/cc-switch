@@ -340,6 +340,36 @@ describe("App integration with MSW", () => {
     expect(screen.queryByTestId("add-provider-dialog")).not.toBeInTheDocument();
   }, 10_000);
 
+  it("opens proxy logs from the sidebar and restores the global page on restart", async () => {
+    const { default: App } = await import("@/App");
+    const view = renderApp(App);
+    await screen.findByTestId("provider-list");
+    expect(
+      within(document.querySelector("main") as HTMLElement).queryByRole(
+        "button",
+        { name: "proxy.eventLog.title", hidden: true },
+      ),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(sidebarApp("nav.proxyLogs"));
+    const list = await screen.findByTestId("proxy-event-list");
+    expect(document.querySelector("main")).toContainElement(list);
+    expect(sidebarApp("nav.proxyLogs")).toHaveAttribute("aria-current", "page");
+    expect(localStorage.getItem("cc-switch-last-view")).toBe("proxyLogs");
+
+    // 日志是全局页：仍可直接从侧栏切换应用，再回到日志。
+    fireEvent.click(sidebarApp("Codex"));
+    await screen.findByTestId("provider-list");
+    expect(screen.queryByTestId("proxy-event-list")).not.toBeInTheDocument();
+    fireEvent.click(sidebarApp("nav.proxyLogs"));
+    await screen.findByTestId("proxy-event-list");
+
+    view.unmount();
+    renderApp(App);
+    expect(await screen.findByTestId("proxy-event-list")).toBeInTheDocument();
+    expect(sidebarApp("nav.proxyLogs")).toHaveAttribute("aria-current", "page");
+  }, 10_000);
+
   it("asks before leaving an editor page with unsaved changes", async () => {
     const { default: App } = await import("@/App");
     renderApp(App);

@@ -3958,6 +3958,7 @@
     "appsGroup": "アプリ",
     "todayCost": "今日 {{cost}}",
     "usage": "使用量",
+    "proxyLogs": "プロキシログ",
     "auth": "アカウント",
     "authNeedsReauth": "再ログインが必要なアカウントがあります",
     "prompts": "プロンプト",

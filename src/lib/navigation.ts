@@ -4,7 +4,7 @@ import type { AppId } from "@/lib/api";
  * 主窗口的导航模型（v7）：侧栏选一个应用或一个全局页；设置单独占一屏。
  *
  * - 应用页：点侧栏应用行进入供应商页；OpenClaw、Hermes 在页头下用分段控件切到自己的专属页。
- * - 全局页：用量统计、授权中心、MCP、Skills、提示词、会话、应用（安装与显示），每样只出现一次。
+ * - 全局页：用量统计、代理日志、授权中心、MCP、Skills、提示词、会话、应用（安装与显示），每样只出现一次。
  * - 设置：侧栏换成设置目录，6 个分组。
  */
 
@@ -16,6 +16,7 @@ export type AppPage =
 
 export type GlobalPage =
   | "usage"
+  | "proxyLogs"
   | "auth"
   | "mcp"
   | "skills"
@@ -52,6 +53,7 @@ const APP_PAGES: AppPage[] = [
 
 const GLOBAL_PAGES: GlobalPage[] = [
   "usage",
+  "proxyLogs",
   "auth",
   "mcp",
   "skills",

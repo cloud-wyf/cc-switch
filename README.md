@@ -77,6 +77,8 @@ gh auth login --hostname github.com
 
 ### Windows x64 构建与发布
 
+本项目约定：对助手说“发布”，默认执行 **提交源码 → 推送私有 main/Tag → 本机编译签名 → 上传 Release → 远程核验**。完整步骤、授权范围、版本选择和失败恢复见 [本机发布规范](docs/guides/local-release.md)，项目技能入口见 [.agents/skills/cc-switch-release/SKILL.md](.agents/skills/cc-switch-release/SKILL.md)。
+
 云端和本地只构建 Windows x64，保留 MSI、NSIS（EXE）两种安装方式和便携 ZIP。更新清单只包含 Windows x64 的默认、MSI、NSIS 三个入口。两条构建路径使用同一个版本 Tag、签名密钥和发布脚本，已安装应用仍从本私有仓库检查、下载和安装更新。
 
 更新公钥保存在 `src-tauri/tauri.conf.json`；对应私钥保存在维护者本机 `~/.tauri/cc-switch-updater.key`，必须备份并持续使用同一把密钥。私钥不提交到仓库，不放入安装包。发布脚本上传前会用应用公钥验证安装包签名。
@@ -84,8 +86,8 @@ gh auth login --hostname github.com
 #### 一次性准备
 
 1. 按上文安装 Windows x64 构建环境，并通过 `gh auth login --hostname github.com` 登录具有仓库写入和 Actions 触发权限的维护者账号。发布不需要读取账单的 `user` scope。
-2. 在本仓库 Actions Secrets 中配置 `TAURI_SIGNING_PRIVATE_KEY`，值为同一把私钥的文件内容；有密码时再配置 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。
-3. 在 [GitHub Billing](https://github.com/settings/billing) → **Budgets and alerts** 中，为 **Actions** 设置 **$0 的额外支出预算**，范围选择本仓库 `cloud-wyf/cc-switch`，启用 **Stop usage when budget limit is reached**。这是免费额度之外的付费上限，免费额度仍可使用。已有适用预算则编辑已有项，避免重复设置。仅开启提醒而不停止使用，不能保证额度用完后转本机。参见 [GitHub 官方预算说明](https://docs.github.com/en/billing/how-tos/set-up-budgets)。
+2. 默认本机发布使用已有 `~/.tauri/cc-switch-updater.key`。如另行使用云端构建，在本仓库 Actions Secrets 中配置 `TAURI_SIGNING_PRIVATE_KEY`，值为同一把私钥的文件内容；有密码时再配置 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。
+3. 如使用云端或 `auto` 模式，在 [GitHub Billing](https://github.com/settings/billing) → **Budgets and alerts** 中，为 **Actions** 设置 **$0 的额外支出预算**，范围选择本仓库 `cloud-wyf/cc-switch`，启用 **Stop usage when budget limit is reached**。这是免费额度之外的付费上限，免费额度仍可使用。已有适用预算则编辑已有项，避免重复设置。仅开启提醒而不停止使用，不能保证额度用完后转本机。参见 [GitHub 官方预算说明](https://docs.github.com/en/billing/how-tos/set-up-budgets)。发布助手不会自动修改预算。
 4. 将这套发布脚本和工作流同步到默认分支。用于发版的新 Tag 也必须包含这套脚本；旧版多平台工作流不能与新入口混用。
 
 本机直接构建时，显式使用已有签名密钥：
@@ -98,52 +100,52 @@ pnpm build
 
 `pnpm build` 固定目标为 `x86_64-pc-windows-msvc`，使用锁定依赖，只生成 MSI、NSIS 和对应的 `.sig` 文件。产物位于 `src-tauri/target/x86_64-pc-windows-msvc/release/bundle/`。它只打包，不创建 Release。完整发布命令会再生成便携 ZIP、更新清单并上传。
 
-#### 每次发布：GitHub 优先，额度不足转本机
+#### 每次发布：默认本机构建并上传私有仓库
 
-每次向 `main` 推送会改变应用的提交（源码、依赖、配置），都要紧接着发布一个新版本；只推送源码时，已安装的应用检测不到更新。纯文档改动不需要发版。
+用户要求发布应用修改（源码、依赖、配置）时，推送 `main` 后必须继续完成版本发布；只推送源码时，已安装的应用检测不到更新。用户明确要求“只提交/推送”时遵循该限定，纯文档改动不需要应用发版。
 
-1. 按上文规则同步四处版本号，例如下一个自用修订 `3.20.2-2`；运行 `node scripts/validate-release.mjs` 检查一致性。
-2. 提交发布源码并推送对应 Tag，例如 `v3.20.2-2`。运行发布命令时，当前工作目录必须干净，HEAD 必须与远程 Tag 指向同一提交。
-3. 在本机项目目录执行：
+1. 根据实际 Tag/Release 按上文规则确定未占用的新版本，同步四处版本号、四语应用内更新摘要及中文发布说明；运行版本检查和本次变更所需测试。
+2. 提交发布源码并推送 `main` 和对应 Tag。运行发布命令时，当前工作目录必须干净，HEAD 必须与远程 Tag 指向同一提交。
+3. 精确查找本次 Tag 的云端任务，取消仍在运行的对应任务并确认结束；准备绑定确切源码 SHA 的 Release 草稿及说明。以下命令以 `v4.0.3-2` 为例，执行时替换为实际版本：
 
 ```powershell
-pnpm release:check --tag v3.20.2-2
-pnpm release --tag v3.20.2-2
+pnpm release:check --mode local --tag v4.0.3-2
+pnpm release:local --tag v4.0.3-2
 ```
 
-本仓库的 GitHub Actions 免费额度已用完，第 3 步默认直接用 `pnpm release:local --tag v3.20.2-2`，在本机构建、签名并上传到本仓库的 Release。推送 Tag 触发的云端任务会在几秒内因额度失败，确认它已结束（`gh run list --workflow release.yml -L 1`）后再运行。额度恢复后可改回 `pnpm release`，优先使用云端构建。
+默认本机构建与 GitHub 额度无关，不会在额度恢复后自动改成云端。Tag 推送仍会触发现有工作流，必须检查其实际状态，不能假定它会因额度失败。完成发布后，按规范重新下载六个附件，核对哈希、签名和更新清单。
 
-`release:check` 只读检查源码、Tag、远程工作流和本机签名配置，不触发构建或上传。它不替代本机工具链的实际打包验证。省略 `--tag` 时，使用当前 `package.json` 的版本号。
+`release:check --mode local` 只读检查源码、Tag、版本状态和本机签名配置，不触发构建或上传；选择云端模式时还会检查远程工作流。它不替代本机工具链的实际打包验证。省略 `--tag` 时，使用当前 `package.json` 的版本号。
 
 正常发布的流程为：
 
 ```text
-本机执行 pnpm release
-  → 优先使用 GitHub Windows x64 工作流
-    → 构建成功：GitHub 发布 Release
-    → 明确因额度/账单限制未启动：本机打包、验签并发布同一版本
-    → 编译、测试、网络或认证错误：停止并显示错误
+本机执行 pnpm release:local
+  → 从已提交、已推送 Tag 的源码构建 Windows x64
+  → 验证签名并生成便携包和更新清单
+  → 上传完整附件后公开私有仓库 Release
+  → 重新下载附件并核验，交付版本链接
 ```
 
-- 推送 Tag 已启动的云端任务会被复用；没有正在运行的任务时，命令会请求一次云端构建。
-- 每次发布都会重新尝试 GitHub，不保存“整月只用本机”的开关，因此额度重置后自动恢复云端优先。
-- 切换依据是 GitHub 返回的明确额度/账单阻塞信息，不用任务时长或账单金额猜剩余额度。零额外支出预算是避免继续付费构建的前提，脚本不会修改你的付款方式或预算。
-- 本机命令需要保持运行并联网。仅推送 Tag 而未运行本机发版命令，不会自动唤醒电脑兜底；恢复时重新运行 `pnpm release`。同一个版本一次只运行一个发布命令。
-- 云端排队超过 90 分钟、主动取消、普通编译失败、权限或网络错误均不会自动转本机，以免同时有两个发布者。
+- 本机命令需要保持运行并联网。仅推送 Tag 不会自动唤醒电脑进行本地发布；失败恢复时先核对源码和草稿，再运行 `pnpm release:local`。同一个版本一次只运行一个发布命令。
 - 只有安装包、签名、便携包和完整清单上传成功后才正式发布。中途失败会保留草稿；重试复用同一源码的草稿，相同摘要的附件跳过上传。已发布版本不会被覆盖。
 - 本机打包期间不要修改源码或切换分支；打包后会再次核对工作目录和远程 Tag。
 - 发布完成后本机可以关机，其他电脑仍从 GitHub 下载更新。
 
 #### 手动指定构建位置
 
-| 命令                                  | 行为                                     |
-| ------------------------------------- | ---------------------------------------- |
-| `pnpm release --tag v3.20.2-2`        | GitHub 优先，明确额度阻塞后自动转本机    |
-| `pnpm release:github --tag v3.20.2-2` | 只使用 GitHub，额度不足时停止            |
-| `pnpm release:local --tag v3.20.2-2`  | 直接使用本机，完成打包、验签、上传和发布 |
-| `pnpm release:check --tag v3.20.2-2`  | 只读检查，不构建、不发布                 |
+以下是 CLI 保留的可选模式；自然语言“发布”始终选择 `release:local`，除非用户明确指定其他模式。
+
+| 命令                                  | 行为                                  |
+| ------------------------------------- | ------------------------------------- |
+| `pnpm release --tag v3.20.2-2`        | GitHub 优先，明确额度阻塞后自动转本机 |
+| `pnpm release:github --tag v3.20.2-2` | 只使用 GitHub，额度不足时停止         |
+| `pnpm release:local --tag v3.20.2-2`  | 项目默认：本机打包、验签、上传和发布  |
+| `pnpm release:check --tag v3.20.2-2`  | 只读检查，不构建、不发布              |
 
 手动本机发布前，同一 Tag 的云端任务必须已结束。若因网络或排队问题需要手动切换，先在 Actions 页面取消对应任务并确认结束，再执行 `release:local`。本地发布默认读取 `~/.tauri/cc-switch-updater.key`，也支持上述 `TAURI_SIGNING_PRIVATE_KEY` 和密码环境变量。
+
+显式选择 `pnpm release`（`auto`）时，脚本先复用或请求云端任务，仅在 GitHub 明确返回额度/账单阻塞时转本机；普通失败或等待超时不会自动切换。此模式每次重新尝试云端，不保存按月回退开关。
 
 完整发布会产生 6 个附件：MSI、MSI 签名、NSIS EXE、EXE 签名、便携 ZIP、`latest.json`。本地便携包和清单保存在已忽略的 `release/<Tag>/` 下；不会上传私钥、访问令牌或构建缓存。
 
@@ -151,7 +153,7 @@ pnpm release --tag v3.20.2-2
 
 普通 CI 只检查 Windows x64；纯文档改动不触发 CI。原 WSL2 完整测试保留为 **WSL2 Manual Checks**，仅在修改 Windows/WSL 文件系统交互时手动运行，不再每天自动消耗额度。
 
-普通 CI 仍会使用 GitHub 免费额度，额度耗尽后可能停止。发布命令的本机兜底只负责发版，不会冒充通过被跳过的云端 CI。本机可继续执行 `pnpm typecheck`、`pnpm format:check`、`pnpm test:unit`、`cargo clippy --locked --target x86_64-pc-windows-msvc --manifest-path src-tauri/Cargo.toml -- -D warnings` 和 `cargo test --locked --target x86_64-pc-windows-msvc --manifest-path src-tauri/Cargo.toml`。
+普通 CI 仍会使用 GitHub 免费额度，额度耗尽后可能停止。本机发布只负责发版，不会冒充通过被跳过的云端 CI。本机可继续执行 `pnpm typecheck`、`pnpm format:check`、`pnpm test:unit`、`cargo clippy --locked --target x86_64-pc-windows-msvc --manifest-path src-tauri/Cargo.toml -- -D warnings` 和 `cargo test --locked --target x86_64-pc-windows-msvc --manifest-path src-tauri/Cargo.toml`。
 
 更新签名负责证明安装包可信，GitHub 凭据负责读取或上传私有 Release；两者用途独立。
 

@@ -2,14 +2,16 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ArrowDown,
+  ArrowLeft,
   ArrowUp,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   RefreshCw,
+  ScrollText,
   X,
 } from "lucide-react";
-import { FullScreenPanel } from "@/components/common/FullScreenPanel";
+import { AppPageHeader } from "@/components/shell/AppPageHeader";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -138,34 +140,48 @@ function useDebounced<T>(value: T, delay: number): T {
   return debounced;
 }
 
-interface ProxyEventLogViewerProps {
-  isOpen: boolean;
-  onClose: () => void;
-}
-
-export function ProxyEventLogViewer({
-  isOpen,
-  onClose,
-}: ProxyEventLogViewerProps) {
+/** 侧栏全局页：列表和详情都留在内容区，筛选继续沿用原有存储。 */
+export function ProxyEventLogPage() {
   const { t } = useTranslation();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   return (
-    <FullScreenPanel
-      isOpen={isOpen}
-      title={
-        selectedId === null
-          ? t("proxy.eventLog.viewer.title")
-          : t("proxy.eventLog.viewer.detail.title", { id: selectedId })
-      }
-      onClose={selectedId === null ? onClose : () => setSelectedId(null)}
-      contentClassName="space-y-4"
-    >
-      {selectedId === null ? (
-        <ProxyEventLogList onSelect={setSelectedId} />
-      ) : (
-        <ProxyEventDetail id={selectedId} />
-      )}
-    </FullScreenPanel>
+    <>
+      <AppPageHeader
+        icon={
+          selectedId === null ? (
+            <ScrollText className="h-5 w-5" strokeWidth={1.5} />
+          ) : undefined
+        }
+        leading={
+          selectedId !== null ? (
+            <Button
+              variant="quiet"
+              size="icon-compact"
+              aria-label={t("common.back")}
+              onClick={() => setSelectedId(null)}
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          ) : undefined
+        }
+        title={
+          selectedId === null
+            ? t("nav.proxyLogs")
+            : t("proxy.eventLog.viewer.detail.title", { id: selectedId })
+        }
+      />
+      <div
+        key={selectedId ?? "list"}
+        id="main-content"
+        className="min-h-0 flex-1 overflow-y-auto scroll-stable overflow-x-hidden px-6 pb-10 pt-4"
+      >
+        {selectedId === null ? (
+          <ProxyEventLogList onSelect={setSelectedId} />
+        ) : (
+          <ProxyEventDetail id={selectedId} />
+        )}
+      </div>
+    </>
   );
 }
 

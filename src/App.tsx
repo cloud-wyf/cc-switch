@@ -10,13 +10,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "@/lib/toast";
 import { invoke } from "@tauri-apps/api/core";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  ExternalLink,
-  KeyRound,
-  MoreHorizontal,
-  Plus,
-  ScrollText,
-} from "lucide-react";
+import { ExternalLink, KeyRound, MoreHorizontal, Plus } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Provider, VisibleApps } from "@/types";
 import { KNOWN_APP_TYPES, type AppTypeFilter } from "@/types/usage";
@@ -91,7 +85,7 @@ import {
   checkToolUpdatesInBackground,
   useToolUpdatesAvailable,
 } from "@/components/apps/useToolManagement";
-import { ProxyEventLogViewer } from "@/components/proxy/ProxyEventLogViewer";
+import { ProxyEventLogPage } from "@/components/proxy/ProxyEventLogPage";
 import { UsagePage } from "@/components/usage/UsagePage";
 import { EnvWarningBanner } from "@/components/env/EnvWarningBanner";
 import { SwitchModePanel } from "@/components/providers/mode/SwitchModePanel";
@@ -261,7 +255,6 @@ function App() {
     }
   }, [activeApp, currentView]);
 
-  const [eventLogOpen, setEventLogOpen] = useState(false);
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null);
   const [usageProvider, setUsageProvider] = useState<Provider | null>(null);
   const [confirmAction, setConfirmAction] = useState<{
@@ -1160,18 +1153,6 @@ function App() {
       }
       actions={
         <>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setEventLogOpen(true)}
-            title={t("proxy.eventLog.title", { defaultValue: "详细请求日志" })}
-            aria-label={t("proxy.eventLog.title", {
-              defaultValue: "详细请求日志",
-            })}
-          >
-            <ScrollText className="h-4 w-4" />
-          </Button>
-
           {currentView === "providers" &&
             activeApp !== "mcode" &&
             (settingsData?.showProfileSwitcher ?? true) && (
@@ -1411,6 +1392,8 @@ function App() {
 
   const renderGlobalPage = () => {
     switch (currentView) {
+      case "proxyLogs":
+        return <ProxyEventLogPage />;
       case "usage":
         return (
           <UsagePage
@@ -1593,11 +1576,6 @@ function App() {
         isProxyTakeover={isCurrentAppTakeoverActive}
         isCurrent={effectiveEditingProvider?.id === currentProviderId}
         modeView={formModeView}
-      />
-
-      <ProxyEventLogViewer
-        isOpen={eventLogOpen}
-        onClose={() => setEventLogOpen(false)}
       />
 
       {effectiveUsageProvider && (

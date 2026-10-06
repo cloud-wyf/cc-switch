@@ -3958,6 +3958,7 @@
     "appsGroup": "Apps",
     "todayCost": "Today {{cost}}",
     "usage": "Usage",
+    "proxyLogs": "Proxy logs",
     "auth": "Accounts",
     "authNeedsReauth": "An account needs to sign in again",
     "prompts": "Prompts",

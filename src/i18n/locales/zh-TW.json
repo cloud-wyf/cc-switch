@@ -3959,6 +3959,7 @@
     "appsGroup": "應用",
     "todayCost": "今日 {{cost}}",
     "usage": "用量統計",
+    "proxyLogs": "代理日誌",
     "auth": "授權中心",
     "authNeedsReauth": "有帳號需要重新登入",
     "prompts": "提示詞",

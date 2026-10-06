@@ -8,7 +8,7 @@ import {
 } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it } from "vitest";
-import { ProxyEventLogViewer } from "@/components/proxy/ProxyEventLogViewer";
+import { ProxyEventLogPage } from "@/components/proxy/ProxyEventLogPage";
 import type { ProxyEventQuery } from "@/types/proxy";
 import { server } from "../msw/server";
 import { createTestQueryClient } from "../utils/testQueryClient";
@@ -195,15 +195,19 @@ beforeEach(() => {
 function renderViewer() {
   return render(
     <QueryClientProvider client={createTestQueryClient()}>
-      <ProxyEventLogViewer isOpen onClose={() => {}} />
+      <ProxyEventLogPage />
     </QueryClientProvider>,
   );
 }
 
-describe("ProxyEventLogViewer", () => {
+describe("ProxyEventLogPage", () => {
   it("lists events with a summary line and opens a detail with the effective forwarded body", async () => {
-    renderViewer();
+    const { container } = renderViewer();
     const rows = await screen.findAllByTestId("proxy-event-row");
+    expect(
+      screen.getByRole("heading", { name: "nav.proxyLogs" }),
+    ).toBeVisible();
+    expect(container.querySelector("#main-content")).toContainElement(rows[0]);
     expect(rows).toHaveLength(3);
     expect(rows[0]).toHaveTextContent("any router");
     expect(rows[0]).toHaveTextContent("proxy.eventLog.viewer.kinds.chat");
@@ -246,6 +250,9 @@ describe("ProxyEventLogViewer", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "common.back" }));
     expect(await screen.findByTestId("proxy-event-list")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "nav.proxyLogs" }),
+    ).toBeVisible();
   });
 
   it("shows the client status, kind and a not-forwarded provider in an unforwarded detail", async () => {
