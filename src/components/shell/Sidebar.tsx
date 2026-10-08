@@ -235,13 +235,13 @@ function MainDirectory({
       icon: KeyRound,
       alert: authNeedsAttention ? t("nav.authNeedsReauth") : undefined,
     },
+    { page: "proxyLogs", label: t("nav.proxyLogs"), icon: ScrollText },
     {
       page: "usage",
       label: t("nav.usage"),
       icon: ChartColumn,
       trailing: todayLabel,
     },
-    { page: "proxyLogs", label: t("nav.proxyLogs"), icon: ScrollText },
   ];
 
   const isGlobalSelected = (page: GlobalPage) =>

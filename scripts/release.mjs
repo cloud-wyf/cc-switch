@@ -224,13 +224,15 @@ async function main() {
       mode: { type: "string", default: "auto" },
       tag: { type: "string" },
       "dry-run": { type: "boolean", default: false },
+      rebuild: { type: "boolean", default: false },
       help: { type: "boolean", default: false },
     },
   });
   if (values.help) {
     console.log(
-      "pnpm release [--tag v版本号] [--mode auto|github|local] [--dry-run]\n" +
+      "pnpm release [--tag v版本号] [--mode auto|github|local] [--dry-run] [--rebuild]\n" +
         "默认先用 GitHub；仅在已确认的额度/账单阻塞时转本机。\n" +
+        "本机默认复用同源码的已验签制品；--rebuild 强制本机重新构建，仍不覆盖已发布版本。\n" +
         "运行前必须提交发布源码、推送对应 Tag，并将 Actions 超额预算设为 0。",
     );
     return;
@@ -254,7 +256,7 @@ async function main() {
   const result = await executeRelease({
     mode: values.mode,
     github: () => publishOnGitHub(context),
-    local: () => publishWindowsRelease(context),
+    local: () => publishWindowsRelease(context, { rebuild: values.rebuild }),
   });
   console.log(`发布完成：${result.url}`);
 }

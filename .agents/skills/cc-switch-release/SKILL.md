@@ -20,7 +20,7 @@ description: 将 CC Switch 自用版源码提交到 cloud-wyf/cc-switch，并在
 3. 完成对应范围的验证。前端回归与 Rust 大型编译错开；已有同源码检查结果可复用。
 4. 明确暂存本次文件，提交；有 `MERGE_HEAD` 时完成真实合并提交。创建新 Tag，正常推送私有 `main` 和该 Tag，核对远程 SHA。
 5. 本地发布前查找同 Tag/SHA 的云端任务，仅取消对应活动任务并确认结束；不假设额度不足会自动失败。
-6. 预检通过后准备绑定确切 SHA 的 Release 草稿与说明，用 `pnpm release:local --tag ...` 一次完成本机编译、签名、验签和上传。
+6. 预检通过后准备绑定确切 SHA 的 Release 草稿与说明，用 `pnpm release:local --tag ...` 完成本机编译、签名、验签和上传。同源码重试会核验并复用 `release/<Tag>/build-cache/`，跳过编译；只有明确需要重新打包时才加 `--rebuild`，不要因上传失败习惯性强制重建。
 7. 确认 Release 已发布，下载六个附件核对 SHA-256、签名和三个 Windows 更新入口；记录结果并给出版本链接。
 
 ## 不变量

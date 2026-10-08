@@ -5456,6 +5456,10 @@ model_catalog_json = "cc-switch-model-catalog.json"
     }
 
     #[test]
+    #[cfg_attr(
+        windows,
+        ignore = "需要 Windows 符号链接权限；开启开发者模式或以管理员身份运行后可用 --ignored 执行"
+    )]
     fn resolve_catalog_rejects_symlink_escaping_config_dir() {
         // 词法包含可被符号链接绕过：~/.codex/link -> 外部目录，
         // "link/cc-switch-model-catalog.json" 词法上在 base 内，真实读取却落到

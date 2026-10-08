@@ -1298,6 +1298,10 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        windows,
+        ignore = "需要 Windows 符号链接权限；开启开发者模式或以管理员身份运行后可用 --ignored 执行"
+    )]
     fn symlink_cycle_does_not_cause_stack_overflow() {
         let temp = tempdir().expect("tempdir");
         let sessions = temp.path().join("sessions");

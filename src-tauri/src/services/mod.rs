@@ -1,4 +1,5 @@
 pub mod app_updater;
+pub mod backup_storage;
 pub mod balance;
 pub mod codex_oauth_models;
 pub mod coding_plan;

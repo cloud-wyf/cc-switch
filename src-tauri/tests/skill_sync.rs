@@ -120,6 +120,10 @@ fn import_from_apps_does_not_rewrite_selected_app_directory() {
 }
 
 #[test]
+#[cfg_attr(
+    windows,
+    ignore = "需要 Windows 符号链接权限；开启开发者模式或以管理员身份运行后可用 --ignored 执行"
+)]
 fn sync_to_app_removes_disabled_and_orphaned_ssot_symlinks() {
     let _guard = test_mutex().lock().unwrap_or_else(|e| e.into_inner());
     reset_test_fs();

@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { createHash, createPublicKey, verify } from "node:crypto";
+import { createHash, createPublicKey, randomUUID, verify } from "node:crypto";
 import {
   copyFileSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   readFileSync,
   readdirSync,
+  renameSync,
   statSync,
   writeFileSync,
 } from "node:fs";
@@ -382,9 +384,141 @@ export function buildWindowsArtifacts(context) {
   return { artifacts, signatures };
 }
 
+function artifactCacheIdentity({ github, info, head }) {
+  return {
+    repository: github.repository,
+    commit: head,
+    tag: info.tag,
+    version: info.version,
+    target: WINDOWS_TARGET,
+    publicKey: info.publicKey,
+  };
+}
+
+function verifyBuiltArtifacts(artifacts, info) {
+  assert.equal(artifacts.length, 5, "本机制品必须包含两种安装包、签名和便携包");
+  const names = artifacts.map(({ name }) => name);
+  assert(
+    names.every((name) => typeof name === "string" && /^[\w.-]+$/.test(name)),
+    "制品名称必须是不含路径的文件名",
+  );
+  assert.equal(new Set(names).size, names.length, "存在重复制品");
+  const expected = [`cc-switch-${info.tag}-${WINDOWS_TARGET}-portable.zip`];
+  const installers = windowsInstallers(info.version).map(({ suffix }) => {
+    const matches = artifacts.filter(({ name }) => name.endsWith(suffix));
+    assert.equal(matches.length, 1, "安装包版本、类型或架构不匹配");
+    expected.push(matches[0].name, `${matches[0].name}.sig`);
+    return matches[0];
+  });
+  assert.deepEqual([...names].sort(), expected.sort(), "本机制品不完整");
+  for (const { file } of artifacts) {
+    const stat = lstatSync(file);
+    assert(stat.isFile() && stat.size > 0, "制品必须是非空普通文件");
+  }
+  const signatures = {};
+  for (const installer of installers) {
+    const signatureName = `${installer.name}.sig`;
+    const signature = readFileSync(
+      artifacts.find(({ name }) => name === signatureName).file,
+      "utf8",
+    ).trim();
+    verifyUpdaterSignature(
+      readFileSync(installer.file),
+      signature,
+      info.publicKey,
+    );
+    signatures[signatureName] = signature;
+  }
+  return signatures;
+}
+
+function artifactDigest(file) {
+  const bytes = readFileSync(file);
+  return {
+    size: bytes.length,
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+  };
+}
+
+function readArtifactCache(context, directory) {
+  const recordFile = path.join(directory, "build.json");
+  if (!existsSync(recordFile)) return null;
+  try {
+    const record = JSON.parse(readFileSync(recordFile, "utf8"));
+    assert.equal(record.schema, 1, "不支持的制品记录版本");
+    assert.deepEqual(record.identity, artifactCacheIdentity(context));
+    const artifacts = record.artifacts.map(({ name }) => ({
+      name,
+      file: path.join(directory, name),
+    }));
+    // 先检查文件名和签名，再逐项核对大小与哈希；不信任记录中的路径或签名。
+    const signatures = verifyBuiltArtifacts(artifacts, context.info);
+    for (const [index, artifact] of artifacts.entries()) {
+      const digest = artifactDigest(artifact.file);
+      assert.equal(digest.size, record.artifacts[index].size);
+      assert.equal(digest.sha256, record.artifacts[index].sha256);
+    }
+    return { artifacts, signatures };
+  } catch {
+    console.log("已保存的制品记录或校验不匹配，将重新构建。");
+    return null;
+  }
+}
+
+/** 构建结果在任何后续 GitHub 请求之前落盘，上传失败后可跨进程复用。 */
+export async function prepareWindowsArtifacts(
+  context,
+  { build = buildWindowsArtifacts, rebuild = false } = {},
+) {
+  const assertCurrentSource = () =>
+    assertReleaseSource({ ...context.readSource(), tagCommit: context.head });
+  assertReleaseSource(context);
+  assertCurrentSource();
+  const directory = path.join(
+    context.root,
+    "release",
+    context.info.tag,
+    "build-cache",
+  );
+  const cached = rebuild ? null : readArtifactCache(context, directory);
+  if (cached) {
+    assertCurrentSource();
+    console.log(
+      `复用已验签的本机制品：${context.info.tag}（${context.head.slice(0, 12)}），跳过编译和打包。`,
+    );
+    return cached;
+  }
+
+  const built = await build(context);
+  assertCurrentSource();
+  verifyBuiltArtifacts(built.artifacts, context.info);
+  mkdirSync(directory, { recursive: true });
+  const artifacts = built.artifacts.map(({ name, file }) => {
+    const saved = path.join(directory, name);
+    copyFileSync(file, saved);
+    return { name, file: saved };
+  });
+  const signatures = verifyBuiltArtifacts(artifacts, context.info);
+  const record = {
+    schema: 1,
+    identity: artifactCacheIdentity(context),
+    builtAt: new Date().toISOString(),
+    artifacts: artifacts.map(({ name, file }) => ({
+      name,
+      ...artifactDigest(file),
+    })),
+  };
+  const temporary = path.join(directory, `build-${randomUUID()}.tmp`);
+  writeFileSync(temporary, `${JSON.stringify(record, null, 2)}\n`);
+  renameSync(temporary, path.join(directory, "build.json"));
+  assertCurrentSource();
+  console.log(`本机制品已保存：${directory}`);
+  return { artifacts, signatures };
+}
+
 export async function publishWindowsRelease(
   context,
-  { build = buildWindowsArtifacts } = {},
+  { build = buildWindowsArtifacts, rebuild = false } = {},
 ) {
   const { github, info, root, head } = context;
   assertReleaseSource(context);
@@ -396,7 +530,10 @@ export async function publishWindowsRelease(
       "该版本仍有云端任务运行，请先等待或取消",
     );
   }
-  const { artifacts, signatures } = await build(context);
+  const { artifacts, signatures } = await prepareWindowsArtifacts(context, {
+    build,
+    rebuild,
+  });
   assertReleaseSource({ ...context.readSource(), tagCommit: head });
   const allowedNames = [
     ...artifacts.map((artifact) => artifact.name),

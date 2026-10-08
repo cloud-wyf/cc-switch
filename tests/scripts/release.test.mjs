@@ -20,6 +20,7 @@ import {
   assertDraftRelease,
   assertReleaseSource,
   collectWindowsArtifacts,
+  prepareWindowsArtifacts,
   publishWindowsRelease,
   verifyUpdaterSignature,
 } from "../../scripts/windows-release.mjs";
@@ -464,6 +465,171 @@ function publishingFixture() {
   return { context, state, build: vi.fn(() => built) };
 }
 
+describe("saved Windows build artifacts", () => {
+  const recordPath = (context) =>
+    path.join(
+      context.root,
+      "release",
+      context.info.tag,
+      "build-cache",
+      "build.json",
+    );
+
+  it("keeps independent copies when the original build directory is overwritten", async () => {
+    const fixture = publishingFixture();
+    const saved = await prepareWindowsArtifacts(fixture.context, {
+      build: fixture.build,
+    });
+    const installer = saved.artifacts.find(({ name }) => name.endsWith(".msi"));
+    const originalBytes = readFileSync(installer.file);
+    writeFileSync(fixture.context.files[0], "another build");
+    // 新的调用方只有落盘记录，不依赖上一次 build 返回的对象。
+    const unexpectedBuild = vi.fn(() => {
+      throw new Error("must reuse the saved build");
+    });
+    const restored = await prepareWindowsArtifacts(
+      { ...fixture.context },
+      { build: unexpectedBuild },
+    );
+    expect(unexpectedBuild).not.toHaveBeenCalled();
+    expect(
+      readFileSync(
+        restored.artifacts.find(({ name }) => name.endsWith(".msi")).file,
+      ),
+    ).toEqual(originalBytes);
+  });
+
+  it.each([
+    ["commit", "b".repeat(40)],
+    ["version", "3.20.2-1"],
+    ["tag", "v3.20.2-1"],
+    ["repository", "owner/another-repo"],
+    ["target", "aarch64-pc-windows-msvc"],
+    ["publicKey", "another key"],
+  ])(
+    "rebuilds instead of reusing a cache from a different %s",
+    async (field, value) => {
+      const fixture = publishingFixture();
+      await prepareWindowsArtifacts(fixture.context, { build: fixture.build });
+      const file = recordPath(fixture.context);
+      const record = JSON.parse(readFileSync(file, "utf8"));
+      record.identity[field] = value;
+      writeFileSync(file, JSON.stringify(record));
+      await prepareWindowsArtifacts(fixture.context, { build: fixture.build });
+      expect(fixture.build).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it.each([
+    "missing installer",
+    "changed portable",
+    "truncated record",
+    "path in record",
+  ])(
+    "rebuilds after a %s without uploading damaged artifacts",
+    async (failure) => {
+      const fixture = publishingFixture();
+      const saved = await prepareWindowsArtifacts(fixture.context, {
+        build: fixture.build,
+      });
+      const file = recordPath(fixture.context);
+      if (failure === "missing installer") {
+        const installer = saved.artifacts.find(({ name }) =>
+          name.endsWith(".msi"),
+        );
+        renameSync(installer.file, `${installer.file}.missing`);
+      } else if (failure === "changed portable") {
+        writeFileSync(
+          saved.artifacts.find(({ name }) => name.endsWith(".zip")).file,
+          "damaged zip",
+        );
+      } else if (failure === "truncated record") {
+        writeFileSync(file, '{"schema":');
+      } else {
+        const record = JSON.parse(readFileSync(file, "utf8"));
+        record.artifacts[0].name = "../not-an-installer";
+        writeFileSync(file, JSON.stringify(record));
+      }
+      await publishWindowsRelease(fixture.context, { build: fixture.build });
+      expect(fixture.build).toHaveBeenCalledTimes(2);
+      expect(fixture.state.release.draft).toBe(false);
+      expect(
+        fixture.state.release.assets.find(({ name }) => name.endsWith(".zip"))
+          .content,
+      ).toBe("portable zip");
+    },
+  );
+
+  it("rechecks the installer signature even if a modified file matches the recorded hash", async () => {
+    const fixture = publishingFixture();
+    const saved = await prepareWindowsArtifacts(fixture.context, {
+      build: fixture.build,
+    });
+    const installer = saved.artifacts.find(({ name }) => name.endsWith(".msi"));
+    const bytes = Buffer.from("tampered installer");
+    writeFileSync(installer.file, bytes);
+    const file = recordPath(fixture.context);
+    const record = JSON.parse(readFileSync(file, "utf8"));
+    Object.assign(
+      record.artifacts.find(({ name }) => name === installer.name),
+      {
+        size: bytes.length,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+      },
+    );
+    writeFileSync(file, JSON.stringify(record));
+    await prepareWindowsArtifacts(fixture.context, { build: fixture.build });
+    expect(fixture.build).toHaveBeenCalledTimes(2);
+    expect(readFileSync(installer.file)).not.toEqual(bytes);
+  });
+
+  it("rebuilds on explicit request even when the saved artifacts are valid", async () => {
+    const fixture = publishingFixture();
+    await prepareWindowsArtifacts(fixture.context, { build: fixture.build });
+    await publishWindowsRelease(fixture.context, {
+      build: fixture.build,
+      rebuild: true,
+    });
+    expect(fixture.build).toHaveBeenCalledTimes(2);
+    expect(fixture.state.release.draft).toBe(false);
+  });
+
+  it("does not reuse valid artifacts while the working tree is dirty", async () => {
+    const fixture = publishingFixture();
+    await prepareWindowsArtifacts(fixture.context, { build: fixture.build });
+    fixture.context.readSource = () => ({
+      head: fixture.context.head,
+      dirty: " M src/App.tsx",
+    });
+    await expect(
+      publishWindowsRelease(fixture.context, { build: fixture.build }),
+    ).rejects.toThrow(/未提交/);
+    expect(fixture.build).toHaveBeenCalledTimes(1);
+    expect(fixture.state.events).toEqual([]);
+  });
+
+  it("does not record a failed build or one whose source changed during compilation", async () => {
+    const fixture = publishingFixture();
+    fixture.build.mockRejectedValueOnce(new Error("compile failed"));
+    await expect(
+      prepareWindowsArtifacts(fixture.context, { build: fixture.build }),
+    ).rejects.toThrow("compile failed");
+    expect(() => readFileSync(recordPath(fixture.context))).toThrow();
+    const build = vi.fn(async () => {
+      const result = await fixture.build();
+      fixture.context.readSource = () => ({
+        head: fixture.context.head,
+        dirty: " M src/App.tsx",
+      });
+      return result;
+    });
+    await expect(
+      prepareWindowsArtifacts(fixture.context, { build }),
+    ).rejects.toThrow(/未提交/);
+    expect(() => readFileSync(recordPath(fixture.context))).toThrow();
+  });
+});
+
 describe("complete draft publishing", () => {
   it("publishes only after all six Windows artifacts are present", async () => {
     const fixture = publishingFixture();
@@ -487,7 +653,7 @@ describe("complete draft publishing", () => {
     );
   });
 
-  it("keeps a failed upload as a draft and resumes without re-uploading identical assets", async () => {
+  it("keeps a failed upload as a draft and resumes without rebuilding or re-uploading identical assets", async () => {
     const fixture = publishingFixture();
     fixture.state.failUploadOnce = "CC.Switch_3.20.2-2_x64_en-US.msi.sig";
     await expect(
@@ -495,6 +661,7 @@ describe("complete draft publishing", () => {
     ).rejects.toThrow("simulated upload failure");
     expect(fixture.state.release.draft).toBe(true);
     expect(fixture.state.events).not.toContain("publish");
+    fixture.state.release.body = "Updated draft notes";
     await publishWindowsRelease(fixture.context, { build: fixture.build });
     expect(
       fixture.state.events.filter((event) => event === "create"),
@@ -504,6 +671,27 @@ describe("complete draft publishing", () => {
         (event) => event === "upload:CC.Switch_3.20.2-2_x64_en-US.msi",
       ),
     ).toHaveLength(1);
+    expect(fixture.state.release.draft).toBe(false);
+    expect(fixture.build).toHaveBeenCalledTimes(1);
+    expect(
+      JSON.parse(
+        fixture.state.release.assets.find(({ name }) => name === "latest.json")
+          .content,
+      ).notes,
+    ).toBe("Updated draft notes");
+  });
+
+  it("reuses a completed build when the tag query fails before the first upload", async () => {
+    const fixture = publishingFixture();
+    fixture.context.github.tagCommit.mockImplementationOnce(() => {
+      throw new Error("TLS handshake timeout");
+    });
+    await expect(
+      publishWindowsRelease(fixture.context, { build: fixture.build }),
+    ).rejects.toThrow("TLS handshake timeout");
+    expect(fixture.state.events).toEqual([]);
+    await publishWindowsRelease(fixture.context, { build: fixture.build });
+    expect(fixture.build).toHaveBeenCalledTimes(1);
     expect(fixture.state.release.draft).toBe(false);
   });
 

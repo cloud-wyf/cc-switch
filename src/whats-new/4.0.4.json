@@ -1,0 +1,33 @@
+{
+  "version": "4.0.4",
+  "items": [
+    {
+      "type": "improve",
+      "zh": "用量统计计入缓存 Token，并新增模型成功率与速度",
+      "zh-TW": "用量統計計入快取 Token，並新增模型成功率與速度",
+      "en": "Usage totals include cache tokens; model statistics now show success rate and speed",
+      "ja": "使用量にキャッシュトークンを計上し、モデル別の成功率と速度を表示"
+    },
+    {
+      "type": "fix",
+      "zh": "修复流式工具调用和关闭思考后的推理强度",
+      "zh-TW": "修復串流工具呼叫和關閉思考後的推理強度",
+      "en": "Fixed streaming tool calls and reasoning intensity when thinking is disabled",
+      "ja": "ストリーミングのツール呼び出しと、思考無効時の推論強度を修正"
+    },
+    {
+      "type": "new",
+      "zh": "新增备份占用总览，修复 Skills 多应用导入同步",
+      "zh-TW": "新增備份空間總覽，修復 Skills 多應用匯入同步",
+      "en": "Added backup storage details and fixed skill imports across selected apps",
+      "ja": "バックアップ容量の一覧を追加し、選択した複数アプリへの Skill 配置を修正"
+    },
+    {
+      "type": "improve",
+      "zh": "代理日志入口移至侧栏「用量统计」上方",
+      "zh-TW": "代理日誌入口移至側欄「用量統計」上方",
+      "en": "Proxy logs now appear above Usage in the sidebar",
+      "ja": "プロキシログをサイドバーの「使用量」の上に移動"
+    }
+  ]
+}
