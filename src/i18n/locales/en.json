@@ -4061,6 +4061,26 @@
     "back": "Back"
   },
   "appsPage": {
+    "network": {
+      "label": "Install and update network",
+      "app": "Use app proxy",
+      "direct": "Direct connection",
+      "inherit": "Inherit environment",
+      "hint": "Use app proxy applies the global outbound proxy in Settings. Without one, environment and npm settings are inherited. Direct connection bypasses proxies. Applies only to install/update subprocesses for this session. WSL uses the same address; ensure the proxy is reachable from WSL."
+    },
+    "progress": {
+      "preflight": "Checking installation locations…",
+      "confirming": "Waiting for target confirmation",
+      "queued": "Queued…",
+      "preparing": "Preparing update command…",
+      "running": "Running installer…",
+      "verifying": "Verifying local version…",
+      "completed": "Completed and local version verified",
+      "warning": "Finished; see the notification",
+      "failed": "Failed; see the log",
+      "cancelled": "Cancelled",
+      "logs": "Installation log (last 120 lines)"
+    },
     "showInSidebar": "Show {{name}} in the sidebar",
     "lastChecked": "Last checked {{time}}",
     "neverChecked": "Not checked for updates yet",

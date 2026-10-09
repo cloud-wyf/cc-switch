@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import type {
   Settings,
   WebDavSyncSettings,
@@ -12,6 +12,12 @@ export interface ConfigTransferResult {
   message: string;
   filePath?: string;
   backupId?: string;
+}
+
+export type ToolNetworkMode = "app" | "direct" | "inherit";
+export interface ToolLifecycleProgress {
+  stage: "queued" | "preparing" | "running";
+  output?: string | null;
 }
 
 export interface WebDavTestResult {
@@ -239,6 +245,7 @@ export const settingsApi = {
       string,
       { wslShell?: string | null; wslShellFlag?: string | null }
     >,
+    options?: { localOnly?: boolean },
   ): Promise<
     Array<{
       name: string;
@@ -250,7 +257,11 @@ export const settingsApi = {
       wsl_distro: string | null;
     }>
   > {
-    return await invoke("get_tool_versions", { tools, wslShellByTool });
+    return await invoke("get_tool_versions", {
+      tools,
+      wslShellByTool,
+      localOnly: options?.localOnly,
+    });
   },
 
   async runToolLifecycleAction(
@@ -260,11 +271,19 @@ export const settingsApi = {
       string,
       { wslShell?: string | null; wslShellFlag?: string | null }
     >,
+    options?: {
+      networkMode?: ToolNetworkMode;
+      onProgress?: (event: ToolLifecycleProgress) => void;
+    },
   ): Promise<void> {
+    const onProgress = new Channel<ToolLifecycleProgress>();
+    onProgress.onmessage = (event) => options?.onProgress?.(event);
     await invoke("run_tool_lifecycle_action", {
       tools,
       action,
       wslShellByTool,
+      networkMode: options?.networkMode ?? "app",
+      onProgress,
     });
   },
 

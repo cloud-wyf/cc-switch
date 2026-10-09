@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 
+use super::tool_lifecycle::{self, ProgressSink, ToolLifecycleProgress, ToolNetworkMode};
 use crate::app_config::AppType;
 use crate::init_status::{InitErrorPayload, SkillsMigrationPayload};
 use crate::services::ProviderService;
@@ -167,6 +168,7 @@ fn tool_env_type_and_wsl_distro(_tool: &str) -> (String, Option<String>) {
 pub async fn get_tool_versions(
     tools: Option<Vec<String>>,
     wsl_shell_by_tool: Option<HashMap<String, WslShellPreferenceInput>>,
+    local_only: Option<bool>,
 ) -> Result<Vec<ToolVersion>, String> {
     let requested: Vec<&str> = if let Some(tools) = tools.as_ref() {
         let set: std::collections::HashSet<&str> = tools.iter().map(|s| s.as_str()).collect();
@@ -185,7 +187,15 @@ pub async fn get_tool_versions(
         let tool_wsl_shell = pref.and_then(|p| p.wsl_shell.as_deref());
         let tool_wsl_shell_flag = pref.and_then(|p| p.wsl_shell_flag.as_deref());
 
-        results.push(get_single_tool_version_impl(tool, tool_wsl_shell, tool_wsl_shell_flag).await);
+        results.push(
+            get_single_tool_version_impl(
+                tool,
+                tool_wsl_shell,
+                tool_wsl_shell_flag,
+                local_only.unwrap_or(false),
+            )
+            .await,
+        );
     }
 
     Ok(results)
@@ -249,6 +259,8 @@ pub async fn run_tool_lifecycle_action(
     tools: Vec<String>,
     action: String,
     wsl_shell_by_tool: Option<HashMap<String, WslShellPreferenceInput>>,
+    network_mode: Option<ToolNetworkMode>,
+    on_progress: tauri::ipc::Channel<ToolLifecycleProgress>,
 ) -> Result<(), String> {
     let action = ToolLifecycleAction::from_str(&action)?;
     let requested = normalize_requested_tools(&tools);
@@ -261,22 +273,35 @@ pub async fn run_tool_lifecycle_action(
         ToolLifecycleAction::Update => "tool_update",
     };
 
-    // 排队结束后再探测安装目标，与执行一起持锁，避免读到另一升级的中间状态。
+    let emit = move |event| {
+        let _ = on_progress.send(event);
+    };
+    emit(ToolLifecycleProgress::stage("queued"));
+    // 排队结束后重新定位目标，只探测生成命令必要的运行状态。
     TOOL_LIFECYCLE
         .run(requested, move |tools| {
+            emit(ToolLifecycleProgress::stage("preparing"));
             let command_line =
                 build_tool_lifecycle_command(tools, action, wsl_shell_by_tool.as_ref())?;
-            run_tool_lifecycle_silently(&command_line, label)
+            run_tool_lifecycle_with_progress(
+                &command_line,
+                label,
+                network_mode.unwrap_or_default(),
+                &emit,
+            )
         })
         .await
 }
 
-/// 静默执行工具安装/更新脚本：直接捕获子进程输出并阻塞到命令真正结束，
-/// 不再弹出可见终端窗口（与 `launch_terminal_running` 的"开窗即返回"形成对比，
-/// 后者仍保留给 provider 切换等需要交互式终端的场景）。
+/// 隐藏执行安装脚本，实时转发输出并等待命令结束。
 /// 失败时回传 stderr/stdout 末尾若干行，供前端 toast 提示。
 #[cfg(not(target_os = "windows"))]
-fn run_tool_lifecycle_silently(command_line: &str, _label: &str) -> Result<(), String> {
+fn run_tool_lifecycle_with_progress(
+    command_line: &str,
+    _label: &str,
+    network_mode: ToolNetworkMode,
+    emit: &ProgressSink<'_>,
+) -> Result<(), String> {
     use std::process::Command;
     // command_line 是 bash 风格脚本（含 `set -e` 与多行命令）；强制用 bash 执行，
     // 避免用户默认 shell 为 fish/zsh 时 `set -e` 等语义不一致。
@@ -289,14 +314,23 @@ fn run_tool_lifecycle_silently(command_line: &str, _label: &str) -> Result<(), S
         let inherited = std::env::var("PATH").unwrap_or_default();
         cmd.env("PATH", merge_path_segments(&login_path, &inherited));
     }
-    let output = cmd.output().map_err(|e| format!("启动安装进程失败: {e}"))?;
-    finish_lifecycle_output(&output)
+    tool_lifecycle::configure_network(
+        &mut cmd,
+        network_mode,
+        crate::proxy::http_client::get_current_proxy_url().as_deref(),
+    );
+    tool_lifecycle::run_command(&mut cmd, emit)
 }
 
 /// Windows 静默执行：command_line 是 .bat 内容（@echo off + call/wsl 行，CRLF 分隔），
 /// 写临时 .bat 后用 `cmd /C` 执行，`CREATE_NO_WINDOW` 抑制 console 窗口。
 #[cfg(target_os = "windows")]
-fn run_tool_lifecycle_silently(command_line: &str, label: &str) -> Result<(), String> {
+fn run_tool_lifecycle_with_progress(
+    command_line: &str,
+    label: &str,
+    network_mode: ToolNetworkMode,
+    emit: &ProgressSink<'_>,
+) -> Result<(), String> {
     use std::os::windows::process::CommandExt;
     use std::process::Command;
 
@@ -308,34 +342,23 @@ fn run_tool_lifecycle_silently(command_line: &str, label: &str) -> Result<(), St
     let bat_file = script_dir.path().join(format!("{label}.bat"));
     std::fs::write(&bat_file, command_line).map_err(|e| format!("写入批处理文件失败: {e}"))?;
 
-    let output = Command::new("cmd")
+    let mut cmd = Command::new("cmd");
+    cmd.arg("/D")
         .arg("/C")
         .arg(&bat_file)
-        .creation_flags(CREATE_NO_WINDOW)
-        .output();
+        .creation_flags(CREATE_NO_WINDOW);
 
-    finish_lifecycle_output(&output.map_err(|e| format!("启动安装进程失败: {e}"))?)
+    tool_lifecycle::configure_network(
+        &mut cmd,
+        network_mode,
+        crate::proxy::http_client::get_current_proxy_url().as_deref(),
+    );
+    tool_lifecycle::run_command(&mut cmd, emit)
 }
 
-/// 把子进程退出结果转成 `Result`：成功返回 `Ok`；失败提取 stderr（空则回退 stdout）
-/// 的末尾若干行作为错误详情，避免把整段安装日志塞进 toast。
-fn finish_lifecycle_output(output: &std::process::Output) -> Result<(), String> {
-    if output.status.success() {
-        return Ok(());
-    }
-    let stderr = decode_command_output(&output.stderr);
-    let stdout = decode_command_output(&output.stdout);
-    let raw = if stderr.trim().is_empty() {
-        stdout.trim()
-    } else {
-        stderr.trim()
-    };
-    let detail = last_lines(raw, 8);
-    Err(if detail.is_empty() {
-        format!("命令执行失败 (exit code: {:?})", output.status.code())
-    } else {
-        detail
-    })
+#[cfg(test)]
+fn run_tool_lifecycle_silently(command_line: &str, label: &str) -> Result<(), String> {
+    run_tool_lifecycle_with_progress(command_line, label, ToolNetworkMode::Inherit, &|_| {})
 }
 
 /// 取文本末尾最多 `n` 行（npm / pip 的关键错误通常出现在输出尾部）。
@@ -881,13 +904,11 @@ fn build_tool_action_line(
             return build_wsl_tool_action_line(&distro, &command, wsl_shell, wsl_shell_flag);
         }
         // ② Windows 原生 update 锚定;install 走静态(install.sh 是 bash 脚本,Windows
-        //    无意义)。**`enumerate_tool_installations` 在这里 per-tool 重做、与前端
-        //    probe 阶段算过的结果不共享是 by design**:run_tool_lifecycle_action 是
-        //    独立 IPC 调用,不信任前端回传的命令字符串(避免命令注入面扩大);前端是
-        //    逐工具触发 lifecycle,batch 化会破坏"逐工具独立成败"的 UX。
+        //    无意义）。重新枚举路径保证锚定正确，但不重复探测无关安装的版本；
+        //    命令仍由后端生成，不接收前端回传的命令字符串。
         let command = match action {
             ToolLifecycleAction::Update => {
-                let installs = enumerate_tool_installations(tool);
+                let installs = enumerate_tool_installations_for_action(tool);
                 match resolve_update_command(tool, &installs) {
                     UpdateCommand::Anchored(command) | UpdateCommand::Static(command) => command,
                     UpdateCommand::Unmanaged => {
@@ -918,7 +939,7 @@ fn build_tool_action_line(
         // （有 native installer 的工具如 claude/opencode/hermes），其余仍裸 npm。
         let command = match action {
             ToolLifecycleAction::Update => {
-                let installs = enumerate_tool_installations(tool);
+                let installs = enumerate_tool_installations_for_action(tool);
                 match resolve_update_command(tool, &installs) {
                     UpdateCommand::Anchored(command) | UpdateCommand::Static(command) => command,
                     UpdateCommand::Unmanaged => {
@@ -1038,6 +1059,7 @@ async fn get_single_tool_version_impl(
     tool: &str,
     wsl_shell: Option<&str>,
     wsl_shell_flag: Option<&str>,
+    local_only: bool,
 ) -> ToolVersion {
     debug_assert!(
         VALID_TOOLS.contains(&tool),
@@ -1061,29 +1083,34 @@ async fn get_single_tool_version_impl(
     // 2. 获取远程最新版本（npm 工具在本地领先 latest 时会按预发布通道补查，见
     //    fetch_npm_latest_for_tool / npm_prerelease_tags）
     let local = local_version.as_deref();
-    let latest_version = match tool {
-        "claude" => {
-            fetch_npm_latest_for_tool(&client, "@anthropic-ai/claude-code", tool, local).await
-        }
-        "codex" => fetch_npm_latest_for_tool(&client, "@openai/codex", tool, local).await,
-        "gemini" => fetch_npm_latest_for_tool(&client, "@google/gemini-cli", tool, local).await,
-        "grok" => fetch_npm_latest_for_tool(&client, "@xai-official/grok", tool, local).await,
-        "opencode" => {
-            if let Some(version) =
-                fetch_npm_latest_for_tool(&client, "opencode-ai", tool, local).await
-            {
-                Some(version)
-            } else {
-                fetch_github_latest_version(&client, "anomalyco/opencode").await
+    let latest_version = if local_only {
+        None
+    } else {
+        match tool {
+            "claude" => {
+                fetch_npm_latest_for_tool(&client, "@anthropic-ai/claude-code", tool, local).await
             }
+            "codex" => fetch_npm_latest_for_tool(&client, "@openai/codex", tool, local).await,
+            "gemini" => fetch_npm_latest_for_tool(&client, "@google/gemini-cli", tool, local).await,
+            "grok" => fetch_npm_latest_for_tool(&client, "@xai-official/grok", tool, local).await,
+            "opencode" => {
+                if let Some(version) =
+                    fetch_npm_latest_for_tool(&client, "opencode-ai", tool, local).await
+                {
+                    Some(version)
+                } else {
+                    fetch_github_latest_version(&client, "anomalyco/opencode").await
+                }
+            }
+            "openclaw" => fetch_npm_latest_for_tool(&client, "openclaw", tool, local).await,
+            "hermes" => fetch_hermes_latest_version(&client, local).await,
+            "pi" => {
+                fetch_npm_latest_for_tool(&client, "@earendil-works/pi-coding-agent", tool, local)
+                    .await
+            }
+            "mcode" => fetch_npm_latest_for_tool(&client, "@minimax-ai/code", tool, local).await,
+            _ => None,
         }
-        "openclaw" => fetch_npm_latest_for_tool(&client, "openclaw", tool, local).await,
-        "hermes" => fetch_hermes_latest_version(&client, local).await,
-        "pi" => {
-            fetch_npm_latest_for_tool(&client, "@earendil-works/pi-coding-agent", tool, local).await
-        }
-        "mcode" => fetch_npm_latest_for_tool(&client, "@minimax-ai/code", tool, local).await,
-        _ => None,
     };
 
     ToolVersion {
@@ -2782,6 +2809,14 @@ fn run_probe_version_command(
 /// `build_tool_search_paths`，但不在首个命中处停止——而是对每个去重后的真实
 /// 可执行文件都跑一次 `--version`，从而能发现"升级写入 A 处、PATH 实际用 B 处"。
 fn enumerate_tool_installations(tool: &str) -> Vec<ToolInstallation> {
+    enumerate_tool_installations_impl(tool, true)
+}
+
+fn enumerate_tool_installations_for_action(tool: &str) -> Vec<ToolInstallation> {
+    enumerate_tool_installations_impl(tool, false)
+}
+
+fn enumerate_tool_installations_impl(tool: &str, probe_all: bool) -> Vec<ToolInstallation> {
     let search_paths = build_tool_search_paths(tool);
     #[cfg(target_os = "windows")]
     let current_path = effective_path_string();
@@ -2799,13 +2834,9 @@ fn enumerate_tool_installations(tool: &str) -> Vec<ToolInstallation> {
 
     let mut seen: std::collections::HashSet<std::path::PathBuf> = std::collections::HashSet::new();
     let mut installs: Vec<ToolInstallation> = Vec::new();
+    let mut entry_paths = Vec::new();
 
     for dir in &search_paths {
-        #[cfg(target_os = "windows")]
-        let new_path = format!("{};{}", dir.display(), current_path);
-        #[cfg(not(target_os = "windows"))]
-        let new_path = prepend_search_dir_to_path(dir, &current_path);
-
         for tool_path in tool_executable_candidates(tool, dir) {
             if !tool_path.exists() {
                 continue;
@@ -2817,51 +2848,88 @@ fn enumerate_tool_installations(tool: &str) -> Vec<ToolInstallation> {
                 continue;
             }
 
-            let output = run_probe_version_command(&tool_path, &new_path);
-
-            let (version, runnable, error) = match output {
-                Ok(out) if out.status.success() => {
-                    let stdout = decode_command_output(&out.stdout).trim().to_string();
-                    let stderr = decode_command_output(&out.stderr).trim().to_string();
-                    let raw = if stdout.is_empty() { stderr } else { stdout };
-                    (Some(extract_version(&raw)), true, None)
-                }
-                Ok(out) => {
-                    let stderr = decode_command_output(&out.stderr).trim().to_string();
-                    let stdout = decode_command_output(&out.stdout).trim().to_string();
-                    let detail = if stderr.is_empty() { stdout } else { stderr };
-                    let detail = detail.trim();
-                    let error = if detail.is_empty() {
-                        None
-                    } else {
-                        Some(last_lines(detail, 4))
-                    };
-                    (None, false, error)
-                }
-                Err(e) => (None, false, Some(e)),
-            };
-
             let is_path_default = path_default.as_ref() == Some(&real);
             let path_str = tool_path.display().to_string();
             let source = infer_install_source_for_install(&tool_path, &real);
 
             installs.push(ToolInstallation {
                 path: path_str,
-                version,
-                runnable,
-                error,
+                version: None,
+                runnable: false,
+                error: None,
                 source: source.to_string(),
                 is_path_default,
                 // 复用上面 line ~1357 已 canonicalize 的真身,避免下游
                 // installs_anchored_command 再 canonicalize 一遍同一文件。
                 real: real.clone(),
             });
+            entry_paths.push(tool_path);
         }
     }
 
+    probe_installation_versions(tool, &mut installs, probe_all, |index| {
+        // 保留入口 PathBuf，不能从给 UI 的 display 字符串重建（POSIX 路径可能不是 UTF-8）。
+        let tool_path = &entry_paths[index];
+        let dir = tool_path.parent().unwrap_or_else(|| Path::new(""));
+        #[cfg(target_os = "windows")]
+        let new_path = format!("{};{}", dir.display(), current_path);
+        #[cfg(not(target_os = "windows"))]
+        let new_path = prepend_search_dir_to_path(dir, &current_path);
+        run_probe_version_command(tool_path, &new_path)
+    });
     // PATH 默认那处排最前，UI 一眼看到"命令行默认用的是哪处"。
     installs.sort_by_key(|i| std::cmp::Reverse(i.is_path_default));
     installs
+}
+
+fn probe_installation_versions(
+    tool: &str,
+    installs: &mut [ToolInstallation],
+    probe_all: bool,
+    mut probe: impl FnMut(usize) -> Result<std::process::Output, String>,
+) {
+    // 只有 Codex 的修复命令依赖运行状态，执行阶段仅检查实际升级的那处。
+    // 诊断/展示保留全量版本探测；路径发现与命令锚定始终使用当前文件系统。
+    let target = installs
+        .iter()
+        .position(|inst| inst.is_path_default)
+        .or_else(|| (installs.len() == 1).then_some(0));
+    for (index, inst) in installs.iter_mut().enumerate() {
+        if !(probe_all || tool == "codex" && target == Some(index)) {
+            continue;
+        }
+        match probe(index) {
+            Ok(out) if out.status.success() => {
+                let stdout = decode_command_output(&out.stdout);
+                let stderr = decode_command_output(&out.stderr);
+                let raw = if stdout.trim().is_empty() {
+                    &stderr
+                } else {
+                    &stdout
+                };
+                inst.version = Some(extract_version(raw.trim()));
+                inst.runnable = true;
+                inst.error = None;
+            }
+            Ok(out) => {
+                let stderr = decode_command_output(&out.stderr);
+                let stdout = decode_command_output(&out.stdout);
+                let detail = if stderr.trim().is_empty() {
+                    stdout.trim()
+                } else {
+                    stderr.trim()
+                };
+                inst.version = None;
+                inst.runnable = false;
+                inst.error = (!detail.is_empty()).then(|| last_lines(detail, 4));
+            }
+            Err(error) => {
+                inst.version = None;
+                inst.runnable = false;
+                inst.error = Some(error);
+            }
+        }
+    }
 }
 
 /// 工具对应的 npm 包名（hermes 走自己的 CLI/installer，不在此表）。锚定升级据此拼 `npm i -g`。
@@ -3393,8 +3461,8 @@ fn package_manager_anchored_command_from_paths(
 /// ③ Homebrew formula / cask（真身在 `Cellar/<formula>/` 或 `Caskroom/<token>/`）
 ///    → `<bin_path 同目录>/brew upgrade [--cask] <name>`；由 Homebrew 拥有,避免
 ///    self-update 或 sibling npm 改动包管理器管理的安装。
-/// ④ 其余支持官方自升级的工具 → `<bin_path 绝对> update/upgrade || <原锚定包管理器命令>`；
-///    Codex 的 self-update 只在部分 release 可用,所以保留 npm/brew/bun/volta fallback。
+/// ④ npm 管理的 Claude → 直接使用锚定包管理器命令，省去自更新前置步骤。
+///    其余支持官方自升级的工具 → `<bin_path 绝对> update/upgrade || <原锚定包管理器命令>`。
 /// ⑤ 不支持官方自升级的 npm 全局包(例如 Gemini CLI，以及非 native 的 Grok Build) → 锚定到
 ///    "那处 bin 目录的 npm"。
 #[cfg(not(target_os = "windows"))]
@@ -3427,6 +3495,12 @@ fn anchored_command_from_paths(tool: &str, bin_path: &str, real_target: &str) ->
     }
     let package_command = package_manager_anchored_command_from_paths(tool, bin_path, real_target);
     if is_brew_managed_path(real_target) {
+        return package_command;
+    }
+    if tool == "claude"
+        && real_lower.contains("/node_modules/@anthropic-ai/claude-code/")
+        && package_command.is_some()
+    {
         return package_command;
     }
     if prefers_official_update(tool, LifecycleCommandShell::Posix) {
@@ -3493,7 +3567,8 @@ fn package_manager_anchored_command_from_paths(tool: &str, bin_path: &str) -> Op
 /// ① hermes / Grok native → `<bin_path> update`;CLI 自己处理安装环境。
 ///    MiniMax Code 脚本安装 → 带 `MCODE_INSTALL_DIR` 重跑官方 PowerShell installer。
 ///    Codex 独立安装 → 带 `CODEX_INSTALL_DIR` / `CODEX_HOME` 重跑官方 PowerShell installer。
-/// ② 支持官方自升级且 Windows 可安全静默执行的工具 → `<bin_path> update/upgrade || call <包管理器 fallback>`。
+/// ② 确认 npm 管理的 Claude → 直接调用包管理器；其余支持官方自升级且 Windows
+///    可安全静默执行的工具 → `<bin_path> update/upgrade || call <包管理器 fallback>`。
 /// ③ 其余 npm 工具 → sibling `npm.cmd`/`.exe` i -g <pkg>@latest。
 ///
 /// 包管理器 fallback 的 sibling 探测都通过 `sibling_bin_with_ext`(碰 fs):该处无候选
@@ -3520,6 +3595,21 @@ fn anchored_command_from_paths(tool: &str, bin_path: &str, real_target: &str) ->
         }
     }
     let package_command = package_manager_anchored_command_from_paths(tool, bin_path);
+    // Windows npm 的入口为 .cmd/.ps1，canonicalize 不会指向包内；用同级包回执确认。
+    // 原生 .exe 即使旁边有 npm，也继续使用官方自更新。
+    if tool == "claude"
+        && package_command.is_some()
+        && matches!(
+            Path::new(bin_path).extension().and_then(|e| e.to_str()),
+            Some("cmd" | "ps1")
+        )
+        && Path::new(bin_path).parent().is_some_and(|dir| {
+            dir.join("node_modules/@anthropic-ai/claude-code/package.json")
+                .is_file()
+        })
+    {
+        return package_command;
+    }
     if prefers_official_update(tool, LifecycleCommandShell::WindowsBatch) {
         let update = anchored_official_update_command(tool, bin_path)?;
         return Some(match package_command {
@@ -5348,6 +5438,53 @@ mod tests {
     use super::*;
 
     #[test]
+    fn action_probe_only_checks_codex_target_while_diagnostics_check_all() {
+        let make = |path: &str, is_path_default| ToolInstallation {
+            path: path.into(),
+            real: PathBuf::from(path),
+            version: None,
+            runnable: false,
+            error: None,
+            source: "system".into(),
+            is_path_default,
+        };
+        let mut installs = vec![make("other", false), make("default", true)];
+        let mut probes = Vec::new();
+        probe_installation_versions("claude", &mut installs, false, |path| {
+            probes.push(path.to_string());
+            Err("test".into())
+        });
+        assert!(probes.is_empty());
+        probe_installation_versions("codex", &mut installs, false, |path| {
+            probes.push(path.to_string());
+            Err("broken binary".into())
+        });
+        assert_eq!(probes, ["1"]);
+        assert!(!default_install(&installs).unwrap().runnable);
+        assert_eq!(
+            default_install(&installs).unwrap().error.as_deref(),
+            Some("broken binary")
+        );
+        probes.clear();
+        probe_installation_versions("claude", &mut installs, true, |path| {
+            probes.push(path.to_string());
+            Err("test".into())
+        });
+        assert_eq!(probes, ["0", "1"]);
+        installs[1].is_path_default = false;
+        probe_installation_versions("codex", &mut installs, false, |_| {
+            panic!("ambiguous target must not be probed")
+        });
+        installs.truncate(1);
+        probes.clear();
+        probe_installation_versions("codex", &mut installs, false, |path| {
+            probes.push(path.to_string());
+            Err("test".into())
+        });
+        assert_eq!(probes, ["0"]);
+    }
+
+    #[test]
     fn external_url_whitelist() {
         assert_eq!(
             validate_external_url("https://example.com/a").unwrap(),
@@ -6701,6 +6838,28 @@ mod tests {
         }
 
         #[test]
+        fn claude_npm_update_skips_self_update() {
+            let (_dir, sub, bin_path) = setup_sibling("node", "claude.cmd", &["npm.cmd"]);
+            let package = sub.join("node_modules/@anthropic-ai/claude-code");
+            std::fs::create_dir_all(&package).unwrap();
+            std::fs::write(package.join("package.json"), "{}").unwrap();
+            let cmd = anchored_command_from_paths("claude", &bin_path, &bin_path).unwrap();
+            assert_eq!(
+                cmd,
+                format!(
+                    "{} i -g @anthropic-ai/claude-code@latest",
+                    expect_quoted_path(&sub.join("npm.cmd").display().to_string())
+                )
+            );
+            let native_path = sub.join("claude.exe").display().to_string();
+            let native = anchored_command_from_paths("claude", &native_path, &native_path).unwrap();
+            assert!(
+                native.starts_with(&format!("{} update", expect_quoted_path(&native_path))),
+                "adjacent npm files must not turn a native executable into an npm installation"
+            );
+        }
+
+        #[test]
         fn hermes_windows_uses_cli_update() {
             // Hermes 自带 `hermes update`,不要再回退到 py/python/pip。即便同目录有
             // npm.cmd,也不应走 npm 分支。
@@ -7172,6 +7331,19 @@ mod tests {
                 "/Users/me/.local/share/claude/versions/2.1.146",
             );
             assert_eq!(cmd.as_deref(), Some("/Users/me/.local/bin/claude update"));
+        }
+
+        #[test]
+        fn claude_npm_installation_updates_through_its_package_manager() {
+            let command = anchored_command_from_paths(
+                "claude",
+                "/Users/me/.nvm/versions/node/v22/bin/claude",
+                "/Users/me/.nvm/versions/node/v22/lib/node_modules/@anthropic-ai/claude-code/cli.js",
+            ).unwrap();
+            assert!(command.contains(
+                "/Users/me/.nvm/versions/node/v22/bin/npm i -g @anthropic-ai/claude-code@latest"
+            ));
+            assert!(!command.contains("claude update"));
         }
 
         #[test]

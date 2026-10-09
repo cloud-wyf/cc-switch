@@ -1,0 +1,26 @@
+{
+  "version": "4.0.5-1",
+  "items": [
+    {
+      "type": "improve",
+      "zh": "应用更新显示执行阶段和实时日志，切换页面后保留进度",
+      "zh-TW": "應用更新顯示執行階段與即時日誌，切換頁面後保留進度",
+      "en": "App updates show stages and live logs, with progress preserved when switching pages",
+      "ja": "アプリ更新の実行段階とログを表示し、ページ切り替え後も進捗を保持"
+    },
+    {
+      "type": "improve",
+      "zh": "npm 版 Claude 直接更新，减少重复探测和安装后的等待",
+      "zh-TW": "npm 版 Claude 直接更新，減少重複探測與安裝後的等待",
+      "en": "npm-managed Claude updates directly, with fewer probes and less waiting after installation",
+      "ja": "npm 版 Claude を直接更新し、重複チェックとインストール後の待ち時間を削減"
+    },
+    {
+      "type": "new",
+      "zh": "安装与更新可选择应用代理、直连或继承环境",
+      "zh-TW": "安裝與更新可選擇應用代理、直接連線或繼承環境",
+      "en": "Choose the app proxy, a direct connection, or inherited settings for installs and updates",
+      "ja": "インストールと更新でアプリのプロキシ・直接接続・環境設定の継承を選択可能"
+    }
+  ]
+}

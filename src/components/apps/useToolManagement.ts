@@ -11,6 +11,8 @@ import { settingsApi } from "@/lib/api";
 import type {
   ToolInstallation,
   ToolInstallationReport,
+  ToolLifecycleProgress,
+  ToolNetworkMode,
 } from "@/lib/api/settings";
 import type { AppId } from "@/lib/api/types";
 import { extractErrorMessage } from "@/utils/errorUtils";
@@ -207,6 +209,22 @@ interface ToolManagementState {
   batchAction: ToolLifecycleAction | null;
   /** 每个工具的安装分布（路径、来源、多处安装），页面打开时探测一次 */
   installReports: Partial<Record<ToolName, ToolInstallationReport>> | null;
+  networkMode: ToolNetworkMode;
+  progress: Partial<Record<ToolName, ToolProgress>>;
+}
+
+export interface ToolProgress {
+  stage:
+    | ToolLifecycleProgress["stage"]
+    | "preflight"
+    | "confirming"
+    | "verifying"
+    | "completed"
+    | "warning"
+    | "failed"
+    | "cancelled";
+  logs: string[];
+  networkMode: ToolNetworkMode;
 }
 
 // 安装/升级不会随设置页卸载而结束。将任务、确认队列与版本结果一起保留在会话中，
@@ -217,6 +235,8 @@ let toolManagementState: ToolManagementState = {
   pendingUpgrades: [],
   batchAction: null,
   installReports: null,
+  networkMode: "app",
+  progress: {},
 };
 const toolManagementListeners = new Set<() => void>();
 const getToolManagementState = () => toolManagementState;
@@ -229,6 +249,30 @@ function subscribeToolManagement(listener: () => void) {
 function updateToolManagementState(update: Partial<ToolManagementState>) {
   toolManagementState = { ...toolManagementState, ...update };
   toolManagementListeners.forEach((listener) => listener());
+}
+
+function updateToolProgress(
+  tool: ToolName,
+  stage: ToolProgress["stage"],
+  output?: string | null,
+) {
+  const previous = toolManagementState.progress[tool];
+  if (!previous) return;
+  updateToolManagementState({
+    progress: {
+      ...toolManagementState.progress,
+      [tool]: {
+        ...previous,
+        stage,
+        logs: output
+          ? [
+              ...previous.logs,
+              ...output.split(/\r?\n/).map((line) => line.slice(0, 4096)),
+            ].slice(-120)
+          : previous.logs,
+      },
+    },
+  });
 }
 
 // 把探测结果按 name 合并进已有列表：替换同名项、追加新项；空列表时直接采用新结果。
@@ -295,6 +339,8 @@ export function useToolManagement() {
     pendingUpgrades,
     batchAction,
     installReports,
+    networkMode,
+    progress,
   } = useSyncExternalStore(subscribeToolManagement, getToolManagementState);
   const toolVersions = toolVersionsCache?.data ?? EMPTY_TOOL_VERSIONS;
   const pendingUpgrade = pendingUpgrades[0] ?? null;
@@ -344,6 +390,7 @@ export function useToolManagement() {
     async (
       toolNames: ToolName[],
       wslOverrides?: Record<string, WslShellPreference>,
+      options?: { localOnly?: boolean },
     ): Promise<ToolVersion[]> => {
       if (toolNames.length === 0) return [];
 
@@ -364,10 +411,23 @@ export function useToolManagement() {
         const updated = await settingsApi.getToolVersions(
           toolNames,
           wslOverrides,
+          options,
         );
-        const current = updated.filter(
-          (tool) => latestToolVersionRequests.get(tool.name) === requestId,
-        );
+        const current = updated
+          .filter(
+            (tool) => latestToolVersionRequests.get(tool.name) === requestId,
+          )
+          .map((tool) =>
+            options?.localOnly
+              ? {
+                  ...tool,
+                  latest_version:
+                    toolManagementState.toolVersionsCache?.data.find(
+                      (cached) => cached.name === tool.name,
+                    )?.latest_version ?? null,
+                }
+              : tool,
+          );
         if (current.length === 0) return [];
 
         // 同步进模块缓存，供切 Tab 重挂时复用。时间戳沿用上次「全量加载」的（单工具
@@ -615,20 +675,33 @@ export function useToolManagement() {
 
       await Promise.all(
         toolNames.map(async (toolName) => {
+          let receiveProgress = true;
           try {
             const previousTool = toolVersionByName.get(toolName);
             const previousVersion = previousTool?.version ?? null;
             const previousLatestVersion = previousTool?.latest_version ?? null;
 
+            updateToolProgress(toolName, "queued");
             await settingsApi.runToolLifecycleAction(
               [toolName],
               action,
               wslOverrides,
+              {
+                networkMode:
+                  toolManagementState.progress[toolName]?.networkMode ?? "app",
+                onProgress: (event) => {
+                  if (receiveProgress)
+                    updateToolProgress(toolName, event.stage, event.output);
+                },
+              },
             );
+            receiveProgress = false;
+            updateToolProgress(toolName, "verifying");
             // 静默执行真正结束后刷新该工具版本，卡片立即反映结果。
             const refreshed = await refreshToolVersions(
               [toolName],
               wslOverrides,
+              { localOnly: true },
             );
             const tool = refreshed.find((t) => t.name === toolName);
             if (tool?.version) {
@@ -641,6 +714,7 @@ export function useToolManagement() {
                 isUpdateAvailable(tool.version, latestVersion);
 
               if (versionUnchangedAfterUpdate) {
+                updateToolProgress(toolName, "warning");
                 // 有些上游 updater 会在未实际改动版本时仍返回 0。这里用刷新后的
                 // 当前版本 + latest_version 再确认一次，避免给用户误报升级成功。
                 failures.push({
@@ -655,6 +729,7 @@ export function useToolManagement() {
                 void diagnoseToolSilently(toolName);
               } else {
                 succeeded += 1;
+                updateToolProgress(toolName, "completed");
                 // 升级成功后无条件补诊：版本没变多半被另一处遮蔽，版本变了另一处也可能仍在，
                 // 两种都要刷新冲突展示（diagnoseToolSilently 无冲突时会自动清旧）。
                 if (action === "update") {
@@ -662,6 +737,7 @@ export function useToolManagement() {
                 }
               }
             } else {
+              updateToolProgress(toolName, "warning");
               // 命令退出码为 0、但刷新后仍探不到版本：多半是"装上了却跑不起来"
               // （如 openclaw 要求更高的 Node 版本）。refreshToolVersions 的 merge 已把
               // version 置空并写入后端 error，这里只需归类为软失败并展示原因。
@@ -678,6 +754,7 @@ export function useToolManagement() {
             }
           } catch (error) {
             const detail = extractErrorMessage(error) || String(error);
+            updateToolProgress(toolName, "failed", detail);
             if (detail === "TOOL_ACTION_IN_PROGRESS") {
               toast.info(t("settings.toolActionInProgress"), {
                 description: t("settings.toolActionInProgressDetail", {
@@ -693,6 +770,7 @@ export function useToolManagement() {
             );
             failures.push({ toolName, detail, soft: false });
           } finally {
+            receiveProgress = false;
             releaseTools([toolName]);
           }
         }),
@@ -795,6 +873,19 @@ export function useToolManagement() {
           ...toolManagementState.busyTools,
           ...toolNames.map((name) => [name, action] as const),
         ]),
+        progress: {
+          ...toolManagementState.progress,
+          ...Object.fromEntries(
+            toolNames.map((name) => [
+              name,
+              {
+                stage: action === "install" ? "queued" : "preflight",
+                logs: [],
+                networkMode: toolManagementState.networkMode,
+              },
+            ]),
+          ),
+        },
       });
       // 锁移交给 executeRun 或确认队列后，由其负责释放；入口只释放未移交的工具。
       let toolsToRelease = toolNames;
@@ -826,6 +917,9 @@ export function useToolManagement() {
         // 退回 npm 只会另装一份 npm 版（#7650）。跳过并提示用原安装方式升级，其余照常。
         const unmanaged = reports.filter((r) => r.unmanaged);
         if (unmanaged.length > 0) {
+          unmanaged.forEach((report) =>
+            updateToolProgress(report.tool as ToolName, "warning"),
+          );
           toast.warning(t("settings.toolUpgradeUnmanagedTitle"), {
             description: unmanaged
               .map((r) =>
@@ -855,6 +949,7 @@ export function useToolManagement() {
           return;
         }
         // 并发探测的确认按到达顺序排队，切页后也能继续确认或取消。
+        runnableTools.forEach((name) => updateToolProgress(name, "confirming"));
         updateToolManagementState({
           pendingUpgrades: [
             ...toolManagementState.pendingUpgrades,
@@ -910,6 +1005,9 @@ export function useToolManagement() {
       pendingUpgrades: toolManagementState.pendingUpgrades.slice(1),
     });
     releaseTools(pendingUpgrade.toolNames);
+    pendingUpgrade.toolNames.forEach((name) =>
+      updateToolProgress(name, "cancelled"),
+    );
   }, [pendingUpgrade, releaseTools]);
 
   // 全量刷新和诊断仍等待升级结束；各工具的操作只受自身忙碌状态影响。
@@ -919,6 +1017,10 @@ export function useToolManagement() {
     toolVersionsCache && toolVersionsCache.at > 0 ? toolVersionsCache.at : null;
 
   return {
+    networkMode,
+    setNetworkMode: (mode: ToolNetworkMode) =>
+      updateToolManagementState({ networkMode: mode }),
+    progress,
     toolVersionByName,
     installReports,
     isLoadingTools,

@@ -115,6 +115,87 @@ const updateAllButton = () =>
   screen.getByRole("button", { name: /settings\.updateAllTools/ });
 
 describe("AppsPage concurrent CLI upgrades", () => {
+  it("shows streamed progress across remounts and verifies locally after installation", async () => {
+    const running = deferred<void>();
+    let onProgress:
+      | ((event: { stage: string; output?: string }) => void)
+      | undefined;
+    mocks.runToolLifecycleAction.mockImplementation(
+      async (_tools, _action, _prefs, options) => {
+        onProgress = options?.onProgress;
+        await running.promise;
+        upgraded.add("claude");
+      },
+    );
+    const view = await renderApps();
+    fireEvent.click(updateButton("Claude Code"));
+    await waitFor(() => expect(onProgress).toBeTypeOf("function"));
+    act(() =>
+      onProgress?.({ stage: "running", output: "npm http fetch GET 200" }),
+    );
+    expect(
+      card("Claude Code").getByText("appsPage.progress.running"),
+    ).toBeInTheDocument();
+    fireEvent.click(card("Claude Code").getByText("appsPage.progress.logs"));
+    expect(
+      card("Claude Code").getByText("npm http fetch GET 200"),
+    ).toBeVisible();
+    view.unmount();
+    await renderApps();
+    expect(
+      card("Claude Code").getByText("npm http fetch GET 200"),
+    ).toBeInTheDocument();
+    await act(async () => running.resolve());
+    await waitFor(() => expect(isReady("Claude Code")).toBe(true));
+    expect(mocks.getToolVersions).toHaveBeenCalledWith(
+      ["claude"],
+      {},
+      { localOnly: true },
+    );
+    expect(
+      card("Claude Code").getByText("appsPage.progress.completed"),
+    ).toBeInTheDocument();
+  });
+
+  it("passes the selected network mode to the installer and locks it while running", async () => {
+    const running = deferred<void>();
+    mocks.runToolLifecycleAction.mockImplementation(async () => {
+      await running.promise;
+      upgraded.add("claude");
+    });
+    const scrollIntoView = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = vi.fn();
+    try {
+      await renderApps();
+      const user = userEvent.setup();
+      const selector = screen.getByRole("combobox", {
+        name: "appsPage.network.label",
+      });
+      await user.click(selector);
+      await user.click(
+        screen.getByRole("option", { name: "appsPage.network.direct" }),
+      );
+      fireEvent.click(updateButton("Claude Code"));
+      await waitFor(() =>
+        expect(mocks.runToolLifecycleAction).toHaveBeenCalledWith(
+          ["claude"],
+          "update",
+          {},
+          expect.objectContaining({
+            networkMode: "direct",
+            onProgress: expect.any(Function),
+          }),
+        ),
+      );
+      expect(selector).toBeDisabled();
+      await act(async () => running.resolve());
+      await waitFor(() => expect(selector).toBeEnabled());
+    } finally {
+      HTMLElement.prototype.scrollIntoView = scrollIntoView;
+      running.resolve();
+    }
+  });
+
   beforeEach(() => {
     vi.resetModules();
     upgraded.clear();
@@ -123,20 +204,25 @@ describe("AppsPage concurrent CLI upgrades", () => {
     outdated.add("claude").add("codex").add("gemini");
     mocks.getToolVersions
       .mockReset()
-      .mockImplementation(async (tools: string[]) =>
-        tools.map((name) => ({
-          name,
-          version: missing.has(name)
-            ? null
-            : upgraded.has(name) || !outdated.has(name)
-              ? "2.0.0"
-              : "1.0.0",
-          latest_version: "2.0.0",
-          error: null,
-          installed_but_broken: false,
-          env_type: "windows",
-          wsl_distro: null,
-        })),
+      .mockImplementation(
+        async (
+          tools: string[],
+          _preferences,
+          options?: { localOnly?: boolean },
+        ) =>
+          tools.map((name) => ({
+            name,
+            version: missing.has(name)
+              ? null
+              : upgraded.has(name) || !outdated.has(name)
+                ? "2.0.0"
+                : "1.0.0",
+            latest_version: options?.localOnly ? null : "2.0.0",
+            error: null,
+            installed_but_broken: false,
+            env_type: "windows",
+            wsl_distro: null,
+          })),
       );
     mocks.probeToolInstallations
       .mockReset()
@@ -399,10 +485,15 @@ describe("AppsPage concurrent CLI upgrades", () => {
         ["claude"],
         "update",
         preferences,
+        expect.objectContaining({
+          networkMode: "app",
+          onProgress: expect.any(Function),
+        }),
       );
       expect(mocks.getToolVersions).toHaveBeenCalledWith(
         ["claude"],
         preferences,
+        { localOnly: true },
       );
     } finally {
       if (scrollIntoView) {
@@ -654,6 +745,10 @@ describe("AppsPage concurrent CLI upgrades", () => {
       ["claude"],
       "update",
       {},
+      expect.objectContaining({
+        networkMode: "app",
+        onProgress: expect.any(Function),
+      }),
     );
     fireEvent.click(screen.getByRole("button", { name: "common.cancel" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -692,7 +787,15 @@ describe("AppsPage concurrent CLI upgrades", () => {
         );
       }
       expect(mocks.runToolLifecycleAction.mock.calls).toEqual([
-        [["claude"], "update", {}],
+        [
+          ["claude"],
+          "update",
+          {},
+          expect.objectContaining({
+            networkMode: "app",
+            onProgress: expect.any(Function),
+          }),
+        ],
       ]);
       expect(
         within(screen.getByRole("dialog")).getByText("Codex"),
@@ -707,8 +810,24 @@ describe("AppsPage concurrent CLI upgrades", () => {
       // 第二项仍可通过一次新的、明确的操作正常确认。
       await user.click(confirm);
       expect(mocks.runToolLifecycleAction.mock.calls).toEqual([
-        [["claude"], "update", {}],
-        [["codex"], "update", {}],
+        [
+          ["claude"],
+          "update",
+          {},
+          expect.objectContaining({
+            networkMode: "app",
+            onProgress: expect.any(Function),
+          }),
+        ],
+        [
+          ["codex"],
+          "update",
+          {},
+          expect.objectContaining({
+            networkMode: "app",
+            onProgress: expect.any(Function),
+          }),
+        ],
       ]);
       await act(async () => run.resolve());
     },
@@ -764,6 +883,10 @@ describe("AppsPage concurrent CLI upgrades", () => {
       ["codex"],
       "install",
       {},
+      expect.objectContaining({
+        networkMode: "app",
+        onProgress: expect.any(Function),
+      }),
     );
     expect(updateButton("Claude Code")).toBeDisabled();
     await act(async () => claudeRun.resolve());

@@ -4061,6 +4061,26 @@
     "back": "返回"
   },
   "appsPage": {
+    "network": {
+      "label": "安装与更新网络",
+      "app": "跟随应用代理",
+      "direct": "直连",
+      "inherit": "继承环境",
+      "hint": "跟随应用代理：使用设置中的全局出站代理；未配置时继承环境和 npm 配置。直连会绕过代理。仅作用于安装与更新子进程，本次会话有效。WSL 使用相同地址，需确保该代理在 WSL 中可达。"
+    },
+    "progress": {
+      "preflight": "正在检查安装位置…",
+      "confirming": "等待确认安装目标",
+      "queued": "正在排队…",
+      "preparing": "正在准备更新命令…",
+      "running": "正在执行安装命令…",
+      "verifying": "正在校验本地版本…",
+      "completed": "已完成，本地版本校验通过",
+      "warning": "已结束，请查看提示",
+      "failed": "执行失败，请查看日志",
+      "cancelled": "已取消",
+      "logs": "安装日志（最近 120 行）"
+    },
     "showInSidebar": "在侧栏显示 {{name}}",
     "lastChecked": "上次检查 {{time}}",
     "neverChecked": "还没检查过更新",

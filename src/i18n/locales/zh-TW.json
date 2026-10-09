@@ -4062,6 +4062,26 @@
     "back": "返回"
   },
   "appsPage": {
+    "network": {
+      "label": "安裝與更新網路",
+      "app": "跟隨應用程式代理",
+      "direct": "直接連線",
+      "inherit": "繼承環境",
+      "hint": "跟隨應用程式代理：使用設定中的全域出站代理；未設定時繼承環境和 npm 設定。直接連線會略過代理。僅套用於安裝與更新子程序，本次工作階段有效。WSL 使用相同位址，需確保代理可從 WSL 存取。"
+    },
+    "progress": {
+      "preflight": "正在檢查安裝位置…",
+      "confirming": "等待確認安裝目標",
+      "queued": "正在排隊…",
+      "preparing": "正在準備更新命令…",
+      "running": "正在執行安裝命令…",
+      "verifying": "正在驗證本機版本…",
+      "completed": "已完成，本機版本驗證通過",
+      "warning": "已結束，請查看提示",
+      "failed": "執行失敗，請查看日誌",
+      "cancelled": "已取消",
+      "logs": "安裝日誌（最近 120 行）"
+    },
     "showInSidebar": "在側欄顯示 {{name}}",
     "lastChecked": "上次檢查 {{time}}",
     "neverChecked": "還沒檢查過更新",

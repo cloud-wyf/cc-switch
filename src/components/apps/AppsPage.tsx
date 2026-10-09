@@ -49,6 +49,8 @@ import { APP_DISPLAY_NAME, AppGlyph } from "@/components/shell/AppGlyph";
 import { ToolUpgradeConfirmDialog } from "@/components/settings/ToolUpgradeConfirmDialog";
 import { ToolInstallRow } from "@/components/settings/ToolInstallRow";
 import { ToolErrorMessage } from "@/components/settings/ToolErrorMessage";
+import { ToolActionProgress } from "./ToolActionProgress";
+import type { ToolNetworkMode } from "@/lib/api/settings";
 import {
   ENV_BADGE_CONFIG,
   ONE_CLICK_INSTALL_COMMANDS,
@@ -254,6 +256,33 @@ export function AppsPage() {
         className="min-h-0 flex-1 overflow-y-auto scroll-stable"
       >
         <div className="px-6 pb-10 pt-4">
+          <div className="mb-3 flex flex-wrap items-center gap-2 text-caption text-fg-2">
+            <span>{t("appsPage.network.label")}</span>
+            <Select
+              value={tools.networkMode}
+              onValueChange={(value) =>
+                tools.setNetworkMode(value as ToolNetworkMode)
+              }
+              disabled={tools.isAnyBusy}
+            >
+              <SelectTrigger
+                className="h-7 w-[160px] text-caption"
+                aria-label={t("appsPage.network.label")}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(["app", "direct", "inherit"] as const).map((mode) => (
+                  <SelectItem key={mode} value={mode}>
+                    {t(`appsPage.network.${mode}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <HelpTip title={t("appsPage.network.label")}>
+              {t("appsPage.network.hint")}
+            </HelpTip>
+          </div>
           <div className="flex h-8 items-center px-4 text-caption font-medium text-fg-2">
             <span className="flex-1">{t("appsPage.columnApp")}</span>
             <span className="w-[168px] text-end">
@@ -595,8 +624,11 @@ function ToolRow({
     ) : null;
 
   const footer =
-    wslControls || errorLine || conflictList ? (
+    wslControls || errorLine || conflictList || tools.progress[tool] ? (
       <div className="space-y-2">
+        {tools.progress[tool] && (
+          <ToolActionProgress progress={tools.progress[tool]} />
+        )}
         {errorLine}
         {wslControls}
         {conflictList}
