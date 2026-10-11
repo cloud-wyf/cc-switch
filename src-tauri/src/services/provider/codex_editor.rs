@@ -9,9 +9,8 @@
 //! - 三方比较：每个改动都带着打开编辑器时的原值，live 里这个键已经被别的程序改成了第三个
 //!   值就算冲突，由用户选保留哪一边。
 //!
-//! 改动的粒度：顶层的值；顶层表里的每个键（`[mcp_servers.fs]` 这类子表按整张算）；
-//! `[model_providers]` 下 CC Switch 路由表以外的每张表。嵌在用户表里的模型名是关键字段，
-//! 不算全局改动。
+//! 改动的粒度：递归到 TOML 表的叶子值；数组作为整体处理。嵌在用户表里的模型名是关键
+//! 字段，不算全局改动。
 
 use std::sync::Arc;
 
@@ -26,7 +25,7 @@ use crate::live::engine::{read_current, LiveFile};
 use crate::live::floor;
 use crate::live::patch::toml::parse;
 use crate::live::project::codex::{
-    is_keyless_fallback, CodexProjection, Route, RowInput, OFFICIAL_PROXY_ROUTE_ID, ROUTE_ID,
+    is_keyless_fallback, CodexProjection, Route, RowInput, ROUTE_ID,
 };
 use crate::mode::operation::{AppWrite, FileChange};
 use crate::mode::state::{op, PendingTarget};
@@ -34,70 +33,94 @@ use crate::provider::Provider;
 use crate::proxy::providers::codex_oauth_auth::CodexOAuthManager;
 use crate::store::AppState;
 
-use super::claude_editor::{ConflictPolicy, EditorView, InactiveField};
+use super::claude_editor::{ConflictPolicy, EditorView};
 use super::codex_direct::{self, Owner, Prepared, Target};
-use super::editor_toml::{self, config_text, insert_at, render, Entry, TomlEdits};
+use super::codex_layers;
+use super::editor_toml::{self, config_text, insert_at, remove_at, render, Entry, TomlEdits};
 
 fn app() -> &'static str {
     AppType::Codex.as_str()
 }
 
-fn is_nested_floor(parent: &str, key: &str) -> bool {
-    floor::CODEX_FLOOR_NESTED
-        .iter()
-        .any(|segments| segments.len() == 2 && segments[0] == parent && segments[1] == key)
-}
-
 /// 全局设置的每个位置：关键字段、独有字段、CC Switch 的路由表不算。`skip_routes` 是
 /// 配置选中的路由表：它归供应商（投影时按内容收成 custom 表），也不算。
 fn entries(doc: &DocumentMut, skip_routes: &[&str]) -> Vec<Entry> {
-    let mut entries = Vec::new();
-    for (key, item) in doc.as_table().iter() {
-        if floor::CODEX_FLOOR_TOP.contains(&key) || floor::CODEX_EXCLUSIVE_TOP.contains(&key) {
-            continue;
-        }
-        if key == "model_providers" {
-            if let Some(providers) = item.as_table_like() {
-                for (id, table) in providers.iter() {
-                    if id == ROUTE_ID || id == OFFICIAL_PROXY_ROUTE_ID || skip_routes.contains(&id)
-                    {
-                        continue;
-                    }
-                    entries.push(Entry {
-                        path: vec![key.to_string(), id.to_string()],
-                        item: table.clone(),
-                    });
-                }
-            }
-            continue;
-        }
-        match item.as_table_like() {
-            Some(table) => {
-                for (child, child_item) in table.iter() {
-                    if is_nested_floor(key, child) {
-                        continue;
-                    }
-                    entries.push(Entry {
-                        path: vec![key.to_string(), child.to_string()],
-                        item: child_item.clone(),
-                    });
-                }
-            }
-            None => entries.push(Entry {
-                path: vec![key.to_string()],
-                item: item.clone(),
-            }),
-        }
-    }
-    entries
+    codex_layers::entries(doc, skip_routes)
 }
 
 fn parse_text(text: &str, what: &str) -> Result<DocumentMut, AppError> {
     editor_toml::parse_text(text, "provider.codex.editor.invalid_toml", "Codex", what)
 }
 
+pub(crate) fn effective_config_edits(
+    before: &str,
+    after: &str,
+    provider_settings: Option<&Value>,
+    on_conflict: ConflictPolicy,
+) -> Result<TomlEdits, AppError> {
+    let (before, after) = match provider_settings {
+        Some(settings) => (
+            codex_layers::effective_entries(before, settings)?,
+            codex_layers::effective_entries(after, settings)?,
+        ),
+        None => {
+            let before = parse_text(before, "公共配置")?;
+            let after = parse_text(after, "公共配置")?;
+            (entries(&before, &[]), entries(&after, &[]))
+        }
+    };
+    Ok(TomlEdits::between(&before, &after, on_conflict))
+}
+
 fn selected_route(doc: &DocumentMut) -> Option<&str> {
     doc.get("model_provider").and_then(Item::as_str)
+}
+
+/// 在供应商保存时，把 live 中相对当前供应商期望值的磁盘改动归并回公共层或私有层。
+pub(crate) fn reconcile_current_disk(state: &AppState) -> Result<(), AppError> {
+    if crate::mode::stack::stack_mode_now(&AppType::Codex) {
+        return Ok(());
+    }
+    let Some(mut provider) = crate::mode::current::provider_in_use(&state.db, &AppType::Codex)?
+    else {
+        return Ok(());
+    };
+    let path = get_codex_config_path();
+    let pre = read_current(&path)?;
+    let actual = parse(&path, pre.as_deref())?;
+    let old_common = state.db.get_config_snippet("codex")?.unwrap_or_default();
+    let update = codex_layers::reconcile_disk(&old_common, &provider.settings_config, &actual)?;
+    if !update.changed {
+        return Ok(());
+    }
+
+    let old_settings = provider.settings_config.clone();
+    codex_layers::store_private_config(
+        &mut provider.settings_config,
+        &update.private_config,
+        &update.private_deletes,
+    )?;
+    let common_changed = update.common_config != old_common;
+    if common_changed {
+        state.db.set_config_snippet(
+            "codex",
+            (!update.common_config.trim().is_empty()).then_some(update.common_config.clone()),
+        )?;
+    }
+    if provider.settings_config != old_settings {
+        if let Err(error) = state.db.save_provider("codex", &provider) {
+            if common_changed {
+                if let Err(rollback) = state.db.set_config_snippet(
+                    "codex",
+                    (!old_common.trim().is_empty()).then_some(old_common),
+                ) {
+                    log::error!("恢复 Codex 公共配置失败: {rollback}");
+                }
+            }
+            return Err(error);
+        }
+    }
+    Ok(())
 }
 
 /// 编辑器显示的内容。`settings_config` 是这个供应商的行（新增时是空对象）。
@@ -146,7 +169,7 @@ pub fn view(
         .entry("auth".to_string())
         .or_insert_with(|| Value::Object(Map::new()));
     Ok(EditorView {
-        inactive: inactive_fields(config_text(settings_config), &doc),
+        inactive: Vec::new(),
         settings: Value::Object(settings),
     })
 }
@@ -229,18 +252,17 @@ fn project_for_save(input: &RowInput<'_>) -> Result<CodexProjection, AppError> {
     Ok(projection)
 }
 
-/// 行里保存着、但不随切换生效的全局设置。
-fn inactive_fields(row_text: &str, display: &DocumentMut) -> Vec<InactiveField> {
-    let Ok(row) = row_text.parse::<DocumentMut>() else {
-        return Vec::new();
-    };
-    editor_toml::inactive_fields(entries(&row, selected_route(&row).as_slice()), display)
-}
-
 /// 一次编辑器保存：存进行的内容，和要写进 live 的全局改动。
 pub(crate) struct CodexEditorPlan {
     pub row_settings: Value,
+    pub common_config: String,
     pub edits: TomlEdits,
+}
+
+pub(crate) struct SaveContext<'a> {
+    pub common_config: &'a str,
+    pub official: bool,
+    pub proxy_injected_oauth: bool,
 }
 
 /// live 现在归谁：接上代理时是契约，否则是直连指针那家。
@@ -329,16 +351,15 @@ pub(crate) fn plan_save(
     edited: &Value,
     base: &Value,
     origin: &Origin,
-    official: bool,
-    proxy_injected_oauth: bool,
+    context: SaveContext<'_>,
     on_conflict: ConflictPolicy,
 ) -> Result<CodexEditorPlan, AppError> {
     let edited_doc = parse_text(config_text(edited), "edited")?;
     let base_doc = parse_text(config_text(base), "base")?;
     let mut projection = project_for_save(&RowInput {
         settings: edited,
-        official,
-        proxy_injected_oauth,
+        official: context.official,
+        proxy_injected_oauth: context.proxy_injected_oauth,
     })?;
 
     let rendered = |doc: &DocumentMut, key: &str| doc.get(key).map(render);
@@ -359,8 +380,20 @@ pub(crate) fn plan_save(
         .into_iter()
         .filter(|entry| edited_doc.get(&entry.path[0]).is_none());
 
-    // 打开时和保存时选中的路由表都归供应商：用户在编辑器里把 custom 改名成别的表，那张表
-    // 连同里面的 Key 不能当成全局设置留在 live 里。
+    let stored_settings = stored_row.unwrap_or(&Value::Null);
+    let layers = codex_layers::apply_editor_changes(
+        context.common_config,
+        stored_settings,
+        &base_doc,
+        &edited_doc,
+    )?;
+    let row_settings = store_into_row(
+        stored_row,
+        edited,
+        &projection,
+        &layers.private_config,
+        &layers.private_deletes,
+    )?;
     let routes: Vec<&str> = [selected_route(&base_doc), selected_route(&edited_doc)]
         .into_iter()
         .flatten()
@@ -368,7 +401,8 @@ pub(crate) fn plan_save(
     let mut base_entries = entries(&base_doc, &routes);
     base_entries.extend(removed_from_live);
     Ok(CodexEditorPlan {
-        row_settings: store_into_row(stored_row, edited, &projection)?,
+        row_settings,
+        common_config: layers.common_config,
         edits: TomlEdits::between(&base_entries, &entries(&edited_doc, &routes), on_conflict),
     })
 }
@@ -379,6 +413,8 @@ fn store_into_row(
     stored_row: Option<&Value>,
     edited: &Value,
     projection: &CodexProjection,
+    private_config: &DocumentMut,
+    private_deletes: &[Vec<String>],
 ) -> Result<Value, AppError> {
     let mut row = edited.clone();
     let stored_text = stored_row.map(config_text).unwrap_or("");
@@ -388,6 +424,9 @@ fn store_into_row(
         .get("model_provider")
         .and_then(Item::as_str)
         .map(str::to_string);
+    for entry in codex_layers::entries(&doc, &[stored_route.as_deref().unwrap_or("")]) {
+        remove_at(&mut doc, &entry.path);
+    }
     let root = doc.as_table_mut();
     for key in floor::CODEX_FLOOR_TOP
         .iter()
@@ -422,6 +461,9 @@ fn store_into_row(
         let segments: Vec<String> = path.clone();
         insert_at(&mut doc, &segments, Item::Value(value.clone()));
     }
+    for entry in codex_layers::entries(private_config, &[]) {
+        insert_at(&mut doc, &entry.path, entry.item);
+    }
     let key = edited
         .get("auth")
         .and_then(crate::codex_config::extract_codex_auth_api_key);
@@ -455,6 +497,7 @@ fn store_into_row(
         Route::Official | Route::Default => {}
     }
     row["config"] = Value::String(doc.to_string());
+    codex_layers::store_private_metadata(&mut row, private_deletes);
     Ok(row)
 }
 
@@ -545,7 +588,32 @@ mod tests {
             .replace("command = \"fs\"", "command = \"fs2\""));
         let changes = global_changes(&base, &edited);
         let paths = changes.paths();
-        assert_eq!(paths, vec!["agents.max_threads", "mcp_servers.fs"]);
+        assert_eq!(paths, vec!["agents.max_threads", "mcp_servers.fs.command"]);
+    }
+
+    #[test]
+    fn common_config_change_does_not_override_current_private_value() {
+        let private = json!({
+            "config": "approval_policy = \"private\"\n"
+        });
+        let edits = effective_config_edits(
+            "approval_policy = \"old-common\"\n",
+            "approval_policy = \"new-common\"\n",
+            Some(&private),
+            ConflictPolicy::Refuse,
+        )
+        .unwrap();
+        assert!(edits.is_empty());
+
+        let no_private = json!({ "config": "" });
+        let edits = effective_config_edits(
+            "approval_policy = \"old-common\"\n",
+            "approval_policy = \"new-common\"\n",
+            Some(&no_private),
+            ConflictPolicy::Refuse,
+        )
+        .unwrap();
+        assert_eq!(edits.paths(), vec!["approval_policy"]);
     }
 
     #[test]
@@ -570,19 +638,26 @@ mod tests {
     fn saving_puts_key_fields_into_the_row_and_keeps_the_rest_of_it() {
         let stored = json!({
             "auth": { "OPENAI_API_KEY": "sk-old" },
-            "config": "model_provider = \"relay\"\nmodel = \"gpt-a\"\n\n[model_providers.relay]\nname = \"Relay\"\nbase_url = \"https://old.example/v1\"\n\n[mcp_servers.legacy]\ncommand = \"x\"\n"
+            "config": "model_provider = \"relay\"\nmodel = \"gpt-a\"\n\n[model_providers.relay]\nname = \"Relay\"\nbase_url = \"https://old.example/v1\"\n"
         });
         let edited = json!({
             "auth": { "OPENAI_API_KEY": "sk-new" },
             "config": "approval_policy = \"never\"\nmodel_provider = \"custom\"\nmodel = \"gpt-b\"\n\n[model_providers.custom]\nname = \"Relay\"\nbase_url = \"https://new.example/v1\"\n"
         });
+        let base = json!({
+            "auth": { "OPENAI_API_KEY": "sk-old" },
+            "config": "approval_policy = \"on-request\"\nmodel_provider = \"relay\"\nmodel = \"gpt-a\"\n\n[model_providers.relay]\nname = \"Relay\"\nbase_url = \"https://old.example/v1\"\n"
+        });
         let plan = plan_save(
             Some(&stored),
             &edited,
-            &edited,
+            &base,
             &Origin::row(&stored).unwrap(),
-            false,
-            false,
+            SaveContext {
+                common_config: "",
+                official: false,
+                proxy_injected_oauth: false,
+            },
             ConflictPolicy::Refuse,
         )
         .unwrap();
@@ -602,12 +677,9 @@ mod tests {
             "the key stays in auth, not the config: {text}"
         );
         assert!(
-            text.contains("[mcp_servers.legacy]"),
-            "the row's other content stays for older versions: {text}"
-        );
-        assert!(
             !text.contains("approval_policy"),
             "global settings go to live, not the row: {text}"
         );
+        assert!(plan.common_config.contains("approval_policy = \"never\""));
     }
 }

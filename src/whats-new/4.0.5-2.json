@@ -1,0 +1,26 @@
+{
+  "version": "4.0.5-2",
+  "items": [
+    {
+      "type": "improve",
+      "zh": "Codex 公共配置统一存储，供应商只保存私有覆盖",
+      "zh-TW": "Codex 公共設定統一儲存，供應商只保存私有覆寫",
+      "en": "Codex shared settings now have one source, with provider-specific overrides stored separately",
+      "ja": "Codex の共通設定を一元化し、プロバイダー固有の上書き設定を分離"
+    },
+    {
+      "type": "new",
+      "zh": "供应商可覆盖或屏蔽公共字段，切换时合成生效配置",
+      "zh-TW": "供應商可覆寫或隱藏公共欄位，切換時合成生效設定",
+      "en": "Providers can override or hide shared fields, which are composed when switching providers",
+      "ja": "プロバイダーごとに共通項目を上書き・非表示にし、切り替え時に合成"
+    },
+    {
+      "type": "improve",
+      "zh": "切换或保存时自动归并 Codex 配置文件中的外部修改",
+      "zh-TW": "切換或儲存時自動合併 Codex 設定檔中的外部修改",
+      "en": "External Codex config edits are reconciled when you switch providers or save settings",
+      "ja": "プロバイダー切り替えや保存時に Codex 設定ファイルの外部変更を反映"
+    }
+  ]
+}

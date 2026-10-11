@@ -62,18 +62,7 @@ pub(crate) struct Entry {
 
 /// 比较用的规范文本：不看两侧的空白和注释。
 pub(crate) fn render(item: &Item) -> String {
-    let mut doc = DocumentMut::new();
-    let mut item = item.clone();
-    match &mut item {
-        Item::Value(value) => value.decor_mut().clear(),
-        Item::Table(table) => {
-            table.decor_mut().clear();
-            table.set_implicit(false);
-        }
-        _ => {}
-    }
-    doc.insert("v", item);
-    doc.to_string().trim().to_string()
+    crate::live::patch::toml::item_text(item)
 }
 
 pub(crate) fn item_at<'a>(doc: &'a DocumentMut, path: &[String]) -> Option<&'a Item> {

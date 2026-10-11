@@ -154,6 +154,18 @@ pub fn value_text(value: &Value) -> String {
     value.to_string()
 }
 
+/// 一个 TOML 项的语义文本，不包含注释、空白或键顺序差异。
+pub fn item_text(item: &Item) -> String {
+    let mut doc = DocumentMut::new();
+    doc.insert("value", item.clone());
+    let text = doc.to_string();
+    toml::from_str::<toml::Value>(&text)
+        .ok()
+        .and_then(|parsed| parsed.get("value").cloned())
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| text.trim().to_string())
+}
+
 /// 值相同就算相同，不看两侧的空白和行尾注释。
 pub fn same_value(left: &Value, right: &Value) -> bool {
     value_text(left) == value_text(right)

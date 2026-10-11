@@ -327,8 +327,18 @@ pub async fn set_common_config_snippet(
 
     let value = if is_cleared { None } else { Some(snippet) };
 
-    // Claude Code、Codex、Gemini CLI 的片段已冻结：只存库，留给旧版、Lite、CLI 读；新版
-    // 既不按它迁移存量行，也不再用它重写 live（共享设置直接在供应商编辑器底部改）。
+    if app_type == "codex" {
+        crate::services::provider::ProviderService::set_codex_common_config(state.inner(), value)
+            .map_err(|e| e.to_string())?;
+        state
+            .db
+            .set_config_snippet_cleared("codex", is_cleared)
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    // Claude Code、Gemini CLI 的片段只存库，留给旧版、Lite、CLI 读；新版共享设置由供应商
+    // 编辑器直接保存到各自的配置层。
     state
         .db
         .set_config_snippet(&app_type, value)

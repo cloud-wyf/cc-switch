@@ -520,6 +520,12 @@ pub struct CodexConfigPatch {
     pub nested: Vec<(Vec<String>, TomlValue)>,
     /// 独有字段的目标值（含 `web_search`）。
     pub exclusive: Vec<(String, TomlValue)>,
+    /// 当前供应商的公共配置与私有覆盖合成结果。
+    pub managed: Vec<(Vec<String>, Item)>,
+    /// 当前供应商显式屏蔽的公共配置字段。
+    pub managed_deletes: Vec<Vec<String>>,
+    /// 上一家供应商带入、目标供应商不再继承的私有配置字段。
+    pub outgoing_managed: Vec<(Vec<String>, Item)>,
     /// 上一家带进来的独有字段：live 里的值还相同才删。
     pub outgoing: Vec<(String, TomlValue)>,
     pub route: RouteWrite,
@@ -591,6 +597,15 @@ pub fn row_catalog_pointer(top: &[(String, TomlValue)]) -> Option<&(String, Toml
 
 impl CodexConfigPatch {
     pub fn apply_to(&self, path: &Path, doc: &mut DocumentMut) -> Result<(), LiveWriteError> {
+        for (segments, item) in &self.outgoing_managed {
+            let matches = item_at(doc.as_table(), segments).is_some_and(|current| {
+                crate::live::patch::toml::item_text(current)
+                    == crate::live::patch::toml::item_text(item)
+            });
+            if matches {
+                remove_item_at(doc.as_table_mut(), segments);
+            }
+        }
         let target_top: Vec<&str> = self
             .top
             .iter()
@@ -682,6 +697,12 @@ impl CodexConfigPatch {
                     .ok_or_else(|| shape_error(path, &segments[..=depth]))?;
             }
             put_value(current, last, value);
+        }
+        for (segments, item) in &self.managed {
+            insert_item_at(root, path, segments, item.clone())?;
+        }
+        for segments in &self.managed_deletes {
+            remove_item_at(root, segments);
         }
         let row_pointer = self.top.iter().any(|(key, _)| key == MODEL_CATALOG_JSON);
         if self.catalog && !row_pointer {
@@ -841,6 +862,57 @@ impl CodexConfigPatch {
             .iter()
             .any(|known| known.id == id && base_url.as_deref() == Some(known.base_url.as_str()))
     }
+}
+
+fn item_at<'a>(root: &'a dyn TableLike, segments: &[String]) -> Option<&'a Item> {
+    let (last, parents) = segments.split_last()?;
+    let mut current = root;
+    for segment in parents {
+        current = current.get(segment)?.as_table_like()?;
+    }
+    current.get(last)
+}
+
+fn remove_item_at(root: &mut dyn TableLike, segments: &[String]) {
+    let Some((last, parents)) = segments.split_last() else {
+        return;
+    };
+    let mut current = root;
+    for segment in parents {
+        let Some(next) = current.get_mut(segment).and_then(Item::as_table_like_mut) else {
+            return;
+        };
+        current = next;
+    }
+    current.remove(last);
+}
+
+fn insert_item_at(
+    root: &mut dyn TableLike,
+    path: &Path,
+    segments: &[String],
+    item: Item,
+) -> Result<(), LiveWriteError> {
+    let Some((last, parents)) = segments.split_last() else {
+        return Ok(());
+    };
+    let mut current = root;
+    for (depth, segment) in parents.iter().enumerate() {
+        if !current.contains_key(segment) {
+            current.insert(segment, Item::Table(Table::new()));
+        }
+        current = current
+            .get_mut(segment)
+            .and_then(Item::as_table_like_mut)
+            .ok_or_else(|| shape_error(path, &segments[..=depth]))?;
+    }
+    match current.get_mut(last) {
+        Some(slot) => *slot = item,
+        None => {
+            current.insert(last, item);
+        }
+    }
+    Ok(())
 }
 
 fn holds_placeholder(item: &Item) -> bool {
@@ -1061,6 +1133,9 @@ mod tests {
             top: Vec::new(),
             nested: Vec::new(),
             exclusive: Vec::new(),
+            managed: Vec::new(),
+            managed_deletes: Vec::new(),
+            outgoing_managed: Vec::new(),
             outgoing: Vec::new(),
             route,
             catalog: false,
@@ -1071,6 +1146,33 @@ mod tests {
             .apply_to(Path::new("config.toml"), &mut doc)
             .expect("apply");
         doc
+    }
+
+    #[test]
+    fn managed_config_is_overlaid_and_private_deletes_are_applied() {
+        let patch = CodexConfigPatch {
+            top: Vec::new(),
+            nested: Vec::new(),
+            exclusive: Vec::new(),
+            managed: vec![(
+                vec!["approval_policy".to_string()],
+                Item::Value(toml_edit::Value::from("private")),
+            )],
+            managed_deletes: vec![vec!["foo".to_string()]],
+            outgoing_managed: Vec::new(),
+            outgoing: Vec::new(),
+            route: RouteWrite::Default,
+            catalog: false,
+            retired: Vec::new(),
+        };
+        let mut doc: DocumentMut = "approval_policy = \"public\"\nfoo = true\n"
+            .parse()
+            .unwrap();
+        patch
+            .apply_to(Path::new("config.toml"), &mut doc)
+            .expect("apply overlay");
+        assert_eq!(doc["approval_policy"].as_str(), Some("private"));
+        assert!(doc.get("foo").is_none());
     }
 
     const PROXY: &str = "http://127.0.0.1:15721/v1";

@@ -640,6 +640,39 @@ pub(crate) fn plan(
         .map(|catalog| sorted_json_bytes(&catalog))
         .transpose()?;
 
+    let common_config = db.get_config_snippet("codex")?.unwrap_or_default();
+    let managed = match provider {
+        Some(provider) => {
+            super::codex_layers::effective_entries(&common_config, &provider.settings_config)?
+                .into_iter()
+                .map(|entry| (entry.path, entry.item))
+                .collect()
+        }
+        None => Vec::new(),
+    };
+    let managed_deletes = provider
+        .map(|provider| super::codex_layers::delete_paths(&provider.settings_config))
+        .unwrap_or_default();
+    let outgoing_managed = match (owner.provider(), provider) {
+        (Some(previous), Some(target)) if previous.id != target.id => {
+            let previous_entries = super::codex_layers::private_entries(&previous.settings_config)?;
+            let target_entries =
+                super::codex_layers::effective_entries(&common_config, &target.settings_config)?;
+            previous_entries
+                .into_iter()
+                .filter(|entry| {
+                    !target_entries.iter().any(|target| {
+                        target.path == entry.path
+                            && super::editor_toml::render(&target.item)
+                                == super::editor_toml::render(&entry.item)
+                    })
+                })
+                .map(|entry| (entry.path, entry.item))
+                .collect()
+        }
+        _ => Vec::new(),
+    };
+
     let leaving_official = owner
         .provider()
         .filter(|provider| is_official(provider) && managed_account(provider).is_none())
@@ -649,6 +682,9 @@ pub(crate) fn plan(
         top,
         nested,
         exclusive,
+        managed,
+        managed_deletes,
+        outgoing_managed,
         outgoing: outgoing_exclusive(owner),
         route,
         catalog: catalog.is_some(),
@@ -836,6 +872,16 @@ fn contract_of(
         .iter()
         .map(|(path, value)| serde_json::json!([path.join("."), value_text(value)]))
         .collect();
+    let managed: Vec<Value> = config
+        .managed
+        .iter()
+        .map(|(path, item)| serde_json::json!([path.join("."), super::editor_toml::render(item)]))
+        .collect();
+    let managed_deletes: Vec<String> = config
+        .managed_deletes
+        .iter()
+        .map(|path| path.join("."))
+        .collect();
     let parts = serde_json::json!({
         "app": "codex",
         "version": CONTRACT_VERSION,
@@ -843,6 +889,8 @@ fn contract_of(
         "top": pairs(&config.top),
         "nested": nested,
         "exclusive": pairs(&config.exclusive),
+        "config": managed,
+        "configDeletes": managed_deletes,
         "selector": selector,
         "table": table,
         "catalog": digest(catalog),

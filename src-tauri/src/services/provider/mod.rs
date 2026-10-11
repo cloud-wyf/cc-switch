@@ -7,6 +7,7 @@ mod claude_editor;
 pub(crate) mod codex_client_catalog;
 pub(crate) mod codex_direct;
 mod codex_editor;
+mod codex_layers;
 mod codex_login;
 pub(crate) mod codex_official_models;
 mod editor_toml;
@@ -5667,9 +5668,12 @@ impl ProviderService {
     ) -> Result<bool, AppError> {
         let app_type = AppType::Codex;
         let _switch_guard = crate::mode::controller::lock_settled_blocking(state, &app_type)?;
+        codex_editor::reconcile_current_disk(state)?;
         let existing = state
             .db
             .get_provider_by_id(&provider.id, app_type.as_str())?;
+        let current_provider = crate::mode::current::provider_in_use(&state.db, &app_type)?;
+        let old_common = state.db.get_config_snippet("codex")?.unwrap_or_default();
         let mut provider = provider;
         let plan = codex_editor::plan_save(
             existing.as_ref().map(|row| &row.settings_config),
@@ -5680,8 +5684,11 @@ impl ProviderService {
                 (None, Some(draft)) => codex_editor::Origin::row(draft)?,
                 (None, None) => codex_editor::Origin::Live(codex_editor::live_exclusive(state)?),
             },
-            codex_direct::is_official(&provider),
-            provider.uses_proxy_injected_oauth(),
+            codex_editor::SaveContext {
+                common_config: &old_common,
+                official: codex_direct::is_official(&provider),
+                proxy_injected_oauth: provider.uses_proxy_injected_oauth(),
+            },
             editor.on_conflict,
         )?;
         provider.settings_config = plan.row_settings.clone();
@@ -5693,8 +5700,34 @@ impl ProviderService {
 
         let mode = crate::mode::current::mode_state(&app_type);
         let key_fields = kind.writes_key_fields(state, &app_type, &mode, &provider.id)?;
+        let provider_is_proxy_route =
+            mode.is_proxy() && mode.proxy_route.as_deref() == Some(provider.id.as_str());
+        let common_changed = plan.common_config != old_common;
+        let common_edits = codex_editor::effective_config_edits(
+            &old_common,
+            &plan.common_config,
+            current_provider
+                .as_ref()
+                .map(|current| &current.settings_config),
+            editor.on_conflict,
+        )?;
+        if common_changed {
+            state.db.set_config_snippet(
+                "codex",
+                (!plan.common_config.trim().is_empty()).then_some(plan.common_config.clone()),
+            )?;
+        }
 
-        state.db.save_provider(app_type.as_str(), &provider)?;
+        if let Err(error) = state.db.save_provider(app_type.as_str(), &provider) {
+            if common_changed {
+                let _ = state.db.set_config_snippet(
+                    "codex",
+                    (!old_common.trim().is_empty()).then_some(old_common.clone()),
+                );
+            }
+            return Err(error);
+        }
+
         let written = if key_fields {
             codex_editor::write_live(
                 state.db.as_ref(),
@@ -5706,16 +5739,62 @@ impl ProviderService {
                     set_pointer: kind == EditorSaveKind::Add,
                 },
             )
+        } else if !mode.is_proxy() {
+            match current_provider.as_ref() {
+                Some(current) => codex_editor::write_live(
+                    state.db.as_ref(),
+                    &state.codex_oauth_manager,
+                    &common_edits,
+                    codex_editor::KeyFields::Direct {
+                        prev: Some(current),
+                        target: current,
+                        set_pointer: false,
+                    },
+                ),
+                None => codex_editor::write_live(
+                    state.db.as_ref(),
+                    &state.codex_oauth_manager,
+                    &common_edits,
+                    codex_editor::KeyFields::None,
+                ),
+            }
         } else {
+            let edits = if provider_is_proxy_route {
+                &plan.edits
+            } else {
+                &common_edits
+            };
             codex_editor::write_live(
                 state.db.as_ref(),
                 &state.codex_oauth_manager,
-                &plan.edits,
+                edits,
                 codex_editor::KeyFields::None,
             )
-            .and_then(|()| Self::resync_proxy_for_saved_row(state, &app_type, &provider))
+            .and_then(|()| {
+                if common_changed || provider_is_proxy_route {
+                    futures::executor::block_on(crate::mode::controller::resync_route_locked(
+                        state, &app_type,
+                    ))
+                    .map_err(AppError::Message)
+                } else {
+                    Self::resync_proxy_for_saved_row(state, &app_type, &provider)
+                }
+            })
         };
-        Self::keep_row_if_written(state, &app_type, &provider.id, existing.as_ref(), written)
+        let result =
+            Self::keep_row_if_written(state, &app_type, &provider.id, existing.as_ref(), written);
+        if result.is_err()
+            && common_changed
+            && !crate::mode::operation::has_pending(app_type.as_str())
+        {
+            if let Err(error) = state.db.set_config_snippet(
+                "codex",
+                (!old_common.trim().is_empty()).then_some(old_common),
+            ) {
+                log::error!("恢复 Codex 公共配置失败: {error}");
+            }
+        }
+        result
     }
 
     /// 从编辑器新增或保存 Gemini CLI、Grok Build 供应商：关键字段存回行，其余改动作为全局
@@ -6428,6 +6507,9 @@ impl ProviderService {
         // 没做完的写入之后再读模式和指针：刚进入代理的应用不会被一次直连写入覆盖，上次
         // 失败后重试也按补完后的指针删上一家的独有字段。
         let _switch_guard = crate::mode::controller::lock_settled_blocking(state, &app_type)?;
+        if app_type == AppType::Codex {
+            codex_editor::reconcile_current_disk(state)?;
+        }
 
         if crate::mode::current::is_proxy(&app_type) {
             // 代理模式：只换代理路由，直连指针不变。契约没变时客户端文件不读也不写；
@@ -6696,6 +6778,78 @@ impl ProviderService {
     /// Sync current provider to live configuration (re-export)
     pub fn sync_current_to_live(state: &AppState) -> Result<(), AppError> {
         sync_current_to_live(state)
+    }
+
+    /// 更新 Codex 唯一公共配置并同步到当前直连配置或代理契约。
+    pub fn set_codex_common_config(
+        state: &AppState,
+        snippet: Option<String>,
+    ) -> Result<(), AppError> {
+        let app_type = AppType::Codex;
+        let _guard = crate::mode::controller::lock_settled_blocking(state, &app_type)?;
+        codex_editor::reconcile_current_disk(state)?;
+
+        let old = state.db.get_config_snippet("codex")?;
+        let old_text = old.as_deref().unwrap_or("");
+        let next = snippet.filter(|value| !value.trim().is_empty());
+        let next_text = next.as_deref().unwrap_or("");
+        if old_text == next_text {
+            return Ok(());
+        }
+        let current_provider = crate::mode::current::provider_in_use(&state.db, &app_type)?;
+        let edits = codex_editor::effective_config_edits(
+            old_text,
+            next_text,
+            current_provider
+                .as_ref()
+                .map(|current| &current.settings_config),
+            claude_editor::ConflictPolicy::Refuse,
+        )?;
+        state.db.set_config_snippet("codex", next.clone())?;
+
+        let mode = crate::mode::current::mode_state(&app_type);
+        let written = if mode.is_proxy() {
+            codex_editor::write_live(
+                state.db.as_ref(),
+                &state.codex_oauth_manager,
+                &edits,
+                codex_editor::KeyFields::None,
+            )
+            .and_then(|()| {
+                futures::executor::block_on(crate::mode::controller::resync_route_locked(
+                    state, &app_type,
+                ))
+                .map_err(AppError::Message)
+            })
+        } else {
+            match current_provider.as_ref() {
+                Some(current) => codex_editor::write_live(
+                    state.db.as_ref(),
+                    &state.codex_oauth_manager,
+                    &edits,
+                    codex_editor::KeyFields::Direct {
+                        prev: Some(current),
+                        target: current,
+                        set_pointer: false,
+                    },
+                ),
+                None => codex_editor::write_live(
+                    state.db.as_ref(),
+                    &state.codex_oauth_manager,
+                    &edits,
+                    codex_editor::KeyFields::None,
+                ),
+            }
+        };
+        if let Err(error) = written {
+            if !crate::mode::operation::has_pending(app_type.as_str()) {
+                if let Err(rollback) = state.db.set_config_snippet("codex", old) {
+                    log::error!("恢复 Codex 公共配置失败: {rollback}");
+                }
+            }
+            return Err(error);
+        }
+        Ok(())
     }
 
     pub fn sync_current_provider_for_app(
