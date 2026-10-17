@@ -110,11 +110,13 @@ describe("SwitchModePanel script guard", () => {
       },
       active: "direct" as const,
       providers: [scriptedProvider],
+      directId: scriptedProvider.id,
       eligibleIds: ["scripted"],
       defaultPick: "scripted",
       stackMembers: [],
       onClose: vi.fn(),
       onEnter: vi.fn().mockResolvedValue(undefined),
+      onExit: vi.fn().mockResolvedValue(undefined),
       onSwitchDirect: vi.fn(),
     };
     const view = render(<ModeDialog {...props} />);
@@ -152,8 +154,16 @@ describe("SwitchModePanel script guard", () => {
     );
 
     const dialog = await screen.findByRole("dialog");
-    expect(dialog).toHaveTextContent("proxy.takeover.scriptConfirmTitle");
+    expect(dialog).toHaveTextContent("mode.dialog.exitTitle");
     expect(takeoverCalls).toEqual([]);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "mode.dialog.confirmDirect" }),
+    );
+
+    expect(await screen.findByRole("dialog")).toHaveTextContent(
+      "proxy.takeover.scriptConfirmTitle",
+    );
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -174,6 +184,9 @@ describe("SwitchModePanel script guard", () => {
     fireEvent.click(screen.getByRole("button", { name: /mode.names.direct/ }));
     fireEvent.click(
       await screen.findByRole("button", { name: /mode.activate.direct/ }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "mode.dialog.confirmDirect" }),
     );
     await waitFor(() =>
       expect(takeoverCalls).toEqual([

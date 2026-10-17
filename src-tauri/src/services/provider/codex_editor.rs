@@ -29,7 +29,7 @@ use crate::live::project::codex::{
 };
 use crate::mode::operation::{AppWrite, FileChange};
 use crate::mode::state::{op, PendingTarget};
-use crate::provider::Provider;
+use crate::provider::{Provider, ProviderMeta};
 use crate::proxy::providers::codex_oauth_auth::CodexOAuthManager;
 use crate::store::AppState;
 
@@ -128,6 +128,7 @@ pub fn view(
     state: &AppState,
     settings_config: &Value,
     category: Option<&str>,
+    meta: Option<&ProviderMeta>,
 ) -> Result<EditorView, AppError> {
     let path = get_codex_config_path();
     let pre = read_current(&path)?;
@@ -136,6 +137,7 @@ pub fn view(
     let mut provider =
         Provider::with_id(String::new(), String::new(), settings_config.clone(), None);
     provider.category = category.map(str::to_string);
+    provider.meta = meta.cloned();
     let live_owner = LiveOwner::read(state)?;
     let planned = plan_for_view(&state.db, &live_owner.owner(), &provider)?;
     planned.config().apply_to(&path, &mut doc)?;
@@ -681,5 +683,42 @@ mod tests {
             "global settings go to live, not the row: {text}"
         );
         assert!(plan.common_config.contains("approval_policy = \"never\""));
+    }
+
+    /// #8039：顶层 base_url 的旧形态行原样保存，地址不能丢，归一成 custom 表。
+    #[test]
+    fn saving_a_top_level_base_url_row_keeps_the_address() {
+        let stored = json!({
+            "auth": { "OPENAI_API_KEY": "sk-relay" },
+            "config": "base_url = \"https://relay.example.com/v1\"\nmodel = \"gpt-a\"\nwire_api = \"responses\"\n"
+        });
+        let plan = plan_save(
+            Some(&stored),
+            &stored,
+            &stored,
+            &Origin::row(&stored).unwrap(),
+            SaveContext {
+                common_config: "",
+                official: false,
+                proxy_injected_oauth: false,
+            },
+            ConflictPolicy::Refuse,
+        )
+        .unwrap();
+        let text = plan.row_settings["config"].as_str().unwrap();
+        let parsed: toml::Table = toml::from_str(text).unwrap();
+        assert_eq!(parsed["model_provider"].as_str(), Some("custom"));
+        assert_eq!(
+            parsed["model_providers"]["custom"]["base_url"].as_str(),
+            Some("https://relay.example.com/v1")
+        );
+        assert!(parsed.get("base_url").is_none(), "{text}");
+        assert!(parsed.get("wire_api").is_none(), "{text}");
+        assert_eq!(parsed["model"].as_str(), Some("gpt-a"));
+        assert_eq!(
+            crate::codex_config::extract_codex_base_url(text).as_deref(),
+            Some("https://relay.example.com/v1"),
+            "the proxy still finds the address"
+        );
     }
 }

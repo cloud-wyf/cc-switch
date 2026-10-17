@@ -17,6 +17,7 @@ import {
   type PresetStepState,
 } from "@/components/providers/forms/presetStep";
 import {
+  PRESET_GROUP_ORDER,
   domainBody,
   groupPresetRows,
   presetGroup,
@@ -91,6 +92,10 @@ const entries: PresetEntry[] = [
     preset: preset("GitHub Copilot", "third_party", "https://github.com", {
       providerType: "github_copilot",
     }),
+  },
+  {
+    id: "ollama-local",
+    preset: preset("Ollama", "local", "https://ollama.com"),
   },
 ];
 
@@ -175,6 +180,7 @@ describe("preset helpers", () => {
       "vendor",
       "cloud",
       "login",
+      "local",
     ]);
   });
 
@@ -183,7 +189,15 @@ describe("preset helpers", () => {
       getVisiblePresetEntries(entries, { query: "", t }).map(
         (entry) => entry.id,
       ),
-    ).toEqual(["alpha", "bedrock", "gamma", "copilot", "huoshan", "zhipu"]);
+    ).toEqual([
+      "alpha",
+      "bedrock",
+      "gamma",
+      "copilot",
+      "huoshan",
+      "ollama-local",
+      "zhipu",
+    ]);
   });
 
   it("searches display names, domains and aliases but not TLDs", () => {
@@ -276,6 +290,7 @@ describe("preset families", () => {
       ["vendor", ["huoshan", "family:kimi", "zhipu"]],
       ["thirdparty", ["gamma"]],
       ["cloud", ["bedrock"]],
+      ["local", ["ollama-local"]],
     ]);
     expect(sections("gamma")).toEqual([["thirdparty", ["gamma"]]]);
   });
@@ -304,6 +319,21 @@ describe("preset families", () => {
     for (const locale of [zh, zhTW, en, ja]) {
       for (const key of keys) {
         expect(typeof lookup(locale, key), key).toBe("string");
+      }
+    }
+  });
+
+  it("has a label and a hint for every category in all four locales", () => {
+    for (const [name, locale] of Object.entries({ zh, zhTW, en, ja })) {
+      const { group, groupHint } = locale.providerPreset as unknown as Record<
+        "group" | "groupHint",
+        Record<string, unknown>
+      >;
+      for (const key of PRESET_GROUP_ORDER) {
+        expect(typeof group[key], `${name} group.${key}`).toBe("string");
+        expect(typeof groupHint[key], `${name} groupHint.${key}`).toBe(
+          "string",
+        );
       }
     }
   });
@@ -365,7 +395,7 @@ describe("ProviderPresetSelector", () => {
     render(<TwoSteps onPresetChange={onPresetChange} />);
 
     const host = await screen.findByTestId("host");
-    // 自定义配置固定第一行；其余按分类分段（账号登录 → 模型厂商 → 第三方平台 → 云服务商），段内按名称
+    // 自定义配置固定第一行；其余按分类分段（账号登录 → 模型厂商 → 第三方平台 → 云服务商 → 本地），段内按名称
     const rows = within(host)
       .getAllByRole("button")
       .filter((button) => !button.hasAttribute("aria-pressed"));
@@ -379,6 +409,7 @@ describe("ProviderPresetSelector", () => {
       "providerPreset.group.vendor",
       "providerPreset.group.thirdparty",
       "providerPreset.group.cloud",
+      "providerPreset.group.local",
     ]);
     const login = within(host).getByRole("region", {
       name: "providerPreset.group.login",

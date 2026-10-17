@@ -44,7 +44,6 @@ async fn script_forwarding_updates_host_and_content_length_on_the_wire() {
     .unwrap();
     let transport = UpstreamTransport {
         preserve_exact_header_case: true,
-        proxy_url: None,
         extensions: http::Extensions::new(),
         request_is_streaming: false,
         non_streaming_timeout: Duration::from_secs(3),

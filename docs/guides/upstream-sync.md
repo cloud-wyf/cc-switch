@@ -241,3 +241,12 @@ Windows 符号链接测试需要相应权限。若在创建测试链接时返回
 - 首次 Windows x64 后端验证：单任务编译完成；库测试 3408 项通过、10 项原有忽略，集成测试 181 项通过，共 3589 项通过。仅 3 项既有符号链接测试因 Windows 错误 1314 无法执行功能断言：`codex_config::tests::resolve_catalog_rejects_symlink_escaping_config_dir`、`services::session_usage_grokbuild::tests::symlink_cycle_does_not_cause_stack_overflow`、`skill_sync::sync_to_app_removes_disabled_and_orphaned_ssot_symlinks`。首次验证时这三个文件与同步前一致，未修改系统权限或测试断言。
 - 用户随后要求停用这三项测试。按 Windows 条件添加带原因的 `ignore`，保留完整测试代码和断言；其他平台继续默认执行。Windows 具备符号链接权限后，可按测试名称配合 `-- --ignored --exact` 手动运行。修改后 Rust 格式检查通过，符号链接定向验证 5 项通过、这 3 项忽略、无失败。
 - 保留待提交的合并状态：`HEAD` 仍为同步前自用提交，`MERGE_HEAD` 为本次固定上游提交。未创建或切换分支，未提交、推送、创建 Tag、发布或安装；测试使用隔离目录，不使用日常配置数据库。
+
+### 2026-10-17：同步 v4.0.14 稳定版
+
+- 同步前自用提交：`fbc256390ab67a55b811d92aa8e10e11db0db580`；上游 Tag：`v4.0.14`，固定提交：`5de6feb4e5adda61f4ad824ce0df2c449245f447`；共同基线：`a29a4f3868e9c6ffc2212957cfa66a718642e344`。纳入基线之后的 277 个上游提交。
+- 应用版本统一为 `4.0.14`，版本校验通过；保留私有更新仓库 `cloud-wyf/cc-switch`、签名公钥、应用标识和 Windows x64 发布约定。上游 `farion1231/cc-switch` 仅作为源码来源。
+- 纳入 Codex/Gemini 工具调用与代理重试修复、Skills 大仓库下载限制调整、侧栏用量显示和请求日志列自定义、币种显示、终端目录记忆、OpenCode 与用量统计修复及新增模型定价等上游改进。保留自用共享路由服务生命周期、数据库 v19–v22 迁移历史、自用预设名单和详细请求日志行为。
+- 未引入上游赞助推广、促销内容、第三方项目发布流程及不属于自用名单的供应商预设，也没有新增预设卡或更改自用供应商名单。保留的 Claude 预设只吸收 1M 上下文能力字段调整；套餐用量检测改进到现有供应商及应用。
+- TypeScript、前端 Vitest（230 个文件、2240 项）和 renderer 构建此前已通过。Rust `cargo fmt --check`、Windows x64 Clippy（`-D warnings`）通过；最终 Windows x64 后端全量测试通过：库测试 3775 项、集成测试 184 项，共 3959 项通过、13 项忽略（其中 1 项因 Windows 符号链接权限忽略）。Codex 显式远程压缩能力定向复跑通过。`git diff --check` 工作树检查通过；暂存检查只提示两份新增 golden 快照按测试要求保留的末尾空行，定向和全量测试均通过。
+- 合并冲突已解决，当前 `HEAD` 仍是同步前提交，`MERGE_HEAD` 指向上述上游提交；改动保持待提交。未创建分支、未提交或推送、未创建 Tag、未发布或安装；验证使用测试隔离目录，没有使用日常配置数据库。

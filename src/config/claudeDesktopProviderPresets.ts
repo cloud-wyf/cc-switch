@@ -59,6 +59,8 @@ export interface ClaudeDesktopProviderPreset extends PresetFamilyFields {
   modelRoutes?: ClaudeDesktopRoutePreset[];
   providerType?: "github_copilot" | "codex_oauth" | "xai_oauth";
   requiresOAuth?: boolean;
+  // 是否在 UI 中隐藏该预设（预设仍存在，仅不在列表中显示）
+  hidden?: boolean;
 
   endpointCandidates?: string[];
   theme?: PresetTheme;
@@ -66,11 +68,14 @@ export interface ClaudeDesktopProviderPreset extends PresetFamilyFields {
   iconColor?: string;
 }
 
+const isClaudeHaiku4 = (model: string) => /claude-haiku-4[-.]/i.test(model);
+
 const passthroughRoutes = (supports1m = false): ClaudeDesktopRoutePreset[] => [
   {
     routeId: CLAUDE_DESKTOP_ROLE_ROUTE_IDS.sonnet,
     upstreamModel: CLAUDE_DESKTOP_ROLE_ROUTE_IDS.sonnet,
-    supports1m,
+    supports1m:
+      supports1m && !isClaudeHaiku4(CLAUDE_DESKTOP_ROLE_ROUTE_IDS.haiku),
   },
   {
     routeId: CLAUDE_DESKTOP_ROLE_ROUTE_IDS.opus,
@@ -104,7 +109,7 @@ const brandedRoutes = (
       routeId,
       upstreamModel,
       labelOverride: upstreamModel,
-      supports1m,
+      supports1m: supports1m && !isClaudeHaiku4(upstreamModel),
     }))
     .filter((route) => {
       if (seenUpstream.has(route.upstreamModel)) {
@@ -196,7 +201,7 @@ export const claudeDesktopProviderPresets: ClaudeDesktopProviderPreset[] = [
     baseUrl: "https://open.bigmodel.cn/api/anthropic",
     mode: "proxy",
     apiFormat: "anthropic",
-    modelRoutes: brandedRoutes("glm-5.3", "glm-5.3", "glm-5.3"),
+    modelRoutes: brandedRoutes("glm-5.3", "glm-5.3", "glm-5.3", true),
     icon: "zhipu",
     iconColor: "#0F62FE",
   },

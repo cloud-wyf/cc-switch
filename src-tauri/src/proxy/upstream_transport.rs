@@ -66,7 +66,6 @@ impl UpstreamRequest {
 #[derive(Clone)]
 pub(crate) struct UpstreamTransport {
     pub preserve_exact_header_case: bool,
-    pub proxy_url: Option<String>,
     pub extensions: http::Extensions,
     pub request_is_streaming: bool,
     pub non_streaming_timeout: Duration,
@@ -85,12 +84,14 @@ impl UpstreamTransport {
     }
 
     pub async fn send(&self, request: UpstreamRequest) -> Result<ProxyResponse, ProxyError> {
-        let is_socks_proxy = self
-            .proxy_url
+        // Resolve the proxy per destination because a script may route next() to
+        // a different host, and loopback services must bypass the global proxy.
+        let proxy_url = super::http_client::proxy_url_for(&request.url);
+        let is_socks_proxy = proxy_url
             .as_deref()
             .is_some_and(|url| url.starts_with("socks5"));
         if is_socks_proxy || !self.preserve_exact_header_case {
-            let client = super::http_client::get();
+            let client = super::http_client::get_for_url(&request.url);
             let mut builder = client.request(request.method, &request.url);
             if self.request_is_streaming {
                 builder = builder.timeout(Duration::from_secs(24 * 60 * 60));
@@ -135,7 +136,7 @@ impl UpstreamTransport {
                 self.extensions.clone(),
                 request.body,
                 timeout,
-                self.proxy_url.as_deref(),
+                proxy_url.as_deref(),
             )
             .await
         }

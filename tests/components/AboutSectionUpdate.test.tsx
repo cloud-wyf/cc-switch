@@ -22,6 +22,7 @@ vi.mock("@/lib/api", () => ({
     probeToolInstallations: vi.fn().mockResolvedValue([]),
     checkUpdates: vi.fn().mockResolvedValue(undefined),
     installUpdateAndRestart: vi.fn().mockResolvedValue(false),
+    openPortableUpdateDownload: vi.fn().mockResolvedValue(undefined),
   },
 }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -29,6 +30,9 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 beforeEach(() => {
   updateState.hasUpdate = true;
   updateState.checkUpdate.mockReset().mockResolvedValue(false);
+  vi.mocked(settingsApi.openPortableUpdateDownload)
+    .mockReset()
+    .mockResolvedValue(undefined);
   vi.mocked(settingsApi.installUpdateAndRestart)
     .mockReset()
     .mockResolvedValue(false);
@@ -46,12 +50,15 @@ describe("AboutSection application updates", () => {
     expect(settingsApi.checkUpdates).not.toHaveBeenCalled();
   });
 
-  it("preserves the portable build's release-page download behavior", async () => {
+  it("opens the private portable artifact for the available version", async () => {
     render(<AboutSection isPortable />);
     fireEvent.click(screen.getByRole("button", { name: "settings.updateTo" }));
     await waitFor(() =>
-      expect(settingsApi.checkUpdates).toHaveBeenCalledTimes(1),
+      expect(settingsApi.openPortableUpdateDownload).toHaveBeenCalledWith(
+        "3.20.2-1",
+      ),
     );
+    expect(settingsApi.checkUpdates).not.toHaveBeenCalled();
     expect(settingsApi.installUpdateAndRestart).not.toHaveBeenCalled();
   });
 

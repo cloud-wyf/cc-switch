@@ -135,7 +135,7 @@ export const OPENCODE_PRESET_MODEL_VARIANTS: Record<
     {
       id: "gpt-5.6-sol",
       name: "GPT-5.6 Sol",
-      contextLimit: 400000,
+      contextLimit: 272000,
       outputLimit: 128000,
       modalities: { input: ["text", "image"], output: ["text"] },
       variants: {

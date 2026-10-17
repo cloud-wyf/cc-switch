@@ -34,7 +34,8 @@
 │   ├── 4.2 App Routing
 │   ├── 4.3 Failover
 │   ├── 4.4 Usage Statistics
-│   └── 4.5 Connectivity Check
+│   ├── 4.5 Connectivity Check
+│   └── 4.6 Aggregation Mode
 │
 └── 5. FAQ
     ├── 5.1 Configuration Files
@@ -51,16 +52,16 @@
 |------|-------------|
 | [1.1-introduction.md](./1-getting-started/1.1-introduction.md) | Introduction, core features, supported platforms |
 | [1.2-installation.md](./1-getting-started/1.2-installation.md) | Windows/macOS/Linux installation guide |
-| [1.3-interface.md](./1-getting-started/1.3-interface.md) | Interface layout, navigation bar, provider cards |
+| [1.3-interface.md](./1-getting-started/1.3-interface.md) | Sidebar layout, connection mode tabs, provider cards |
 | [1.4-quickstart.md](./1-getting-started/1.4-quickstart.md) | 5-minute quick start tutorial |
-| [1.5-settings.md](./1-getting-started/1.5-settings.md) | Language, theme, directories, cloud sync settings |
+| [1.5-settings.md](./1-getting-started/1.5-settings.md) | The six Settings groups: General, App config, Local routing, Network, Data, About |
 
 ### 2. Provider Management
 
 | File | Description |
 |------|-------------|
 | [2.1-add.md](./2-providers/2.1-add.md) | Using presets, custom configuration, universal providers |
-| [2.2-switch.md](./2-providers/2.2-switch.md) | Main UI switching, tray switching, activation methods |
+| [2.2-switch.md](./2-providers/2.2-switch.md) | Direct / Routing / Aggregation, tray switching, activation methods |
 | [2.3-edit.md](./2-providers/2.3-edit.md) | Edit configuration, modify API Key, global settings and edit conflicts |
 | [2.4-sort-duplicate.md](./2-providers/2.4-sort-duplicate.md) | Drag-to-reorder, duplicate provider, delete |
 | [2.5-usage-query.md](./2-providers/2.5-usage-query.md) | Usage query, remaining balance, multi-plan display |
@@ -71,7 +72,7 @@
 | File | Description |
 |------|-------------|
 | [3.1-mcp.md](./3-extensions/3.1-mcp.md) | MCP protocol, add servers, app binding |
-| [3.2-prompts.md](./3-extensions/3.2-prompts.md) | Create presets, activate/switch, smart backfill |
+| [3.2-prompts.md](./3-extensions/3.2-prompts.md) | Create prompts, enable/switch, target files |
 | [3.3-skills.md](./3-extensions/3.3-skills.md) | Discover skills, install/uninstall, repository management |
 | [3.4-sessions.md](./3-extensions/3.4-sessions.md) | Session Manager: browse, search, resume, delete sessions |
 | [3.5-workspace.md](./3-extensions/3.5-workspace.md) | Workspace files and daily memory (OpenClaw) |
@@ -85,6 +86,7 @@
 | [4.3-failover.md](./4-proxy/4.3-failover.md) | Failover queue, circuit breaker, health status |
 | [4.4-usage.md](./4-proxy/4.4-usage.md) | Usage statistics, trend charts, pricing configuration |
 | [4.5-model-test.md](./4-proxy/4.5-model-test.md) | Connectivity check, check parameters |
+| [4.6-aggregation.md](./4-proxy/4.6-aggregation.md) | Aggregation mode, default provider, `ccs-` prefix, Codex restart |
 
 ### 5. FAQ
 
