@@ -487,7 +487,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
       onClose={onClose}
       footer={footer}
     >
-      <div className="glass rounded-xl p-6 border border-white/10 flex flex-col gap-6">
+      <div className="glass rounded-xl p-6 border border-border flex flex-col gap-6">
         {/* 测速控制栏 */}
         <div className="flex items-center justify-between">
           <div className="text-sm text-fg-2">

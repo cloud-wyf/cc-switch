@@ -191,7 +191,7 @@ const JsonEditor: React.FC<JsonEditorProps> = ({
       ".cm-scroller": { overflow: "auto" },
       ".cm-content": {
         fontFamily:
-          "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+          "'JetBrains Mono', 'Source Han Sans CN', ui-monospace, SFMono-Regular, Consolas, monospace",
         fontSize: "14px",
       },
     });

@@ -1,0 +1,12 @@
+{
+  "version": "4.0.15-1",
+  "items": [
+    {
+      "type": "improve",
+      "zh": "统一 Claude 风格暖色主题，并优化中文与代码字体回退",
+      "zh-TW": "統一 Claude 風格暖色主題，並優化中文與程式碼字型後備",
+      "en": "Unified the warm, Claude-inspired theme and improved CJK and code-font fallbacks.",
+      "ja": "Claude に着想を得た暖色テーマに統一し、CJK とコード用フォントのフォールバックを改善"
+    }
+  ]
+}

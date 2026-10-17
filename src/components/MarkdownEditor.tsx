@@ -42,7 +42,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
       ".cm-scroller": {
         overflow: "auto",
         fontFamily:
-          "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+          "'JetBrains Mono', 'Source Han Sans CN', ui-monospace, SFMono-Regular, Consolas, monospace",
         fontSize: "14px",
       },
       "&light .cm-content, &dark .cm-content": {
@@ -96,15 +96,15 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
               backgroundColor: "transparent",
             },
             ".cm-content": {
-              color: "#374151", // text-fg-1
+              color: "var(--text-1)",
             },
             ".cm-gutters": {
-              backgroundColor: "#f9fafb", // bg-subtle
-              color: "#9ca3af", // text-fg-3
-              borderRight: "1px solid #e5e7eb", // border-border
+              backgroundColor: "var(--bg-sidebar)",
+              color: "var(--text-3)",
+              borderRight: "1px solid var(--border-strong)",
             },
             ".cm-activeLineGutter": {
-              backgroundColor: "#e5e7eb",
+              backgroundColor: "var(--bg-selected)",
             },
           },
           { dark: false },

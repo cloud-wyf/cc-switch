@@ -189,7 +189,7 @@ module.exports = {
         metric: ["24px", { lineHeight: "32px", fontWeight: "600" }],
       },
       fontFamily: {
-        // 使用与之前版本保持一致的系统字体栈
+        // 工具界面沿用系统无衬线；Source Han 仅作为中文 fallback。
         sans: [
           "-apple-system",
           "BlinkMacSystemFont",
@@ -198,6 +198,7 @@ module.exports = {
           '"Hiragino Sans GB"',
           '"Segoe UI Variable Text"',
           '"Segoe UI"',
+          '"Source Han Sans CN"',
           '"Microsoft YaHei UI"',
           '"Microsoft YaHei"',
           "Roboto",
@@ -207,6 +208,8 @@ module.exports = {
           "sans-serif",
         ],
         mono: [
+          '"JetBrains Mono"',
+          '"Source Han Sans CN"',
           "ui-monospace",
           "SFMono-Regular",
           '"SF Mono"',

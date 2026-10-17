@@ -28,6 +28,10 @@ export const PROJECT_ROOT = path.resolve(
   "..",
 );
 export const WORKFLOW_MARKER = "cc-switch-release: windows-x64-v1";
+export const WINDOWS_RELEASE_CARGO_ENV = Object.freeze({
+  CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "64",
+  CARGO_PROFILE_RELEASE_LTO: "false",
+});
 
 export function command(executable, args, options = {}) {
   const {
@@ -378,7 +382,10 @@ export function buildWindowsArtifacts(context) {
   const env = signingEnvironment();
   console.log(`开始构建 Windows x64：${info.tag}（${head.slice(0, 12)}）`);
   pnpm(["install", "--frozen-lockfile"], { cwd: root, env });
-  pnpm(["build"], { cwd: root, env });
+  pnpm(["build"], {
+    cwd: root,
+    env: { ...env, ...WINDOWS_RELEASE_CARGO_ENV },
+  });
   const { artifacts, signatures } = collectWindowsArtifacts(root, info);
   artifacts.push(portableArtifact(root, info));
   return { artifacts, signatures };

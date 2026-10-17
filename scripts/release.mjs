@@ -218,20 +218,25 @@ function printPreflight(context, mode) {
   if (checks.some((check) => !check.ready)) process.exitCode = 1;
 }
 
-async function main() {
-  const { values } = parseArgs({
+export function parseReleaseOptions(args = process.argv.slice(2)) {
+  return parseArgs({
+    args,
     options: {
-      mode: { type: "string", default: "auto" },
+      mode: { type: "string", default: "local" },
       tag: { type: "string" },
       "dry-run": { type: "boolean", default: false },
       rebuild: { type: "boolean", default: false },
       help: { type: "boolean", default: false },
     },
   });
+}
+
+async function main() {
+  const { values } = parseReleaseOptions();
   if (values.help) {
     console.log(
       "pnpm release [--tag v版本号] [--mode auto|github|local] [--dry-run] [--rebuild]\n" +
-        "默认先用 GitHub；仅在已确认的额度/账单阻塞时转本机。\n" +
+        "默认使用本机；需要云端时显式指定 --mode github 或 --mode auto（云端优先，最多等待 90 分钟）。\n" +
         "本机默认复用同源码的已验签制品；--rebuild 强制本机重新构建，仍不覆盖已发布版本。\n" +
         "运行前必须提交发布源码、推送对应 Tag，并将 Actions 超额预算设为 0。",
     );

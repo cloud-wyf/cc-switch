@@ -12,6 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import {
   executeRelease,
+  parseReleaseOptions,
   quotaBlockReason,
   waitForCloudRun,
 } from "../../scripts/release.mjs";
@@ -23,6 +24,7 @@ import {
   prepareWindowsArtifacts,
   publishWindowsRelease,
   verifyUpdaterSignature,
+  WINDOWS_RELEASE_CARGO_ENV,
 } from "../../scripts/windows-release.mjs";
 
 const billingMessage =
@@ -36,7 +38,23 @@ const quota = {
   url: "https://github.com/owner/app/actions/runs/1",
 };
 
-describe("GitHub-first release routing", () => {
+describe("release mode defaults", () => {
+  it("uses local builds unless a cloud mode is explicitly selected", () => {
+    expect(parseReleaseOptions([]).values.mode).toBe("local");
+    expect(parseReleaseOptions(["--mode", "auto"]).values.mode).toBe("auto");
+  });
+});
+
+describe("Windows release build profile", () => {
+  it("uses the measured faster Cargo settings for Windows publication", () => {
+    expect(WINDOWS_RELEASE_CARGO_ENV).toEqual({
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "64",
+      CARGO_PROFILE_RELEASE_LTO: "false",
+    });
+  });
+});
+
+describe("explicit GitHub-first release routing", () => {
   it("uses GitHub while it is available", async () => {
     const github = vi.fn().mockResolvedValue(published);
     const local = vi.fn();

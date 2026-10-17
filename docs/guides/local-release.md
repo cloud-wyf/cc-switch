@@ -29,7 +29,7 @@
 | 发布命令 | `pnpm release:local --tag <本次Tag>`                                               |
 | 本机记录 | Git 忽略的 `release/<Tag>/`，日志和校验记录可放其 `validation/` 子目录             |
 
-`pnpm release` 的现有 CLI 默认仍是 `auto`（云端优先），不是本规范的默认命令。仅当用户明确要求云端时，另行选择 `release:github` 或 `release --mode auto`。
+`pnpm release` 和 `pnpm release:local` 默认仅在本机发布。云端构建必须显式选择 `pnpm release:github` 或 `pnpm release --mode auto`；后者云端优先，可能等待运行器，最长 90 分钟。
 
 ## 1. 检查源码与远程
 
@@ -153,11 +153,13 @@ try {
 
 首次构建时，发布脚本会冻结锁文件安装依赖，执行完整 `pnpm build`，生成 MSI/NSIS 及签名，使用应用公钥验签，再生成带 `portable.ini` 的 ZIP。构建成功且源码仍匹配后，将五个制品复制到 `release/<Tag>/build-cache/`，最后原子写入 `build.json`；记录绑定仓库、提交 SHA、Tag、版本、目标架构、公钥和每个制品的大小/SHA-256。记录在后续 GitHub 请求之前保存，上传前查询标签断网也不会丢掉构建结果。
 
+Windows 发布构建保留 `opt-level = "s"`，但单独覆盖 Cargo 的 release 设置为 `codegen-units = 64`、`lto = false`。这样不改变其它平台或普通 Cargo release 的体积优化配置。2026-10-18 本机隔离冷构建的 Cargo 阶段为 4 分 32 秒，前端构建和 MSI/NSIS 封装另需少量时间；此前默认 ThinLTO 的 Rust 阶段历史记录为 16–17 分钟。对照包 MSI/NSIS 分别约大 8–10%（前端工作区也有变化，体积差仅作近似参考）。
+
 同一源码重试 `pnpm release:local --tag "$releaseTag"` 时，先核对该记录、全部制品哈希和安装包签名。匹配则直接复用独立副本，跳过依赖安装、前端/Rust 编译和打包；原来的 `target` 产物被其他构建覆盖不影响缓存。记录缺失、不匹配、文件损坏或验签失败时重新构建。旧版本只有安装包但没有构建记录时，不凭文件名猜测来源或自动复用。
 
 `latest.json` 不进入构建缓存，每次依据当前草稿说明和已验证签名重新生成。已有相同哈希的远程附件继续跳过上传，全部附件齐全后才公开 Release。源码干净、远程 Tag 一致、同版本云端任务已结束等检查在缓存命中时仍然执行。
 
-需要主动更换工具链/构建环境，或明确要求重新打包时，在干净的同版本源码上使用 `pnpm release:local --tag "$releaseTag" --rebuild`。它跳过本机制品复用，但仍不允许覆盖已发布版本。首次或强制重建的 Rust 发布编译仍可能需要约 20 分钟；本优化只消除成功构建后的重复工作。
+需要主动更换工具链/构建环境，或明确要求重新打包时，在干净的同版本源码上使用 `pnpm release:local --tag "$releaseTag" --rebuild`。它跳过本机制品复用，但仍不允许覆盖已发布版本。首次切换到 Windows 快速发布配置时 Cargo 会建立对应的构建缓存；后续新版本的编译耗时随硬件、依赖变更而异，同源码重试则复用已验签制品并跳过编译。
 
 构建期间不编辑源码、切换分支或并行启动第二个发布命令。保留日志，避免先手动 `pnpm build` 再运行 `release:local` 造成重复编译。私钥内容不出现在命令、日志和源码中；无需将已有密钥复制进仓库。
 
