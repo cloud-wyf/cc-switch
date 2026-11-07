@@ -1,5 +1,6 @@
+import { providerPresets } from "@/config/personalProviderPresets";
 import { describe, expect, it } from "vitest";
-import { providerPresets } from "@/config/claudeProviderPresets";
+
 import { isOAuthProviderType } from "@/config/constants";
 import fields from "./claudeKeyFields.json";
 

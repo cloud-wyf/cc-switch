@@ -1,0 +1,204 @@
+{
+  "provider": {
+    "scriptInactive": "腳本未生效",
+    "scriptInactiveHint": "該供應商啟用了代理腳本，但目前應用程式未開啟本地路由，請求不會經過腳本。",
+    "proxyScriptToggle": "代理腳本",
+    "proxyScriptToggleHint": "直接開啟或關閉該供應商的代理腳本，程式碼會保留。開啟目前供應商的腳本會自動打開本地路由。",
+    "proxyScriptEnabled": "代理腳本已啟用",
+    "proxyScriptDisabled": "代理腳本已關閉",
+    "proxyScriptEnabledDesktopUpgraded": "代理腳本已啟用，供應商已切換為本地路由"
+  },
+  "claudeDesktop": {
+    "modelModeProxy": "本地路由",
+    "modelMappingOffHint": "僅當供應商直接接受 Claude Desktop 可識別的三檔角色 ID（claude-sonnet-* / claude-opus-* / claude-haiku-*）時才適用直連；其他模型名（含 claude-3-5-sonnet-… 等舊式 ID）或需要代理腳本時請選擇「本地路由」。",
+    "modelMappingOnHint": "Claude Desktop 只接受 claude-sonnet-* / claude-opus-* / claude-haiku-* 三檔角色 ID。選擇「本地路由」後，Claude Desktop 連接 CC Switch 的路由服務，由 CC Switch 把這三檔對應到供應商的實際模型；代理腳本也只在此模式下執行。",
+    "statusMissingRouteMappings": "目前使用路由的供應商沒有有效的模型對應；請編輯該供應商，至少補上一個模型對應。",
+    "savedRestartRequired": "已儲存，重新啟動 Claude Desktop 後生效",
+    "restartRequired": "重新啟動 Claude Desktop 後生效"
+  },
+  "dbUpgrade": {
+    "description": "資料庫版本高於目前應用程式支援的版本，暫時無法開啟。",
+    "updateAvailable": "發現新版本 v{{version}}，可嘗試升級應用程式。",
+    "incompatibleTitle": "手動復原",
+    "incompatibleDescription": "請先備份目前的設定目錄，再使用支援該資料庫版本的本專案原始碼重新建置，或在結束應用程式後還原與目前版本相容的資料庫備份。"
+  },
+  "proxy": {
+    "takeover": {
+      "scriptConfirmTitle": "關閉本地路由",
+      "scriptConfirmMessage": "目前供應商「{{provider}}」啟用了代理腳本。關閉 {{app}} 的本地路由後，請求將直接送往上游，腳本不再執行。",
+      "scriptConfirmAction": "仍然關閉",
+      "desktop": {
+        "localRoute": "本地路由 · {{provider}}",
+        "direct": "直連 · {{provider}}",
+        "none": "未選擇供應商",
+        "hint": "Claude Desktop 沒有獨立開關：目前供應商的接入方式為本地路由時經路由服務轉發，在供應商編輯頁修改。"
+      }
+    },
+    "eventLog": {
+      "title": "詳細請求日誌",
+      "description": "設定請求與回應本文的儲存上限及自動清理期限。",
+      "bodyLimit": "本文儲存上限（KiB）",
+      "bodyLimitDescription": "每個方向分別限制為 0–{{max}} KiB，填 0 僅記錄中繼資料。",
+      "purgeDays": "保留天數",
+      "purgeDaysDescription": "保留 1–{{max}} 天，應用程式啟動及執行期間每天清理過期日誌。",
+      "effectiveHint": "本文上限對後續請求生效；保留天數在下次清理時生效，無需重新啟動代理。",
+      "invalidBodyLimit": "本文上限必須是 0–{{max}} 之間的整數（KiB）。",
+      "invalidPurgeDays": "保留天數必須是 1–{{max}} 之間的整數。",
+      "saved": "詳細請求日誌設定已儲存",
+      "saveFailed": "儲存詳細請求日誌設定失敗：{{error}}",
+      "loadFailed": "讀取詳細請求日誌設定失敗",
+      "retry": "重試",
+      "view": "檢視日誌",
+      "viewer": {
+        "title": "詳細請求日誌",
+        "summary": {
+          "total": "共 {{count}} 筆",
+          "failed": "失敗 {{count}} 筆",
+          "scriptUsed": "腳本執行 {{count}} 筆",
+          "avgDuration": "平均耗時 {{value}}"
+        },
+        "filters": {
+          "app": "應用程式",
+          "kind": "類型",
+          "allApps": "全部應用程式",
+          "allKinds": "全部類型",
+          "showAll": "顯示全部",
+          "reset": "重設篩選（{{count}}）",
+          "status": "狀態",
+          "script": "腳本",
+          "model": "模型",
+          "target": "供應商",
+          "search": "搜尋請求 ID、位址或錯誤"
+        },
+        "kinds": {
+          "chat": "對話",
+          "count_tokens": "計算 Token",
+          "models": "查詢模型",
+          "probe": "連通檢查",
+          "compact": "壓縮",
+          "search": "搜尋",
+          "image": "圖像",
+          "other": "其他"
+        },
+        "status": {
+          "all": "全部狀態",
+          "success": "成功",
+          "error": "失敗",
+          "4xx": "4xx",
+          "5xx": "5xx",
+          "none": "無回應"
+        },
+        "script": {
+          "all": "全部請求",
+          "used": "執行了腳本",
+          "unused": "未執行腳本"
+        },
+        "columns": {
+          "time": "時間",
+          "app": "應用程式",
+          "kind": "類型",
+          "provider": "供應商",
+          "model": "模型",
+          "status": "狀態",
+          "duration": "耗時",
+          "script": "腳本",
+          "result": "結果"
+        },
+        "scriptUsed": "腳本",
+        "routeChanged": "改路由",
+        "notForwarded": "未轉發",
+        "noData": "沒有符合條件的記錄",
+        "page": "第 {{page}} / {{pages}} 頁",
+        "prev": "上一頁",
+        "next": "下一頁",
+        "refresh": "重新整理",
+        "loadFailed": "讀取詳細請求日誌失敗",
+        "detail": {
+          "title": "請求詳情 #{{id}}",
+          "notFound": "記錄不存在或已被清理",
+          "overview": "概覽",
+          "requestId": "請求追蹤 ID",
+          "sessionId": "工作階段",
+          "attempt": "嘗試 / 上游呼叫序號",
+          "finishReason": "結束原因",
+          "error": "錯誤",
+          "streamError": "回應串流錯誤",
+          "timing": "耗時",
+          "timingValue": "總計 {{total}}，上游回應標頭 {{header}}，上游總計 {{upstream}}",
+          "totalBytes": "上游回應位元組",
+          "rewritten": "回應已改寫",
+          "originalRequest": "原始請求",
+          "scriptInput": "腳本輸入",
+          "forwardedRequest": "轉發請求",
+          "upstreamResponse": "上游回應",
+          "clientResponse": "用戶端回應",
+          "modifications": "欄位變更",
+          "headers": "標頭",
+          "body": "內文",
+          "delta": "只保存了相對原始請求的差異，下方為合併後的生效內文",
+          "sameAsScript": "與腳本輸入完全相同",
+          "forwarded": "與上游回應完全相同",
+          "omitted": "依設定未保存內文（{{size}}）",
+          "empty": "無內文",
+          "truncated": "已截斷，實際 {{size}}",
+          "incomplete": "未讀取完整",
+          "base64": "二進位內容（{{size}}），以 Base64 顯示",
+          "unavailable": "無法還原，顯示原始記錄",
+          "noChanges": "無變更",
+          "diffUnavailable": "內文不是 JSON 物件，無法比較欄位",
+          "droppedBeta": "移除的 beta",
+          "stripped": "移除欄位",
+          "injected": "新增欄位",
+          "changed": "修改欄位",
+          "copy": "複製",
+          "copied": "已複製"
+        }
+      }
+    }
+  },
+  "nav": {
+    "appsGroup": "用戶端",
+    "extensionsGroup": "擴充",
+    "accountsGroup": "帳號與監控",
+    "proxyLogs": "代理日誌"
+  },
+  "appsPage": {
+    "network": {
+      "label": "安裝與更新網路",
+      "app": "跟隨應用程式代理",
+      "direct": "直接連線",
+      "inherit": "繼承環境",
+      "hint": "跟隨應用程式代理：使用設定中的全域出站代理；未設定時繼承環境和 npm 設定。直接連線會略過代理。僅套用於安裝與更新子程序，本次工作階段有效。WSL 使用相同位址，需確保代理可從 WSL 存取。"
+    },
+    "progress": {
+      "preflight": "正在檢查安裝位置…",
+      "confirming": "等待確認安裝目標",
+      "queued": "正在排隊…",
+      "preparing": "正在準備更新命令…",
+      "running": "正在執行安裝命令…",
+      "verifying": "正在驗證本機版本…",
+      "completed": "已完成，本機版本驗證通過",
+      "warning": "已結束，請查看提示",
+      "failed": "執行失敗，請查看日誌",
+      "cancelled": "已取消",
+      "logs": "安裝日誌（最近 120 行）"
+    }
+  },
+  "providerCard": {
+    "section": {
+      "current": "目前",
+      "providers": "供應商（{{count}}）"
+    }
+  },
+  "proxyScript": {
+    "title": "供應商代理腳本",
+    "enabled": "啟用代理腳本",
+    "description": "填入單檔 TypeScript 中介軟體，啟用後選擇此供應商會自動開啟本機路由。關閉開關會保留程式碼並跳過執行，儲存後生效。",
+    "editor": "TypeScript 代理中介軟體",
+    "runtime": "需要本機 Node.js 24+，支援 node: 內建模組。腳本擁有目前使用者的本機權限；next(request) 沿用 CC Switch 的網路代理設定。",
+    "example": "插入透傳範例",
+    "checking": "正在檢查…",
+    "validate": "檢查語法",
+    "valid": "語法檢查通過（未執行腳本）"
+  }
+}

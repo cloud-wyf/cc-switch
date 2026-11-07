@@ -1,69 +1,16 @@
-import { describe, expect, it, vi } from "vitest";
-import { mcodeProviderPresets } from "./mcodeProviderPresets";
+import { describe, expect, it } from "vitest";
+import {
+  mcodeOnlyPiPresets,
+  mcodeProviderPresets,
+} from "./mcodeProviderPresets";
 import { piProviderPresets } from "./piProviderPresets";
 
 const mcodePreset = (name: string) =>
   mcodeProviderPresets.find((preset) => preset.name === name);
 const piPreset = (name: string) =>
-  piProviderPresets.find((preset) => preset.name === name)!;
-
-// 转换规则与生产名单分开测试：保留手动配置的 adaptive / dialect 能力覆盖。
-vi.mock("./piProviderPresets", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./piProviderPresets")>();
-  const model = (id: string, compat: Record<string, unknown>) => ({
-    id,
-    name: id,
-    input: ["text"] as ["text"],
-    reasoning: true,
-    contextWindow: 200000,
-    maxTokens: 8192,
-    compat,
-  });
-  return {
-    ...actual,
-    piProviderPresets: [
-      ...actual.piProviderPresets,
-      {
-        name: "Test adaptive",
-        providerKey: "test-adaptive",
-        websiteUrl: "https://adaptive.example",
-        settingsConfig: {
-          name: "Test adaptive",
-          baseUrl: "https://adaptive.example/v1",
-          api: "anthropic-messages",
-          apiKey: "",
-          models: [
-            {
-              ...model("claude-opus-5-5", { forceAdaptiveThinking: true }),
-              thinkingLevelMap: { xhigh: "xhigh", max: "max" },
-            },
-          ],
-        },
-      },
-      {
-        name: "Test dialect",
-        providerKey: "test-dialect",
-        websiteUrl: "https://dialect.example",
-        settingsConfig: {
-          name: "Test dialect",
-          baseUrl: "https://dialect.example/v1",
-          api: "openai-completions",
-          apiKey: "",
-          models: [
-            model("deepseek", {
-              thinkingFormat: "deepseek",
-              requiresReasoningContentOnAssistantMessages: true,
-            }),
-            model("qwen3.8-max", {
-              thinkingFormat: "qwen",
-              supportsDeveloperRole: false,
-            }),
-          ],
-        },
-      },
-    ],
-  };
-});
+  [...piProviderPresets, ...mcodeOnlyPiPresets].find(
+    (preset) => preset.name === name,
+  )!;
 
 describe("mcodeProviderPresets", () => {
   it("passes Pi's model compat through verbatim but never its thinkingLevelMap", () => {
@@ -80,8 +27,8 @@ describe("mcodeProviderPresets", () => {
   });
 
   it("gives adaptive-thinking Claude models effort options alongside their compat", () => {
-    const pi = piPreset("Test adaptive");
-    const mcode = mcodePreset("Test adaptive");
+    const pi = piPreset("PackyCode");
+    const mcode = mcodePreset("PackyCode");
     expect(mcode).toBeDefined();
     expect(Object.keys(mcode!.settingsConfig.models)).toEqual(
       pi.settingsConfig.models.map((model) => model.id),
@@ -94,9 +41,7 @@ describe("mcodeProviderPresets", () => {
   });
 
   it("keeps dialect presets, relying on compat instead of effort options", () => {
-    const deepseek = Object.values(
-      mcodePreset("Test dialect")!.settingsConfig.models,
-    );
+    const deepseek = Object.values(mcodePreset("PPIO")!.settingsConfig.models);
     expect(deepseek[0].compat).toMatchObject({
       thinkingFormat: "deepseek",
       requiresReasoningContentOnAssistantMessages: true,
@@ -104,7 +49,7 @@ describe("mcodeProviderPresets", () => {
     expect(deepseek[0]).not.toHaveProperty("thinking");
 
     const qwen =
-      mcodePreset("Test dialect")!.settingsConfig.models["qwen3.8-max"];
+      mcodePreset("千问AI平台")!.settingsConfig.models["qwen3.8-max"];
     expect(qwen.compat).toEqual({
       thinkingFormat: "qwen",
       supportsDeveloperRole: false,
@@ -118,6 +63,17 @@ describe("mcodeProviderPresets", () => {
     expect(
       piPreset("Kimi").settingsConfig.models.map((model) => model.id),
     ).toContain("kimi-k3");
+  });
+
+  it("inherits both Volcengine plans with their own endpoints", () => {
+    const baseUrl = (name: string) =>
+      mcodePreset(name)?.settingsConfig.options.baseURL;
+    expect(baseUrl("火山 Agent Plan")).toBe(
+      "https://ark.cn-beijing.volces.com/api/plan/v3",
+    );
+    expect(baseUrl("火山 Coding Plan")).toBe(
+      "https://ark.cn-beijing.volces.com/api/coding/v3",
+    );
   });
 
   it("excludes presets on APIs MCode does not support", () => {

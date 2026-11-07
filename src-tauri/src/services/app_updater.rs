@@ -222,13 +222,17 @@ async fn check_inner(app: &AppHandle) -> Result<Option<Update>, String> {
 
     // 私有仓库的清单和安装包都通过 Release Assets API 下载。
     headers.insert(ACCEPT, HeaderValue::from_static("application/octet-stream"));
-    let updater = app
+    let builder = app
         .updater_builder()
         .headers(headers)
         .endpoints(vec![asset_url(manifest)])
         .map_err(|error| format!("设置更新源失败: {error}"))?
         .version_comparator(|current, release| release.version.cmp_precedence(&current).is_gt())
-        .timeout(CHECK_TIMEOUT)
+        .timeout(CHECK_TIMEOUT);
+    // MSI 更新不得自动重启系统；私有更新源与认证保持不变。
+    #[cfg(target_os = "windows")]
+    let builder = builder.installer_arg("REBOOT=ReallySuppress");
+    let updater = builder
         .build()
         .map_err(|error| format!("初始化更新器失败: {error}"))?;
     let mut update = updater

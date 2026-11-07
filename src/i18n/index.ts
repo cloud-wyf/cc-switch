@@ -6,6 +6,7 @@ import ja from "./locales/ja.json";
 import tr from "./locales/tr.json";
 import zh from "./locales/zh.json";
 import zhTW from "./locales/zh-TW.json";
+import { withPersonalTranslations } from "./personal";
 
 type Language = "zh" | "zh-TW" | "en" | "ja" | "tr";
 
@@ -70,18 +71,18 @@ const getInitialLanguage = (): Language => {
 };
 
 const resources = {
-  tr: { translation: tr },
+  tr: { translation: withPersonalTranslations("tr", tr) },
   en: {
-    translation: en,
+    translation: withPersonalTranslations("en", en),
   },
   ja: {
-    translation: ja,
+    translation: withPersonalTranslations("ja", ja),
   },
   zh: {
-    translation: zh,
+    translation: withPersonalTranslations("zh", zh),
   },
   "zh-TW": {
-    translation: zhTW,
+    translation: withPersonalTranslations("zh-TW", zhTW),
   },
 };
 

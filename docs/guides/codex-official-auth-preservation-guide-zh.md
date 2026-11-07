@@ -213,3 +213,5 @@ Codex 的模型目录是启动时读取的。即使 CC Switch 已经生成了新
 - [添加 Codex 供应商：Chat Completions 路由与模型映射](../user-manual/zh/2-providers/2.1-add.md)
 - [本地代理服务](../user-manual/zh/4-proxy/4.1-service.md)
 - [本地路由](../user-manual/zh/4-proxy/4.2-routing.md)
+- [CC Switch v3.16.1 Release Note](../release-notes/v3.16.1-zh.md)
+- [CC Switch v3.20.1 Release Note](../release-notes/v3.20.1-zh.md)

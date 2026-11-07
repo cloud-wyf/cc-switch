@@ -1,3 +1,8 @@
+import {
+  codexProviderPresets,
+  geminiProviderPresets,
+  grokBuildProviderPresets,
+} from "@/config/personalProviderPresets";
 /**
  * 新增对话框：Codex、Gemini CLI、Grok Build 的表单把预设或模板投影到当前配置文件上显示，
  * 投影结果就是保存时三方比较的底。锁定一条不变式：每次重置显示内容之后，编辑框里的内容
@@ -11,9 +16,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ProviderForm } from "@/components/providers/forms/ProviderForm";
-import { codexProviderPresets } from "@/config/codexProviderPresets";
-import { geminiProviderPresets } from "@/config/geminiProviderPresets";
-import { grokBuildProviderPresets } from "@/config/grokBuildProviderPresets";
+
 import type { AppId } from "@/lib/api";
 import { server } from "../msw/server";
 import { createTestQueryClient } from "../utils/testQueryClient";
@@ -203,23 +206,18 @@ describe("新增对话框的草稿投影", () => {
   });
 });
 
-vi.mock("@/config/grokBuildProviderPresets", async (importOriginal) => {
+vi.mock("@/config/personalProviderPresets", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("@/config/grokBuildProviderPresets")>();
+    await importOriginal<typeof import("@/config/personalProviderPresets")>();
   const { grokPresetFixture } = await import(
     "../fixtures/customProviderPresets"
   );
-  return { ...actual, grokBuildProviderPresets: [grokPresetFixture] };
-});
-
-vi.mock("@/config/geminiProviderPresets", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@/config/geminiProviderPresets")>();
   const { geminiPresetFixture } = await import(
     "../fixtures/customProviderPresets"
   );
   return {
     ...actual,
+    grokBuildProviderPresets: [grokPresetFixture],
     geminiProviderPresets: [
       ...actual.geminiProviderPresets,
       geminiPresetFixture,

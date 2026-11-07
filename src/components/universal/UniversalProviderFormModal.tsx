@@ -1,3 +1,4 @@
+import { universalProviderPresets } from "@/config/personalProviderPresets";
 import { useState, useLayoutEffect, useCallback, useMemo } from "react";
 import { useDarkMode } from "@/hooks/useDarkMode";
 import { useTranslation } from "react-i18next";
@@ -12,7 +13,6 @@ import { ProviderIcon } from "@/components/ProviderIcon";
 import JsonEditor from "@/components/JsonEditor";
 import type { UniversalProvider, UniversalProviderModels } from "@/types";
 import {
-  universalProviderPresets,
   createUniversalProviderFromPreset,
   type UniversalProviderPreset,
 } from "@/config/universalProviderPresets";

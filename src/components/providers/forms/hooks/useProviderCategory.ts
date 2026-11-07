@@ -1,12 +1,14 @@
+import {
+  providerPresets,
+  codexProviderPresets,
+  geminiProviderPresets,
+  opencodeProviderPresets,
+  openclawProviderPresets,
+  hermesProviderPresets,
+} from "@/config/personalProviderPresets";
 import { useState, useEffect } from "react";
 import type { ProviderCategory } from "@/types";
 import type { AppId } from "@/lib/api";
-import { providerPresets } from "@/config/claudeProviderPresets";
-import { codexProviderPresets } from "@/config/codexProviderPresets";
-import { geminiProviderPresets } from "@/config/geminiProviderPresets";
-import { opencodeProviderPresets } from "@/config/opencodeProviderPresets";
-import { openclawProviderPresets } from "@/config/openclawProviderPresets";
-import { hermesProviderPresets } from "@/config/hermesProviderPresets";
 
 interface UseProviderCategoryProps {
   appId: AppId;
@@ -67,7 +69,7 @@ export function useProviderCategory({
           preset.category || (preset.isOfficial ? "official" : undefined),
         );
       }
-    } else if (type === "gemini" && appId === "gemini") {
+    } else if (type === "gemini" && (appId === "gemini" || appId === "agy")) {
       const preset = geminiProviderPresets[index];
       if (preset) {
         setCategory(preset.category || undefined);

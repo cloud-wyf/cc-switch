@@ -106,4 +106,25 @@
 - **使用本地路由**：查看 [4.1 本地路由服务](./4-proxy/4.1-service.md)
 - **遇到问题**：查看 [5.2 FAQ](./5-faq/5.2-questions.md)
 
-本文档用于本地配置参考；安装和更新见[项目说明](../../../README.md)。
+## 版本信息
+
+- 文档版本：v4.0.4
+- 最后更新：2026-10-07
+- 适用于 CC Switch v4.0.4+
+
+### 近期主要变化（v4.0）
+
+- **界面改版**：顶部导航换成左侧栏，用量统计、授权中心、MCP、Skills、提示词、会话、应用各占一页；设置分为通用、应用配置、本地路由、网络、数据、关于六组 — 详见 [1.3 界面概览](./1-getting-started/1.3-interface.md)、[1.5 个性化配置](./1-getting-started/1.5-settings.md)
+- **直连 / 路由 / 聚合三种连接模式**：在每个应用页顶部选择，回到直连只需一步 — 详见 [2.2 切换供应商](./2-providers/2.2-switch.md)
+- **新增聚合模式**：Claude Code 和 Codex 可以在一个会话里按模型混用多家供应商 — 详见 [4.6 聚合模式](./4-proxy/4.6-aggregation.md)
+- **切换只改关键字段**：地址、密钥、模型等关键字段以外的设置原样保留，不再使用通用配置片段 — 详见 [2.3 编辑供应商](./2-providers/2.3-edit.md)
+- **授权中心**：ChatGPT、GitHub Copilot、xAI 等账号集中在侧栏「授权中心」管理 — 详见 [1.5 个性化配置](./1-getting-started/1.5-settings.md)
+- **「应用」页**：安装、升级各 CLI 工具，选择侧栏显示哪些应用 — 详见 [1.2 安装指南](./1-getting-started/1.2-installation.md)
+- 完整变化见 [v4.0 发布说明](../../release-notes/v4.0.4-zh.md)
+
+## 贡献
+
+欢迎提交 Issue 或 PR 改进文档：
+
+- [GitHub Issues](https://github.com/farion1231/cc-switch/issues)
+- [GitHub Repository](https://github.com/farion1231/cc-switch)

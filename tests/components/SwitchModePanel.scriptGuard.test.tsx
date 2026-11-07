@@ -147,7 +147,11 @@ describe("SwitchModePanel script guard", () => {
 
   it("asks before disabling routing for an app whose current provider runs a script", async () => {
     renderPanel();
-    await screen.findByText("mode.status.routeLead");
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /mode.names.route/ }),
+      ).toHaveAttribute("aria-pressed", "true"),
+    );
     fireEvent.click(screen.getByRole("button", { name: /mode.names.direct/ }));
     fireEvent.click(
       await screen.findByRole("button", { name: /mode.activate.direct/ }),
@@ -180,7 +184,11 @@ describe("SwitchModePanel script guard", () => {
   it("disables routing directly when the current provider has no active script", async () => {
     scriptedProvider.meta = undefined;
     renderPanel();
-    await screen.findByText("mode.status.routeLead");
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /mode.names.route/ }),
+      ).toHaveAttribute("aria-pressed", "true"),
+    );
     fireEvent.click(screen.getByRole("button", { name: /mode.names.direct/ }));
     fireEvent.click(
       await screen.findByRole("button", { name: /mode.activate.direct/ }),

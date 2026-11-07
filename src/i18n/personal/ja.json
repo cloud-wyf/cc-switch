@@ -1,0 +1,203 @@
+{
+  "provider": {
+    "scriptInactive": "スクリプト未適用",
+    "scriptInactiveHint": "このプロバイダーはプロキシスクリプトを有効にしていますが、このアプリのローカルルーティングがオフのため、リクエストはスクリプトを通りません。",
+    "proxyScriptToggle": "プロキシスクリプト",
+    "proxyScriptToggleHint": "エディターを開かずにこのプロバイダーのプロキシスクリプトを有効・無効にします。コードは保持されます。現在のプロバイダーで有効にするとローカルルーティングが自動的にオンになります。",
+    "proxyScriptEnabled": "プロキシスクリプトを有効にしました",
+    "proxyScriptDisabled": "プロキシスクリプトを無効にしました",
+    "proxyScriptEnabledDesktopUpgraded": "プロキシスクリプトを有効にし、プロバイダーをローカルルーティングに切り替えました"
+  },
+  "claudeDesktop": {
+    "modelModeProxy": "ローカルルーティング",
+    "modelMappingOffHint": "プロバイダーが Claude Desktop の三つの役割 ID（claude-sonnet-* / claude-opus-* / claude-haiku-*）を受け付ける場合のみ直結できます。それ以外のモデル名（claude-3-5-sonnet-… などの旧式 ID を含む）やプロキシスクリプトが必要な場合は「ローカルルーティング」を選択してください。",
+    "modelMappingOnHint": "Claude Desktop は claude-sonnet-* / claude-opus-* / claude-haiku-* の三つの役割 ID のみ受け付けます。「ローカルルーティング」を選択すると Claude Desktop は CC Switch のルーティングサービスに接続し、CC Switch がこの三役割をプロバイダーの実モデルにマッピングします。プロキシスクリプトもこのモードでのみ実行されます。",
+    "savedRestartRequired": "保存しました。Claude Desktop を再起動すると反映されます",
+    "restartRequired": "Claude Desktop を再起動すると反映されます"
+  },
+  "dbUpgrade": {
+    "description": "データベースのバージョンがこのビルドの対応バージョンより新しいため、開くことができません。",
+    "updateAvailable": "新しいバージョン v{{version}} が利用可能です。アプリの更新をお試しください。",
+    "incompatibleTitle": "手動で復旧",
+    "incompatibleDescription": "まず現在の設定ディレクトリをバックアップしてください。その後、このデータベースのバージョンに対応する本プロジェクトのソースから再ビルドするか、アプリを終了して現在のビルドと互換性のあるデータベースのバックアップを復元してください。"
+  },
+  "proxy": {
+    "takeover": {
+      "scriptConfirmTitle": "ローカルルーティングを無効化",
+      "scriptConfirmMessage": "現在のプロバイダー「{{provider}}」はプロキシスクリプトを有効にしています。{{app}} のローカルルーティングを無効にすると、リクエストは上流へ直接送られ、スクリプトは実行されません。",
+      "scriptConfirmAction": "それでも無効化",
+      "desktop": {
+        "localRoute": "ローカルルーティング · {{provider}}",
+        "direct": "直結 · {{provider}}",
+        "none": "プロバイダー未選択",
+        "hint": "Claude Desktop には個別のスイッチがありません。現在のプロバイダーの接続方式がローカルルーティングのときにルーティングサービスを経由します。プロバイダー編集画面で変更してください。"
+      }
+    },
+    "eventLog": {
+      "title": "詳細リクエストログ",
+      "description": "リクエストとレスポンス本文の保存上限とログの保持期間を設定します。",
+      "bodyLimit": "本文の保存上限（KiB）",
+      "bodyLimitDescription": "各方向をそれぞれ 0–{{max}} KiB に制限します。0 にするとメタデータのみを記録します。",
+      "purgeDays": "保持日数",
+      "purgeDaysDescription": "1–{{max}} 日間保持します。期限切れのログはアプリ起動時と実行中の毎日に削除されます。",
+      "effectiveHint": "本文の上限は新しいリクエストから、保持日数は次回のクリーンアップから適用されます。プロキシの再起動は不要です。",
+      "invalidBodyLimit": "本文の上限は 0–{{max}} の整数（KiB）で入力してください。",
+      "invalidPurgeDays": "保持日数は 1–{{max}} の整数で入力してください。",
+      "saved": "詳細リクエストログの設定を保存しました",
+      "saveFailed": "詳細リクエストログの設定を保存できませんでした: {{error}}",
+      "loadFailed": "詳細リクエストログの設定を読み込めませんでした",
+      "retry": "再試行",
+      "view": "ログを表示",
+      "viewer": {
+        "title": "詳細リクエストログ",
+        "summary": {
+          "total": "合計 {{count}} 件",
+          "failed": "失敗 {{count}} 件",
+          "scriptUsed": "スクリプト実行 {{count}} 件",
+          "avgDuration": "平均 {{value}}"
+        },
+        "filters": {
+          "app": "アプリ",
+          "kind": "種類",
+          "allApps": "すべてのアプリ",
+          "allKinds": "すべての種類",
+          "showAll": "すべて表示",
+          "reset": "フィルターをリセット（{{count}}）",
+          "status": "ステータス",
+          "script": "スクリプト",
+          "model": "モデル",
+          "target": "プロバイダー",
+          "search": "リクエスト ID、URL、エラーを検索"
+        },
+        "kinds": {
+          "chat": "対話",
+          "count_tokens": "トークン計算",
+          "models": "モデル一覧",
+          "probe": "接続確認",
+          "compact": "圧縮",
+          "search": "検索",
+          "image": "画像",
+          "other": "その他"
+        },
+        "status": {
+          "all": "すべてのステータス",
+          "success": "成功",
+          "error": "失敗",
+          "4xx": "4xx",
+          "5xx": "5xx",
+          "none": "応答なし"
+        },
+        "script": {
+          "all": "すべてのリクエスト",
+          "used": "スクリプト実行あり",
+          "unused": "スクリプト実行なし"
+        },
+        "columns": {
+          "time": "時刻",
+          "app": "アプリ",
+          "kind": "種類",
+          "provider": "プロバイダー",
+          "model": "モデル",
+          "status": "ステータス",
+          "duration": "所要時間",
+          "script": "スクリプト",
+          "result": "結果"
+        },
+        "scriptUsed": "スクリプト",
+        "routeChanged": "経路変更",
+        "notForwarded": "未転送",
+        "noData": "条件に一致する記録はありません",
+        "page": "{{page}} / {{pages}} ページ",
+        "prev": "前のページ",
+        "next": "次のページ",
+        "refresh": "更新",
+        "loadFailed": "詳細リクエストログを読み込めませんでした",
+        "detail": {
+          "title": "リクエスト詳細 #{{id}}",
+          "notFound": "記録が存在しないか、既に削除されています",
+          "overview": "概要",
+          "requestId": "リクエスト ID",
+          "sessionId": "セッション",
+          "attempt": "試行 / 上流呼び出し",
+          "finishReason": "終了理由",
+          "error": "エラー",
+          "streamError": "ストリームエラー",
+          "timing": "所要時間",
+          "timingValue": "合計 {{total}}、上流ヘッダー {{header}}、上流合計 {{upstream}}",
+          "totalBytes": "上流レスポンスのバイト数",
+          "rewritten": "レスポンスは書き換えられました",
+          "originalRequest": "元のリクエスト",
+          "scriptInput": "スクリプト入力",
+          "forwardedRequest": "転送リクエスト",
+          "upstreamResponse": "上流レスポンス",
+          "clientResponse": "クライアントレスポンス",
+          "modifications": "フィールド変更",
+          "headers": "ヘッダー",
+          "body": "本文",
+          "delta": "元のリクエストとの差分のみ保存されています。下に統合後の実効本文を表示します",
+          "sameAsScript": "スクリプト入力と同一",
+          "forwarded": "上流レスポンスと同一",
+          "omitted": "設定により本文は保存されていません（{{size}}）",
+          "empty": "本文なし",
+          "truncated": "切り詰められています。実際のサイズ {{size}}",
+          "incomplete": "最後まで読み取られていません",
+          "base64": "バイナリ内容（{{size}}）を Base64 で表示",
+          "unavailable": "復元できないため生の記録を表示",
+          "noChanges": "変更なし",
+          "diffUnavailable": "本文が JSON オブジェクトではないため比較できません",
+          "droppedBeta": "削除された beta",
+          "stripped": "削除されたフィールド",
+          "injected": "追加されたフィールド",
+          "changed": "変更されたフィールド",
+          "copy": "コピー",
+          "copied": "コピーしました"
+        }
+      }
+    }
+  },
+  "nav": {
+    "appsGroup": "クライアント",
+    "extensionsGroup": "拡張機能",
+    "accountsGroup": "アカウント・稼働状況",
+    "proxyLogs": "プロキシログ"
+  },
+  "appsPage": {
+    "network": {
+      "label": "インストール・更新の接続",
+      "app": "アプリのプロキシを使用",
+      "direct": "直接接続",
+      "inherit": "環境設定を継承",
+      "hint": "アプリのプロキシは設定内のグローバル送信プロキシを使用します。未設定の場合は環境変数と npm 設定を継承します。直接接続ではプロキシを使いません。このセッションのインストール・更新子プロセスにのみ適用されます。WSL でも同じアドレスを使うため、WSL から接続できることを確認してください。"
+    },
+    "progress": {
+      "preflight": "インストール先を確認中…",
+      "confirming": "更新対象の確認待ち",
+      "queued": "待機中…",
+      "preparing": "更新コマンドを準備中…",
+      "running": "インストーラーを実行中…",
+      "verifying": "ローカルバージョンを検証中…",
+      "completed": "完了・ローカルバージョン検証済み",
+      "warning": "終了しました。通知を確認してください",
+      "failed": "失敗しました。ログを確認してください",
+      "cancelled": "キャンセル済み",
+      "logs": "インストールログ（直近 120 行）"
+    }
+  },
+  "providerCard": {
+    "section": {
+      "current": "現在",
+      "providers": "プロバイダー（{{count}}）"
+    }
+  },
+  "proxyScript": {
+    "title": "プロバイダーのプロキシスクリプト",
+    "enabled": "プロキシスクリプトを有効にする",
+    "description": "単一ファイルの TypeScript ミドルウェアを入力します。スクリプトが有効なプロバイダーを選択すると、ローカルルーティングが有効になります。スイッチをオフにするとコードを保持したまま実行をスキップします。保存すると変更が適用されます。",
+    "editor": "TypeScript プロキシミドルウェア",
+    "runtime": "ローカルの Node.js 24+ が必要です。node: 組み込みモジュールに対応し、現在のユーザー権限で実行します。next(request) は CC Switch のネットワークプロキシ設定を使用します。",
+    "example": "転送例を挿入",
+    "checking": "検証中…",
+    "validate": "構文を検証",
+    "valid": "構文に問題はありません（スクリプトは未実行）"
+  }
+}

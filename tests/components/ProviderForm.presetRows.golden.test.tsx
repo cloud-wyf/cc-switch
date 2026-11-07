@@ -1,3 +1,7 @@
+import {
+  providerPresets,
+  codexProviderPresets,
+} from "@/config/personalProviderPresets";
 /**
  * 重构前的金标：锁定「从预设新增供应商时写进 DB 的行」。
  *
@@ -27,8 +31,7 @@ import {
   ProviderForm,
   type ProviderFormValues,
 } from "@/components/providers/forms/ProviderForm";
-import { providerPresets } from "@/config/claudeProviderPresets";
-import { codexProviderPresets } from "@/config/codexProviderPresets";
+
 import {
   PRESET_FAMILIES,
   type PresetFamilyInfo,

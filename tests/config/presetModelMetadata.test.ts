@@ -51,8 +51,8 @@ describe("preset model metadata sources", () => {
     }
   });
 
-  it("keeps a configured endpoint's own window over the vendor default", () => {
-    // 自定义端点的已核实窗口优先于原厂的默认窗口，不依赖生产预设名单。
+  it("keeps a partner's own window over the vendor default", () => {
+    // FluxA 转售的百度国际 team 部署：glm-5.2 是 500K，不是原厂的 1M。
     const modelsDev: ModelsDevResponse = {
       zhipuai: {
         api: "https://open.bigmodel.cn/api/paas/v4",
@@ -66,13 +66,8 @@ describe("preset model metadata sources", () => {
     };
     expect(
       resolveModelMetadata("glm-5.2", {
-        baseUrl: "https://gateway.example/v1",
-        presets: [
-          {
-            baseUrl: "https://gateway.example/v1",
-            models: new Map([["glm-5.2", { contextWindow: 500000 }]]),
-          },
-        ],
+        baseUrl: "https://api.baiduqianfan.ai/v2/tokenplan/team",
+        presets: codexPresetModelSources(),
         modelsDev,
       })?.contextWindow,
     ).toBe(500000);
@@ -91,8 +86,15 @@ describe("preset model metadata sources", () => {
     });
   });
 
-  it("caps every GPT window in the presets at the subscription window", () => {
-    const windows: [string, number | undefined][] = [
+  it("caps GPT windows at the subscription window except on API-billed platforms", () => {
+    // 这几家按 API 计费，GPT 窗口就是 OpenAI API 的 1.05M；其余（中转多走订阅）一律封顶。
+    const apiBilledHosts = new Set([
+      "openrouter.ai",
+      "ai-gateway.vercel.sh",
+      "api.cloudflare.com",
+      "inference.do-ai.run",
+    ]);
+    const windows: [string | null, string, number | undefined][] = [
       ...[
         codexPresetModelSources,
         hermesPresetModelSources,
@@ -104,30 +106,51 @@ describe("preset model metadata sources", () => {
         sources().flatMap((source) =>
           [...source.models].map(
             ([id, metadata]) =>
-              [id, metadata.contextWindow] as [string, number | undefined],
+              [
+                new URL(source.baseUrl).hostname,
+                id,
+                metadata.contextWindow,
+              ] as [string, string, number | undefined],
           ),
         ),
       ),
+      // 不带地址的通用目录：没有例外。
       ...Object.values(OPENCODE_PRESET_MODEL_VARIANTS)
         .flat()
         .map(
           (variant) =>
-            [variant.id, variant.contextLimit] as [string, number | undefined],
+            [null, variant.id, variant.contextLimit] as [
+              null,
+              string,
+              number | undefined,
+            ],
         ),
       ...Object.entries(piModelCatalog).map(
         ([id, entry]) =>
-          [id, entry.capabilities.contextWindow] as [
+          [null, id, entry.capabilities.contextWindow] as [
+            null,
             string,
             number | undefined,
           ],
       ),
     ];
-    const gptWindows = windows.filter(([id]) => isGptModelId(id));
+    const gptWindows = windows.filter(([, id]) => isGptModelId(id));
     expect(gptWindows.length).toBeGreaterThan(0);
     expect(
       gptWindows.filter(
-        ([, window]) => window !== undefined && window > GPT_CONTEXT_WINDOW_CAP,
+        ([host, , window]) =>
+          window !== undefined &&
+          window > GPT_CONTEXT_WINDOW_CAP &&
+          !(host && apiBilledHosts.has(host)),
       ),
     ).toEqual([]);
+    // 例外确实在用：四家都至少有一个 GPT 窗口超过封顶值。
+    expect(
+      new Set(
+        gptWindows
+          .filter(([, , window]) => (window ?? 0) > GPT_CONTEXT_WINDOW_CAP)
+          .map(([host]) => host),
+      ),
+    ).toEqual(apiBilledHosts);
   });
 });

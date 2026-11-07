@@ -59,6 +59,10 @@ pnpm dev
 
 4.0 的自用功能入口和数据库迁移说明见 [自用版 4.0 源码升级](docs/guides/v4-local-upgrade.md)。
 
+供应商名单与链接由 `src/config/personalProviderPresets.ts` 管理，自用翻译放在 `src/i18n/personal/`。上游预设、翻译和参考文档保持原样，减少同步时的重复冲突；恢复的完整预设只作为输入，应用仍显示自用名单。
+
+日常使用说明见 [个人版手册](docs/personal/README.md)。`docs/user-manual/`、`docs/release-notes/` 和多语言项目介绍保留为上游参考，安装与发布以本 README 和自用指南为准。
+
 ## 应用内更新
 
 更新源为私有仓库 [cloud-wyf/cc-switch](https://github.com/cloud-wyf/cc-switch)。应用启动后自动检查版本，发现新版时显示更新图标；在「设置 → 关于」中点击更新，程序会下载、校验签名、安装并重启。便携版沿用打开发布页、下载替换的方式。
@@ -163,7 +167,8 @@ pnpm release:local --tag v4.0.3-2
 - `src/`：React、TypeScript 前端。
 - `src-tauri/`：Rust 后端和 Tauri 打包配置。
 - `tests/`：前端测试。
-- [中文使用手册](docs/user-manual/zh/README.md)：功能配置与排障参考。
+- [个人版使用手册](docs/personal/README.md)：自用功能配置与排障说明。
+- [上游中文手册](docs/user-manual/zh/README.md)：通用功能参考。
 - `docs/guides/`：具体功能的操作指南。
 - `docs/pi-*.md`：Pi 功能约束与设计说明。
 - [会话管理设计](session-manager.md)。

@@ -1,3 +1,4 @@
+import { claudeDesktopProviderPresets } from "@/config/personalProviderPresets";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -43,15 +44,20 @@ import type {
 import type { OpenClawSuggestedDefaults } from "@/config/openclawProviderPresets";
 import {
   CLAUDE_DESKTOP_ROLE_ROUTE_IDS,
-  claudeDesktopProviderPresets,
   type ClaudeDesktopProviderPreset,
   type ClaudeDesktopRoleId,
 } from "@/config/claudeDesktopProviderPresets";
 import {
+  fetchCodexOauthModels,
   fetchModelsForConfig,
+  fetchXaiOauthModels,
   showFetchModelsError,
   type FetchedModel,
 } from "@/lib/api/model-fetch";
+import {
+  copilotGetModels,
+  copilotGetModelsForAccount,
+} from "@/lib/api/copilot";
 import {
   providersApi,
   type ClaudeDesktopDefaultRoute,
@@ -60,6 +66,11 @@ import { resolveManagedAccountId } from "@/lib/authBinding";
 import type { ManagedAuthProvider } from "@/lib/api";
 import { useCopilotAuth, useCodexOauth, useXaiOauth } from "./hooks";
 import { isOAuthProviderType } from "@/config/constants";
+import {
+  ClaudeReasoningEffortField,
+  toClaudeReasoningEffortChoice,
+  type ClaudeReasoningEffortChoice,
+} from "./ClaudeReasoningEffortField";
 
 export type ClaudeDesktopProviderFormValues = ProviderFormData & {
   presetId?: string;
@@ -259,6 +270,10 @@ export function ClaudeDesktopProviderForm({
   const [apiFormat, setApiFormat] = useState<ClaudeApiFormat>(
     initialData?.meta?.apiFormat ?? "anthropic",
   );
+  const [reasoningEffort, setReasoningEffort] =
+    useState<ClaudeReasoningEffortChoice>(() =>
+      toClaudeReasoningEffortChoice(initialData?.meta?.claudeReasoningEffort),
+    );
   const [baseUrl, setBaseUrl] = useState(
     envString(initialData?.settingsConfig, "ANTHROPIC_BASE_URL"),
   );
@@ -381,6 +396,12 @@ export function ClaudeDesktopProviderForm({
   );
   const activeProviderType =
     activePreset?.providerType ?? initialData?.meta?.providerType;
+  // Codex/xAI OAuth ignore editable URLs and use fixed backend endpoints.
+  const usesAutomaticCopilotFormat =
+    activeProviderType === "github_copilot" ||
+    (activeProviderType !== "codex_oauth" &&
+      activeProviderType !== "xai_oauth" &&
+      baseUrl.includes("githubcopilot.com"));
   const { isAuthenticated: isCopilotAuthenticated, accounts: copilotAccounts } =
     useCopilotAuth();
   const {
@@ -411,6 +432,7 @@ export function ClaudeDesktopProviderForm({
       category: apiKeyLinkCategory,
       selectedPresetId,
       presetEntries,
+      formBaseUrl: baseUrl,
       formWebsiteUrl: form.watch("websiteUrl") || "",
     });
 
@@ -425,6 +447,7 @@ export function ClaudeDesktopProviderForm({
     setApiKey("");
     setApiKeyField(preset.apiKeyField ?? "ANTHROPIC_AUTH_TOKEN");
     setApiFormat(preset.apiFormat ?? "anthropic");
+    setReasoningEffort("auto");
 
     const presetMode =
       preset.requiresOAuth === true || isOAuthProviderType(preset.providerType)
@@ -473,6 +496,7 @@ export function ClaudeDesktopProviderForm({
       setApiKey("");
       setApiKeyField("ANTHROPIC_AUTH_TOKEN");
       setApiFormat("anthropic");
+      setReasoningEffort("auto");
       didSeedDefaultProxyRoutes.current = false;
       setMode("direct");
       setDirectRoutes([]);
@@ -497,6 +521,30 @@ export function ClaudeDesktopProviderForm({
   const updateRoute = (index: number, patch: Partial<RouteRowValues>) => {
     setRoutes((current) =>
       current.map((row, i) => (i === index ? { ...row, ...patch } : row)),
+    );
+  };
+
+  // 菜单显示名仍等于原来的实际请求模型（保存时自动回落出来的）就跟着模型走，
+  // 否则编辑已有映射卡只换模型，Desktop 菜单和 profile 里仍是旧模型名（#9203）。
+  // 从下拉选模型时，留空的显示名也一并填上。
+  const updateRouteModel = (
+    index: number,
+    model: string,
+    fillEmptyLabel = false,
+  ) => {
+    setRoutes((current) =>
+      current.map((row, i) => {
+        if (i !== index) return row;
+        const label = row.labelOverride.trim();
+        const labelFollowsModel = label
+          ? label === row.model.trim()
+          : fillEmptyLabel;
+        return {
+          ...row,
+          model,
+          labelOverride: labelFollowsModel ? model : row.labelOverride,
+        };
+      }),
     );
   };
 
@@ -538,7 +586,100 @@ export function ClaudeDesktopProviderForm({
     setProxyRoutes(normalizeProxyRows(defaultProxyRouteRows));
   }, [defaultProxyRouteRows, effectiveMode, proxyRoutes.length]);
 
+  // 托管 OAuth 供应商没有地址和 Key，模型列表走各自账号的接口（与 Claude Code 表单一致）。
+  // 换账号或换供应商（含切回普通供应商）后旧列表作废，在途请求的结果也丢弃。
+  const managedModelsRequestRef = useRef(0);
+  useEffect(() => {
+    managedModelsRequestRef.current += 1;
+    setFetchedModels([]);
+    setIsFetchingModels(false);
+  }, [
+    usesManagedOAuth,
+    activeProviderType,
+    selectedGitHubAccountId,
+    selectedCodexAccountId,
+    selectedXaiAccountId,
+  ]);
+
+  const handleFetchManagedModels = async () => {
+    let request: Promise<FetchedModel[]>;
+    if (activeProviderType === "github_copilot") {
+      if (!isCopilotAuthenticated) {
+        toast.error(
+          t("copilot.loginRequired", {
+            defaultValue: "请先登录 GitHub Copilot",
+          }),
+        );
+        return;
+      }
+      request = (
+        selectedGitHubAccountId
+          ? copilotGetModelsForAccount(selectedGitHubAccountId)
+          : copilotGetModels()
+      ).then((models) =>
+        models.map((m) => ({ id: m.id, ownedBy: m.vendor || null })),
+      );
+    } else if (activeProviderType === "codex_oauth") {
+      if (!isCodexOauthAuthenticated) {
+        toast.error(
+          t("codexOauth.loginRequired", {
+            defaultValue: "请先登录 ChatGPT 账号",
+          }),
+        );
+        return;
+      }
+      request = fetchCodexOauthModels(selectedCodexAccountId);
+    } else if (activeProviderType === "xai_oauth") {
+      if (!isXaiOauthAuthenticated) {
+        toast.error(
+          t("xaiOauth.loginRequired", {
+            defaultValue: "请先登录 xAI 账号",
+          }),
+        );
+        return;
+      }
+      request = fetchXaiOauthModels(selectedXaiAccountId);
+    } else {
+      return;
+    }
+
+    const requestId = managedModelsRequestRef.current + 1;
+    managedModelsRequestRef.current = requestId;
+    setIsFetchingModels(true);
+    try {
+      const models = await request;
+      if (managedModelsRequestRef.current !== requestId) return;
+      setFetchedModels(models);
+      toast.success(
+        t("providerForm.fetchModelsSuccess", {
+          count: models.length,
+          defaultValue: `已获取 ${models.length} 个模型`,
+        }),
+      );
+    } catch (error) {
+      if (managedModelsRequestRef.current !== requestId) return;
+      console.warn("[ClaudeDesktop] Failed to fetch managed models:", error);
+      if (activeProviderType === "github_copilot") {
+        toast.error(
+          t("copilot.loadModelsFailed", {
+            defaultValue: "加载 Copilot 模型列表失败",
+          }),
+        );
+      } else {
+        showFetchModelsError(error, t);
+      }
+    } finally {
+      if (managedModelsRequestRef.current === requestId) {
+        setIsFetchingModels(false);
+      }
+    }
+  };
+
   const handleFetchModels = async () => {
+    if (usesManagedOAuth) {
+      await handleFetchManagedModels();
+      return;
+    }
     if (!baseUrl.trim() || !apiKey.trim()) {
       showFetchModelsError(null, t, {
         hasBaseUrl: Boolean(baseUrl.trim()),
@@ -586,6 +727,7 @@ export function ClaudeDesktopProviderForm({
       delete meta.claudeDesktopMode;
       delete meta.claudeDesktopModelRoutes;
       delete meta.apiFormat;
+      delete meta.claudeReasoningEffort;
       delete meta.endpointAutoSelect;
       delete meta.isFullUrl;
       await onSubmit({
@@ -773,6 +915,12 @@ export function ClaudeDesktopProviderForm({
       return acc;
     }, {});
 
+    // Gemini format takes precedence in backend auth detection. Clear it only
+    // when saving Copilot, keeping the local selection if the URL changes back.
+    const savedApiFormat =
+      usesAutomaticCopilotFormat && apiFormat === "gemini_native"
+        ? "anthropic"
+        : apiFormat;
     const meta: ProviderMeta = {
       ...(initialData?.meta ?? {}),
       claudeDesktopMode: effectiveMode,
@@ -780,11 +928,23 @@ export function ClaudeDesktopProviderForm({
         activeProviderType === "xai_oauth"
           ? "openai_responses"
           : effectiveMode === "proxy"
-            ? apiFormat
+            ? savedApiFormat
             : "anthropic",
     };
 
     meta.claudeDesktopModelRoutes = routeMap;
+    if (
+      effectiveMode === "proxy" &&
+      (meta.apiFormat === "openai_chat" ||
+        meta.apiFormat === "openai_responses") &&
+      !isOAuthProviderType(activeProviderType) &&
+      !usesAutomaticCopilotFormat &&
+      reasoningEffort !== "auto"
+    ) {
+      meta.claudeReasoningEffort = reasoningEffort;
+    } else {
+      delete meta.claudeReasoningEffort;
+    }
     meta.providerType = activeProviderType;
     meta.authBinding =
       activeProviderType === "github_copilot"
@@ -828,23 +988,21 @@ export function ClaudeDesktopProviderForm({
 
   const renderActionButtons = (onAdd: () => void, addLabel: string) => (
     <div className="flex gap-1">
-      {!usesManagedOAuth && (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={handleFetchModels}
-          disabled={isFetchingModels}
-          className="h-7 gap-1"
-        >
-          {isFetchingModels ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Download className="h-3.5 w-3.5" />
-          )}
-          {t("providerForm.fetchModels", { defaultValue: "获取模型" })}
-        </Button>
-      )}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={handleFetchModels}
+        disabled={isFetchingModels}
+        className="h-7 gap-1"
+      >
+        {isFetchingModels ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <Download className="h-3.5 w-3.5" />
+        )}
+        {t("providerForm.fetchModels", { defaultValue: "获取模型" })}
+      </Button>
       <Button
         type="button"
         variant="outline"
@@ -1022,12 +1180,23 @@ export function ClaudeDesktopProviderForm({
                       </Label>
                       <Select
                         value={apiFormat}
+                        disabled={usesAutomaticCopilotFormat}
                         onValueChange={(value) =>
                           setApiFormat(value as ClaudeApiFormat)
                         }
                       >
                         <SelectTrigger className="w-full">
-                          <SelectValue />
+                          <SelectValue
+                            key={
+                              usesAutomaticCopilotFormat
+                                ? "automatic"
+                                : "manual"
+                            }
+                          >
+                            {usesAutomaticCopilotFormat
+                              ? t("copilot.automaticFormat")
+                              : undefined}
+                          </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="anthropic">
@@ -1054,8 +1223,24 @@ export function ClaudeDesktopProviderForm({
                           </SelectItem>
                         </SelectContent>
                       </Select>
+                      {usesAutomaticCopilotFormat && (
+                        <p className="text-xs leading-relaxed text-fg-2">
+                          {t("copilot.automaticFormatHint")}
+                        </p>
+                      )}
                     </div>
                   )}
+
+                  {!isOAuthProviderType(activeProviderType) &&
+                    !usesAutomaticCopilotFormat &&
+                    (apiFormat === "openai_chat" ||
+                      apiFormat === "openai_responses") && (
+                      <ClaudeReasoningEffortField
+                        id="claudeDesktopReasoningEffort"
+                        value={reasoningEffort}
+                        onChange={setReasoningEffort}
+                      />
+                    )}
 
                   <div className="space-y-3">
                     <div className="space-y-1 border-t border-border pt-4">
@@ -1065,25 +1250,23 @@ export function ClaudeDesktopProviderForm({
                             defaultValue: "模型映射",
                           })}
                         </Label>
-                        {!usesManagedOAuth && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={handleFetchModels}
-                            disabled={isFetchingModels}
-                            className="h-7 gap-1"
-                          >
-                            {isFetchingModels ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <Download className="h-3.5 w-3.5" />
-                            )}
-                            {t("providerForm.fetchModels", {
-                              defaultValue: "获取模型",
-                            })}
-                          </Button>
-                        )}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleFetchModels}
+                          disabled={isFetchingModels}
+                          className="h-7 gap-1"
+                        >
+                          {isFetchingModels ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Download className="h-3.5 w-3.5" />
+                          )}
+                          {t("providerForm.fetchModels", {
+                            defaultValue: "获取模型",
+                          })}
+                        </Button>
                       </div>
                       <p className="text-xs leading-relaxed text-fg-2">
                         {t("claudeDesktop.routeMapHint", {
@@ -1163,9 +1346,7 @@ export function ClaudeDesktopProviderForm({
                             <Input
                               value={route.model}
                               onChange={(event) =>
-                                updateRoute(index, {
-                                  model: event.target.value,
-                                })
+                                updateRouteModel(index, event.target.value)
                               }
                               placeholder={modelPlaceholder}
                               className="flex-1"
@@ -1174,10 +1355,7 @@ export function ClaudeDesktopProviderForm({
                               <ModelDropdown
                                 models={fetchedModels}
                                 onSelect={(id) =>
-                                  updateRoute(index, {
-                                    model: id,
-                                    labelOverride: route.labelOverride || id,
-                                  })
+                                  updateRouteModel(index, id, true)
                                 }
                               />
                             )}

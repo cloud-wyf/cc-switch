@@ -1,7 +1,9 @@
+import {
+  providerPresets,
+  codexProviderPresets,
+} from "@/config/personalProviderPresets";
 import { describe, expect, it } from "vitest";
 import { parse as parseToml } from "smol-toml";
-import { providerPresets } from "@/config/claudeProviderPresets";
-import { codexProviderPresets } from "@/config/codexProviderPresets";
 
 // 预设只描述上游：地址、鉴权、模型和上游兼容选项。插件、署名、推理档位这类
 // 个人偏好不属于供应商，写进预设会在切换时覆盖用户自己的设置（E-FlowCode 曾把

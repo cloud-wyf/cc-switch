@@ -106,4 +106,25 @@
 - **Use local routing**: See [4.1 Local Routing Service](./4-proxy/4.1-service.md)
 - **Having trouble**: See [5.2 FAQ](./5-faq/5.2-questions.md)
 
-Use this manual as a local configuration reference. See the [project instructions](../../../README.md) for installation and updates.
+## Version Information
+
+- Documentation version: v4.0.4
+- Last updated: 2026-10-07
+- Applicable to CC Switch v4.0.4+
+
+### Recent Major Changes (v4.0)
+
+- **Redesigned interface**: the top navigation is replaced by a left sidebar, with separate pages for Usage, Accounts, MCP, Skills, Prompts, Sessions, and Apps; Settings is split into six groups: General, App config, Local routing, Network, Data, About — see [1.3 Interface Overview](./1-getting-started/1.3-interface.md) and [1.5 Personalization](./1-getting-started/1.5-settings.md)
+- **Three connection modes: Direct / Routing / Aggregation**: chosen at the top of each app page; going back to direct is one step — see [2.2 Switch Provider](./2-providers/2.2-switch.md)
+- **New Aggregation mode**: Claude Code and Codex can mix models from several providers in one session — see [4.6 Aggregation Mode](./4-proxy/4.6-aggregation.md)
+- **Switching only changes key fields**: everything other than the address, key, model, and other key fields is left as is; common config snippets are no longer used — see [2.3 Edit Provider](./2-providers/2.3-edit.md)
+- **Accounts**: ChatGPT, GitHub Copilot, xAI, and other sign-ins are managed in one place under **Accounts** in the sidebar — see [1.5 Personalization](./1-getting-started/1.5-settings.md)
+- **Apps page**: install and upgrade each CLI tool, and choose which apps show in the sidebar — see [1.2 Installation Guide](./1-getting-started/1.2-installation.md)
+- For the full list of changes, see the [v4.0 release notes](../../release-notes/v4.0.4-en.md)
+
+## Contributing
+
+Feel free to submit Issues or PRs to improve the documentation:
+
+- [GitHub Issues](https://github.com/farion1231/cc-switch/issues)
+- [GitHub Repository](https://github.com/farion1231/cc-switch)

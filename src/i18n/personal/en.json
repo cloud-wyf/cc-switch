@@ -1,0 +1,203 @@
+{
+  "provider": {
+    "scriptInactive": "Script inactive",
+    "scriptInactiveHint": "This provider has a proxy script enabled, but local routing is off for this app, so requests bypass the script.",
+    "proxyScriptToggle": "Proxy script",
+    "proxyScriptToggleHint": "Enable or disable this provider's proxy script without opening the editor; the code is kept. Enabling the current provider's script turns on local routing.",
+    "proxyScriptEnabled": "Proxy script enabled",
+    "proxyScriptDisabled": "Proxy script disabled",
+    "proxyScriptEnabledDesktopUpgraded": "Proxy script enabled; provider switched to local routing"
+  },
+  "claudeDesktop": {
+    "modelModeProxy": "Local Routing",
+    "modelMappingOffHint": "Direct mode works only when the provider accepts Claude Desktop's three role IDs (claude-sonnet-* / claude-opus-* / claude-haiku-*); for any other model name (including legacy IDs like claude-3-5-sonnet-…) or when you need a proxy script, select Local Routing.",
+    "modelMappingOnHint": "Claude Desktop only accepts the three role IDs claude-sonnet-* / claude-opus-* / claude-haiku-*. In Local Routing mode, Claude Desktop connects to the CC Switch routing service, which maps these roles to your provider's actual models; proxy scripts only run in this mode.",
+    "savedRestartRequired": "Saved. Restart Claude Desktop to apply.",
+    "restartRequired": "restart Claude Desktop to apply"
+  },
+  "dbUpgrade": {
+    "description": "This database is newer than the version supported by this build and cannot be opened.",
+    "updateAvailable": "Version v{{version}} is available. Try updating the application.",
+    "incompatibleTitle": "Manual recovery",
+    "incompatibleDescription": "Back up the current configuration directory first. Then rebuild this project from source that supports the database version, or quit the app and restore a database backup compatible with this build."
+  },
+  "proxy": {
+    "takeover": {
+      "scriptConfirmTitle": "Disable local routing",
+      "scriptConfirmMessage": "The current provider \"{{provider}}\" has a proxy script enabled. After disabling local routing for {{app}}, requests go straight to the upstream and the script no longer runs.",
+      "scriptConfirmAction": "Disable anyway",
+      "desktop": {
+        "localRoute": "Local routing · {{provider}}",
+        "direct": "Direct · {{provider}}",
+        "none": "No provider selected",
+        "hint": "Claude Desktop has no separate switch: it goes through the routing service whenever the current provider's access mode is Local Routing. Change it in the provider editor."
+      }
+    },
+    "eventLog": {
+      "title": "Detailed Request Logs",
+      "description": "Set how much of each request and response body to store and how long to retain logs.",
+      "bodyLimit": "Body storage limit (KiB)",
+      "bodyLimitDescription": "Each direction is limited to 0–{{max}} KiB. Set to 0 to record metadata only.",
+      "purgeDays": "Retention (days)",
+      "purgeDaysDescription": "Keep logs for 1–{{max}} days. Expired logs are removed at app startup and daily while running.",
+      "effectiveHint": "The body limit applies to new requests. Retention changes apply at the next cleanup. No proxy restart is required.",
+      "invalidBodyLimit": "The body limit must be a whole number from 0 to {{max}} (KiB).",
+      "invalidPurgeDays": "Retention must be a whole number from 1 to {{max}} days.",
+      "saved": "Detailed request log settings saved",
+      "saveFailed": "Failed to save detailed request log settings: {{error}}",
+      "loadFailed": "Failed to load detailed request log settings",
+      "retry": "Retry",
+      "view": "View logs",
+      "viewer": {
+        "title": "Detailed Request Logs",
+        "summary": {
+          "total": "{{count}} total",
+          "failed": "{{count}} failed",
+          "scriptUsed": "{{count}} ran a script",
+          "avgDuration": "avg {{value}}"
+        },
+        "filters": {
+          "app": "App",
+          "kind": "Type",
+          "allApps": "All apps",
+          "allKinds": "All types",
+          "showAll": "Show all",
+          "reset": "Reset filters ({{count}})",
+          "status": "Status",
+          "script": "Script",
+          "model": "Model",
+          "target": "Provider",
+          "search": "Search request ID, URL, or error"
+        },
+        "kinds": {
+          "chat": "Chat",
+          "count_tokens": "Count tokens",
+          "models": "Models",
+          "probe": "Connectivity check",
+          "compact": "Compact",
+          "search": "Search",
+          "image": "Images",
+          "other": "Other"
+        },
+        "status": {
+          "all": "All statuses",
+          "success": "Success",
+          "error": "Failed",
+          "4xx": "4xx",
+          "5xx": "5xx",
+          "none": "No response"
+        },
+        "script": {
+          "all": "All requests",
+          "used": "Script ran",
+          "unused": "No script"
+        },
+        "columns": {
+          "time": "Time",
+          "app": "App",
+          "kind": "Type",
+          "provider": "Provider",
+          "model": "Model",
+          "status": "Status",
+          "duration": "Duration",
+          "script": "Script",
+          "result": "Result"
+        },
+        "scriptUsed": "Script",
+        "routeChanged": "Rerouted",
+        "notForwarded": "Not forwarded",
+        "noData": "No matching records",
+        "page": "Page {{page}} / {{pages}}",
+        "prev": "Previous page",
+        "next": "Next page",
+        "refresh": "Refresh",
+        "loadFailed": "Failed to load detailed request logs",
+        "detail": {
+          "title": "Request detail #{{id}}",
+          "notFound": "Record not found or already purged",
+          "overview": "Overview",
+          "requestId": "Request ID",
+          "sessionId": "Session",
+          "attempt": "Attempt / upstream call",
+          "finishReason": "Finish reason",
+          "error": "Error",
+          "streamError": "Stream error",
+          "timing": "Timing",
+          "timingValue": "total {{total}}, upstream headers {{header}}, upstream total {{upstream}}",
+          "totalBytes": "Upstream response bytes",
+          "rewritten": "Response rewritten",
+          "originalRequest": "Original request",
+          "scriptInput": "Script input",
+          "forwardedRequest": "Forwarded request",
+          "upstreamResponse": "Upstream response",
+          "clientResponse": "Client response",
+          "modifications": "Field changes",
+          "headers": "Headers",
+          "body": "Body",
+          "delta": "Only the difference from the original request was stored; the merged effective body is shown below",
+          "sameAsScript": "Identical to the script input",
+          "forwarded": "Identical to the upstream response",
+          "omitted": "Body not stored per settings ({{size}})",
+          "empty": "No body",
+          "truncated": "Truncated, actual size {{size}}",
+          "incomplete": "Not fully read",
+          "base64": "Binary content ({{size}}) shown as Base64",
+          "unavailable": "Cannot reconstruct, showing the raw record",
+          "noChanges": "No changes",
+          "diffUnavailable": "Body is not a JSON object, fields cannot be compared",
+          "droppedBeta": "Dropped beta",
+          "stripped": "Removed fields",
+          "injected": "Added fields",
+          "changed": "Changed fields",
+          "copy": "Copy",
+          "copied": "Copied"
+        }
+      }
+    }
+  },
+  "nav": {
+    "appsGroup": "Clients",
+    "extensionsGroup": "Extensions",
+    "accountsGroup": "Accounts & activity",
+    "proxyLogs": "Proxy logs"
+  },
+  "appsPage": {
+    "network": {
+      "label": "Install and update network",
+      "app": "Use app proxy",
+      "direct": "Direct connection",
+      "inherit": "Inherit environment",
+      "hint": "Use app proxy applies the global outbound proxy in Settings. Without one, environment and npm settings are inherited. Direct connection bypasses proxies. Applies only to install/update subprocesses for this session. WSL uses the same address; ensure the proxy is reachable from WSL."
+    },
+    "progress": {
+      "preflight": "Checking installation locations…",
+      "confirming": "Waiting for target confirmation",
+      "queued": "Queued…",
+      "preparing": "Preparing update command…",
+      "running": "Running installer…",
+      "verifying": "Verifying local version…",
+      "completed": "Completed and local version verified",
+      "warning": "Finished; see the notification",
+      "failed": "Failed; see the log",
+      "cancelled": "Cancelled",
+      "logs": "Installation log (last 120 lines)"
+    }
+  },
+  "providerCard": {
+    "section": {
+      "current": "Current",
+      "providers": "Providers ({{count}})"
+    }
+  },
+  "proxyScript": {
+    "title": "Provider proxy script",
+    "enabled": "Enable proxy script",
+    "description": "Enter single-file TypeScript middleware. Selecting this provider with the script enabled turns on local routing. Turning the switch off keeps the code and skips execution. Save to apply changes.",
+    "editor": "TypeScript proxy middleware",
+    "runtime": "Requires local Node.js 24+; supports node: built-ins. Scripts run with your local user permissions. next(request) uses CC Switch's network proxy settings.",
+    "example": "Insert passthrough example",
+    "checking": "Checking…",
+    "validate": "Check syntax",
+    "valid": "Syntax valid (script not executed)"
+  }
+}

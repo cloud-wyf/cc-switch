@@ -1,15 +1,22 @@
+import {
+  providerPresets,
+  claudeDesktopProviderPresets,
+  codexProviderPresets,
+  geminiProviderPresets,
+  grokBuildProviderPresets,
+  hermesProviderPresets,
+  openclawProviderPresets,
+  opencodeProviderPresets,
+  piProviderPresets,
+  mcodeProviderPresets,
+  kimiProviderPresets,
+  ompProviderPresets,
+  dshProviderPresets,
+  universalProviderPresets,
+} from "@/config/personalProviderPresets";
 import { describe, expect, it } from "vitest";
-import { providerPresets } from "@/config/claudeProviderPresets";
-import { claudeDesktopProviderPresets } from "@/config/claudeDesktopProviderPresets";
-import { codexProviderPresets } from "@/config/codexProviderPresets";
-import { geminiProviderPresets } from "@/config/geminiProviderPresets";
-import { grokBuildProviderPresets } from "@/config/grokBuildProviderPresets";
-import { hermesProviderPresets } from "@/config/hermesProviderPresets";
-import { openclawProviderPresets } from "@/config/openclawProviderPresets";
-import { opencodeProviderPresets } from "@/config/opencodeProviderPresets";
-import { piProviderPresets } from "@/config/piProviderPresets";
-import { mcodeProviderPresets } from "@/config/mcodeProviderPresets";
-import { universalProviderPresets } from "@/config/universalProviderPresets";
+import { codexProviderPresets as upstreamCodex } from "@/config/codexProviderPresets";
+import { providerPresets as upstreamClaude } from "@/config/claudeProviderPresets";
 
 const retained = [
   "Kimi",
@@ -29,9 +36,27 @@ const catalogs = {
   opencode: opencodeProviderPresets,
   pi: piProviderPresets,
   mcode: mcodeProviderPresets,
+  kimi: kimiProviderPresets,
+  omp: ompProviderPresets,
+  dsh: dshProviderPresets,
 };
 
 describe("个人版预设约束", () => {
+  it("继承上游模型参数且不修改原始目录", () => {
+    for (const preset of codexProviderPresets) {
+      const source = upstreamCodex.find((item) => item.name === preset.name);
+      expect(source, preset.name).toBeDefined();
+      expect(preset.modelCatalog, preset.name).toEqual(source?.modelCatalog);
+      expect(preset.config, preset.name).toBe(source?.config);
+      expect(preset.auth, preset.name).toEqual(source?.auth);
+    }
+    const source = upstreamClaude.find((item) => item.name === "Kimi")!;
+    const personal = providerPresets.find((item) => item.name === "Kimi")!;
+    expect(source.websiteUrl).toContain("aff=");
+    expect(personal.websiteUrl).toBe("https://platform.kimi.com");
+    expect(personal.settingsConfig).toEqual(source.settingsConfig);
+  });
+
   it("升级后保留原有名单和统一供应商入口", () => {
     const expected = {
       claude: ["Claude Official", ...retained],
@@ -44,6 +69,9 @@ describe("个人版预设约束", () => {
       opencode: retained,
       pi: retained,
       mcode: retained,
+      kimi: retained,
+      omp: retained,
+      dsh: retained,
     };
     for (const [app, presets] of Object.entries(catalogs)) {
       expect(

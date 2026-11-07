@@ -1,3 +1,4 @@
+import { grokBuildProviderPresets } from "@/config/personalProviderPresets";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -35,7 +36,6 @@ import { ProviderPresetSelector } from "./ProviderPresetSelector";
 import { InactiveFieldsPanel } from "./InactiveFieldsPanel";
 import {
   grokBuildOfficialPreset,
-  grokBuildProviderPresets,
   type GrokBuildProviderPreset,
 } from "@/config/grokBuildProviderPresets";
 import {

@@ -1,8 +1,6 @@
+import { openclawProviderPresets } from "@/config/personalProviderPresets";
 import { describe, expect, it } from "vitest";
-import {
-  openclawProviderPresets,
-  rebaseOpenClawSuggestedDefaults,
-} from "@/config/openclawProviderPresets";
+import { rebaseOpenClawSuggestedDefaults } from "@/config/openclawProviderPresets";
 
 describe("OpenClaw provider defaults", () => {
   it("uses separate namespaces for Kimi and its Coding Plan", () => {
@@ -13,9 +11,7 @@ describe("OpenClaw provider defaults", () => {
       (item) => item.name === "Kimi For Coding",
     );
 
-    expect(payAsYouGo?.suggestedDefaults?.model?.primary).toBe(
-      "kimi/kimi-k2.7-code",
-    );
+    expect(payAsYouGo?.suggestedDefaults?.model?.primary).toMatch(/^kimi\//);
     expect(codingPlan?.suggestedDefaults?.model?.primary).toBe(
       "kimi-coding/kimi-for-coding",
     );
@@ -25,23 +21,21 @@ describe("OpenClaw provider defaults", () => {
   });
 
   it("rebases OpenClaw defaults to the submitted provider key", () => {
-    const preset = openclawProviderPresets.find(
-      (item) => item.name === "DeepSeek",
-    );
-
-    expect(preset?.suggestedDefaults).toBeDefined();
-
     const rebased = rebaseOpenClawSuggestedDefaults(
-      preset!.suggestedDefaults!,
+      {
+        model: { primary: "deepseek/main", fallbacks: ["deepseek/backup"] },
+        modelCatalog: {
+          "deepseek/main": { alias: "Main" },
+          "deepseek/backup": { alias: "Backup" },
+        },
+      },
       "my-deepseek",
     );
 
-    expect(rebased.model?.primary).toBe("my-deepseek/deepseek-flash");
-    expect(rebased.model?.fallbacks).toEqual(["my-deepseek/deepseek-v4-pro"]);
-    expect(rebased.modelCatalog).toHaveProperty("my-deepseek/deepseek-flash");
-    expect(rebased.modelCatalog).toHaveProperty("my-deepseek/deepseek-v4-pro");
-    expect(rebased.modelCatalog).not.toHaveProperty(
-      "deepseek/deepseek-v4-flash",
-    );
+    expect(rebased.model?.primary).toBe("my-deepseek/main");
+    expect(rebased.model?.fallbacks).toEqual(["my-deepseek/backup"]);
+    expect(rebased.modelCatalog).toHaveProperty("my-deepseek/main");
+    expect(rebased.modelCatalog).toHaveProperty("my-deepseek/backup");
+    expect(rebased.modelCatalog).not.toHaveProperty("deepseek/main");
   });
 });

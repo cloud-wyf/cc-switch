@@ -42,9 +42,9 @@ exports[`ProviderForm 预设新增行金标 > claude > DeepSeek 1`] = `
         "ANTHROPIC_AUTH_TOKEN": "sk-golden-test",
         "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
         "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-flash[1M]",
-        "ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-v4-pro[1M]",
-        "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-v4-pro[1M]",
-        "ANTHROPIC_MODEL": "deepseek-v4-pro[1M]",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-flash[1M]",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-flash[1M]",
+        "ANTHROPIC_MODEL": "deepseek-flash[1M]",
         "CLAUDE_CODE_AUTO_MODE_SERVER": "0",
       },
     },
@@ -107,10 +107,10 @@ exports[`ProviderForm 预设新增行金标 > claude > MiniMax 1`] = `
       "env": {
         "ANTHROPIC_AUTH_TOKEN": "sk-golden-test",
         "ANTHROPIC_BASE_URL": "https://api.minimax.cn/anthropic",
-        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "MiniMax-M3[1M]",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "MiniMax-M3.1-Flash[1M]",
         "ANTHROPIC_DEFAULT_OPUS_MODEL": "MiniMax-M3[1M]",
-        "ANTHROPIC_DEFAULT_SONNET_MODEL": "MiniMax-M3[1M]",
-        "ANTHROPIC_MODEL": "MiniMax-M3[1M]",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL": "MiniMax-M3.1-Flash[1M]",
+        "ANTHROPIC_MODEL": "MiniMax-M3.1-Flash[1M]",
         "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "1000000",
         "CLAUDE_CODE_AUTO_MODE_SERVER": "0",
       },
@@ -198,19 +198,6 @@ requires_openai_auth = true",
               "max",
             ],
           },
-          {
-            "contextWindow": 1048576,
-            "displayName": "DeepSeek V4 Pro",
-            "inputModalities": [
-              "text",
-            ],
-            "model": "deepseek-v4-pro",
-            "reasoningLevels": [
-              "low",
-              "high",
-              "max",
-            ],
-          },
         ],
       },
     },
@@ -240,7 +227,7 @@ exports[`ProviderForm 预设新增行金标 > codex > MiniMax 1`] = `
         "OPENAI_API_KEY": "sk-golden-test",
       },
       "config": "model_provider = "custom"
-model = "MiniMax-M3"
+model = "MiniMax-M3.1-Flash"
 model_reasoning_effort = "high"
 disable_response_storage = true
 
@@ -251,6 +238,24 @@ wire_api = "responses"
 requires_openai_auth = true",
       "modelCatalog": {
         "models": [
+          {
+            "baseInstructions": "You are Codex, a coding agent based on MiniMax-M3.1-Flash. You and the user share the same workspace and collaborate to achieve the user's goals.",
+            "contextWindow": 1000000,
+            "displayName": "MiniMax-M3.1-Flash",
+            "inputModalities": [
+              "text",
+              "image",
+            ],
+            "model": "MiniMax-M3.1-Flash",
+            "reasoningLevels": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max",
+            ],
+            "supportsParallelToolCalls": true,
+          },
           {
             "baseInstructions": "You are Codex, a coding agent based on MiniMax-M3. You and the user share the same workspace and collaborate to achieve the user's goals.",
             "contextWindow": 1000000,

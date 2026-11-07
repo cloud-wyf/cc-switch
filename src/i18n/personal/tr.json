@@ -1,0 +1,20 @@
+{
+  "claudeDesktop": {
+    "modelMappingOffHint": "Doğrudan bağlantı yalnızca sağlayıcı Claude Desktop'ın üç rol kimliğini (claude-sonnet-* / claude-opus-* / claude-haiku-*) kabul ediyorsa çalışır; diğer model adları veya bir proxy betiği gerekiyorsa Yerel Yönlendirme'yi seçin.",
+    "modelMappingOnHint": "Claude Desktop yalnızca claude-sonnet-* / claude-opus-* / claude-haiku-* rol kimliklerini kabul eder. Model Eşleme modunda Claude Desktop, CC Switch yönlendirme hizmetine bağlanır; CC Switch bu rolleri gerçek sağlayıcı modellerine eşler. Proxy betikleri de yalnızca bu modda çalışır."
+  },
+  "dbUpgrade": {
+    "incompatibleDescription": "Önce mevcut yapılandırma klasörünüzü yedekleyin. Ardından veritabanı sürümünü destekleyen kaynak kodla bu projeyi yeniden derleyin veya uygulamayı kapatıp bu derlemeyle uyumlu bir veritabanı yedeğini geri yükleyin."
+  },
+  "nav": {
+    "appsGroup": "İstemciler",
+    "extensionsGroup": "Uzantılar",
+    "accountsGroup": "Hesap ve etkinlik"
+  },
+  "providerCard": {
+    "section": {
+      "current": "Geçerli",
+      "providers": "Sağlayıcılar ({{count}})"
+    }
+  }
+}

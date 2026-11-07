@@ -7,7 +7,7 @@ import { codexProviderPresets } from "./codexProviderPresets";
 // 两站模型页（原生多模态、1M 上下文、Coding Plan 全量开放）。缺这一行时，用户
 // 会把 glm-5.3 行改名成 flash，连带继承该行隐藏的 ["text"] 声明，Codex 端因此
 // 直接拦截图片输入。
-describe.each(["Zhipu GLM"])(
+describe.each(["Zhipu GLM", "Zhipu GLM en"])(
   "%s preset carries the vision-capable glm-5.3-flash",
   (presetName) => {
     const preset = codexProviderPresets.find((p) => p.name === presetName);

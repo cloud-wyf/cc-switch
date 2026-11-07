@@ -1,0 +1,33 @@
+{
+  "version": "4.0.28-1",
+  "items": [
+    {
+      "type": "new",
+      "zh": "同步上游 4.0.27，新增多客户端与 Claude 官方账号切换",
+      "zh-TW": "同步上游 4.0.27，新增多用戶端與 Claude 官方帳號切換",
+      "en": "Updated to upstream 4.0.27 with more clients and Claude official account switching.",
+      "ja": "上流 4.0.27 に更新し、対応クライアントと Claude 公式アカウント切り替えを追加"
+    },
+    {
+      "type": "improve",
+      "zh": "供应商采用分组行列表，支持界面密度、缩放和应用排序",
+      "zh-TW": "供應商改用分組行列表，支援介面密度、縮放與應用排序",
+      "en": "Grouped provider rows now support interface density, zoom and app ordering.",
+      "ja": "プロバイダーをグループ別の行表示にし、表示密度・倍率とアプリの並べ替えに対応"
+    },
+    {
+      "type": "new",
+      "zh": "新增会话正文搜索、MCP 连通检查和原生配置编辑",
+      "zh-TW": "新增工作階段內文搜尋、MCP 連線檢查與原生設定編輯",
+      "en": "Added session message search, MCP connection checks and native config editing.",
+      "ja": "セッション本文検索、MCP 接続確認とネイティブ設定編集を追加"
+    },
+    {
+      "type": "fix",
+      "zh": "保留自用脚本与详细日志，修复 Codex 路由切换误改配置",
+      "zh-TW": "保留自用腳本與詳細日誌，修正 Codex 路由切換誤改設定",
+      "en": "Kept personal scripts and detailed logs; fixed unnecessary Codex config writes on route switches.",
+      "ja": "自用スクリプトと詳細ログを保持し、Codex ルート切り替え時の不要な設定書き込みを修正"
+    }
+  ]
+}
