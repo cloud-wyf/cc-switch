@@ -936,7 +936,11 @@ function ToolRow({
     ) : null;
 
   const footer =
-    wslControls || errorLine || nodeLine || conflictList || tools.progress[tool] ? (
+    wslControls ||
+    errorLine ||
+    nodeLine ||
+    conflictList ||
+    tools.progress[tool] ? (
       <div className="space-y-2">
         {tools.progress[tool] && (
           <ToolActionProgress progress={tools.progress[tool]} />

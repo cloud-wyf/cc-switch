@@ -171,8 +171,12 @@ export function SwitchModePanel({
     options: Parameters<typeof modeActions.exitToDirect>[0],
   ) => {
     const routedIds = new Set(
-      [routeId, ...(active === "stack" ? (stack?.members ?? []).map((member) => member.providerId) : [])]
-        .filter((id): id is string => id !== null),
+      [
+        routeId,
+        ...(active === "stack"
+          ? (stack?.members ?? []).map((member) => member.providerId)
+          : []),
+      ].filter((id): id is string => id !== null),
     );
     const scripted = Object.values(providers).filter(
       (provider) =>
