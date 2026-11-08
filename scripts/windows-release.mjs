@@ -154,13 +154,14 @@ export function assertRepositoryWriteAccess(
   repository,
   environment = process.env,
 ) {
-  // Actions 的安装令牌可能不返回 permissions；实际写权限由工作流和 GitHub API 强制执行。
+  // 仓库接口的用户 permissions 不代表 Actions 安装令牌的 Contents 权限。
+  // 本仓库工作流声明 contents: write，实际写入仍由 GitHub API 校验。
   const workflowToken =
     environment.GITHUB_ACTIONS === "true" &&
     environment.GITHUB_REPOSITORY === RELEASE_REPOSITORY;
-  const canPush = repository.permissions?.push;
+  if (workflowToken) return;
   assert(
-    canPush === true || (canPush === undefined && workflowToken),
+    repository.permissions?.push === true,
     "当前 GitHub 凭据没有发布仓库的写入权限",
   );
 }

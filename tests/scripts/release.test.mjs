@@ -57,10 +57,10 @@ describe("release repository permissions", () => {
     expect(() => assertRepositoryWriteAccess({}, workflow)).not.toThrow();
   });
 
-  it("still rejects an explicit denial in Actions", () => {
+  it("does not confuse user repository permissions with an Actions token's contents permission", () => {
     expect(() =>
       assertRepositoryWriteAccess({ permissions: { push: false } }, workflow),
-    ).toThrow(/写入权限/);
+    ).not.toThrow();
   });
 
   it("requires confirmed write access outside this repository's workflow", () => {
