@@ -18,6 +18,7 @@ import { WhatsNewDialog } from "@/components/WhatsNewDialog";
 import { WHATS_NEW_ENTRIES, entriesUpTo } from "@/lib/whatsNew";
 import ccswitchLogo from "@/assets/icons/logo.svg";
 import { extractErrorMessage } from "@/utils/errorUtils";
+import { GitHubUpdateTokenSettings } from "./GitHubUpdateTokenSettings";
 
 interface AboutSectionProps {
   isPortable: boolean;
@@ -209,6 +210,8 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
           )}
         </Button>
       </div>
+
+      <GitHubUpdateTokenSettings />
 
       {hasUpdate && updateInfo && (
         <div className="space-y-1 px-5 py-4 text-body">

@@ -448,6 +448,17 @@ pub struct UsageDisplaySettings {
     pub rate_provider: Option<String>,
 }
 
+/// 更新令牌仅在后端读取，Debug 不输出凭据内容。
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct GitHubUpdateToken(pub String);
+
+impl std::fmt::Debug for GitHubUpdateToken {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("[redacted]")
+    }
+}
+
 /// 应用设置结构
 ///
 /// 存储设备级别设置，保存在本地 `~/.cc-switch/settings.json`，不随数据库同步。
@@ -455,6 +466,9 @@ pub struct UsageDisplaySettings {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
+    /// 本机 GitHub 更新令牌；缺省匿名，前端全量设置不读取或修改此值。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub github_update_token: Option<GitHubUpdateToken>,
     // ===== 设备级 UI 设置 =====
     #[serde(default = "default_show_in_tray")]
     pub show_in_tray: bool,
@@ -707,6 +721,7 @@ fn default_session_content_search_enabled() -> bool {
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
+            github_update_token: None,
             show_in_tray: true,
             minimize_to_tray_on_close: true,
             use_app_window_controls: false,
@@ -1114,7 +1129,11 @@ pub fn get_settings() -> AppSettings {
 }
 
 pub fn get_settings_for_frontend() -> AppSettings {
-    let mut settings = get_settings();
+    redact_settings_for_frontend(get_settings())
+}
+
+fn redact_settings_for_frontend(mut settings: AppSettings) -> AppSettings {
+    settings.github_update_token = None;
     if let Some(sync) = &mut settings.webdav_sync {
         sync.password.clear();
     }
@@ -1127,15 +1146,11 @@ pub fn get_settings_for_frontend() -> AppSettings {
 
 pub fn update_settings(mut new_settings: AppSettings) -> Result<(), AppError> {
     new_settings.codex_quota_protection.validate()?;
-    new_settings.normalize_paths();
-    save_settings_file(&new_settings)?;
-
-    let mut guard = settings_store().write().unwrap_or_else(|e| {
-        log::warn!("设置锁已毒化，使用恢复值: {e}");
-        e.into_inner()
-    });
-    *guard = new_settings;
-    Ok(())
+    mutate_settings(|settings| {
+        // 持锁时读取最新令牌，避免并发的全量设置保存覆盖刚保存或清空的令牌。
+        new_settings.github_update_token = settings.github_update_token.clone();
+        *settings = new_settings;
+    })
 }
 
 fn mutate_settings<F>(mutator: F) -> Result<(), AppError>
@@ -1152,6 +1167,28 @@ where
     save_settings_file(&next)?;
     *guard = next;
     Ok(())
+}
+
+pub fn set_github_update_token(token: Option<String>) -> Result<(), AppError> {
+    let token = normalize_github_update_token(token)?;
+    mutate_settings(|settings| {
+        settings.github_update_token = token;
+    })
+}
+
+fn normalize_github_update_token(
+    token: Option<String>,
+) -> Result<Option<GitHubUpdateToken>, AppError> {
+    let token = token
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    if token
+        .as_ref()
+        .is_some_and(|value| value.bytes().any(|byte| !byte.is_ascii_graphic()))
+    {
+        return Err(AppError::Config("GitHub Token 格式无效".to_string()));
+    }
+    Ok(token.map(GitHubUpdateToken))
 }
 
 pub fn is_codex_third_party_history_provider_bucket_migrated() -> bool {
@@ -1641,6 +1678,44 @@ pub fn update_s3_sync_status(status: WebDavSyncStatus) -> Result<(), AppError> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn github_update_token_defaults_to_anonymous_and_stays_out_of_frontend_settings() {
+        let old: super::AppSettings = serde_json::from_str("{}").unwrap();
+        assert!(old.github_update_token.is_none());
+        let settings = super::AppSettings {
+            github_update_token: Some(super::GitHubUpdateToken("test-user-token".to_owned())),
+            ..super::AppSettings::default()
+        };
+        let persisted = serde_json::to_string(&settings).unwrap();
+        let restored: super::AppSettings = serde_json::from_str(&persisted).unwrap();
+        assert_eq!(restored.github_update_token.unwrap().0, "test-user-token");
+        assert!(!format!("{settings:?}").contains("test-user-token"));
+        let frontend =
+            serde_json::to_string(&super::redact_settings_for_frontend(settings)).unwrap();
+        assert!(!frontend.contains("test-user-token"));
+        assert!(!frontend.contains("githubUpdateToken"));
+    }
+
+    #[test]
+    fn github_update_token_trims_clears_and_rejects_embedded_whitespace() {
+        assert_eq!(
+            super::normalize_github_update_token(Some("  test-token  ".to_owned()))
+                .unwrap()
+                .unwrap()
+                .0,
+            "test-token"
+        );
+        for token in [None, Some(String::new()), Some("  ".to_owned())] {
+            assert!(super::normalize_github_update_token(token)
+                .unwrap()
+                .is_none());
+        }
+        for token in ["test\ntoken", "test\rtoken", "test token", "test\ttoken"] {
+            let error = super::normalize_github_update_token(Some(token.to_owned())).unwrap_err();
+            assert!(!error.to_string().contains(token));
+        }
+    }
+
     use super::*;
     use crate::app_config::AppType;
 

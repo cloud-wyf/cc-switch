@@ -2,8 +2,8 @@
 
 这里保留针对自用版改写的说明；上游原始手册和发布说明只作参考，后续同步不在原文上反复修改。
 
-- [开发、安装与私有更新](../../README.md)
-- [本机 Windows 发布规范](../guides/local-release.md)
+- [开发、安装与应用更新](../../README.md)
+- [Windows 发布规范（默认 GitHub 构建）](../guides/local-release.md)
 - [供应商 TypeScript 代理脚本](../guides/provider-proxy-script-zh.md)
 - [详细请求日志](../guides/provider-proxy-event-logs-zh.md)
 - [Codex 公共配置与私有覆盖](../codex-config-overlay-v1-zh.md)

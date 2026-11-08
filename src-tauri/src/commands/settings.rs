@@ -51,7 +51,22 @@ fn merge_settings_for_save(
     incoming.proxy_client_host = existing.proxy_client_host.clone();
     // 轻量模式状态只由进入 / 退出轻量模式时写，前端缓存里的值总是旧的。
     incoming.lightweight_mode = existing.lightweight_mode;
+    // 更新令牌只通过专用命令保存，避免前端脱敏后的全量设置将其清空或重放。
+    incoming.github_update_token = existing.github_update_token.clone();
     incoming
+}
+
+#[tauri::command]
+pub async fn has_github_update_token() -> Result<bool, String> {
+    Ok(crate::settings::get_settings()
+        .github_update_token
+        .is_some_and(|token| !token.0.trim().is_empty()))
+}
+
+#[tauri::command]
+pub async fn set_github_update_token(token: Option<String>) -> Result<bool, String> {
+    crate::settings::set_github_update_token(token).map_err(|error| error.to_string())?;
+    Ok(true)
 }
 
 /// 获取设置
@@ -268,7 +283,7 @@ pub async fn restart_app(app: AppHandle) -> Result<bool, String> {
     Ok(true)
 }
 
-/// 下载、校验并安装私有仓库的更新，再按原流程清理和重启应用。
+/// 下载、校验并安装自用仓库的更新，再按原流程清理和重启应用。
 #[tauri::command]
 pub async fn install_update_and_restart(app: AppHandle) -> Result<bool, String> {
     let Some(update) = crate::services::app_updater::check(&app).await? else {
@@ -342,7 +357,7 @@ pub async fn check_app_update(
         .map(Into::into))
 }
 
-/// 数据库恢复页使用相同的私有更新源。
+/// 数据库恢复页使用相同的自用更新源和可选 Token。
 #[tauri::command]
 pub async fn check_app_update_available(app: AppHandle) -> Result<Option<String>, String> {
     Ok(crate::services::app_updater::check(&app)
@@ -397,6 +412,30 @@ mod tests {
         let merged = merge_settings_for_save(AppSettings::default(), &existing);
 
         assert!(merged.lightweight_mode);
+    }
+
+    #[test]
+    fn save_settings_preserves_update_token_and_ignores_stale_frontend_values() {
+        let existing = AppSettings {
+            github_update_token: Some(crate::settings::GitHubUpdateToken(
+                "existing-token".to_owned(),
+            )),
+            ..AppSettings::default()
+        };
+        for incoming in [
+            AppSettings::default(),
+            AppSettings {
+                github_update_token: Some(crate::settings::GitHubUpdateToken(
+                    "stale-token".to_owned(),
+                )),
+                ..AppSettings::default()
+            },
+        ] {
+            let merged = merge_settings_for_save(incoming, &existing);
+            assert_eq!(merged.github_update_token.unwrap().0, "existing-token");
+        }
+        let cleared = merge_settings_for_save(existing, &AppSettings::default());
+        assert!(cleared.github_update_token.is_none());
     }
 
     #[test]

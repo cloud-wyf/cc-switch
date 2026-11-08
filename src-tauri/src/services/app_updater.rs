@@ -1,4 +1,4 @@
-//! 从自用私有仓库检查更新，复用 Tauri 的签名校验和安装流程。
+//! 从自用公开仓库检查更新，支持可选 Token，复用 Tauri 的签名校验和安装流程。
 
 use std::time::Duration;
 
@@ -15,7 +15,6 @@ const MANIFEST_NAME: &str = "latest.json";
 
 #[derive(Deserialize)]
 struct GitHubAsset {
-    id: u64,
     name: String,
     browser_download_url: String,
 }
@@ -87,68 +86,43 @@ fn latest_release<'a>(
         .max_by(|(left, _), (right, _)| left.cmp_precedence(right))
 }
 
-fn asset_url(asset: &GitHubAsset) -> Url {
-    Url::parse(&format!(
-        "https://api.github.com/repos/{REPOSITORY}/releases/assets/{}",
-        asset.id
-    ))
-    .expect("固定 GitHub API 地址及数字资产 ID 构成合法 URL")
+fn public_asset_url(release: &GitHubRelease, asset: &GitHubAsset) -> Result<Url, String> {
+    let url = Url::parse(&asset.browser_download_url)
+        .map_err(|_| "GitHub 更新附件地址无效".to_owned())?;
+    let prefix = format!("/{REPOSITORY}/releases/download/{}/", release.tag_name);
+    if url.scheme() != "https"
+        || url.host_str() != Some("github.com")
+        || url.port().is_some()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+        || !url.path().starts_with(&prefix)
+    {
+        return Err("更新附件必须属于本仓库的同一个 Release，已拒绝下载".to_owned());
+    }
+    Ok(url)
 }
 
-fn authenticated_download_url(release: &GitHubRelease, download_url: &Url) -> Result<Url, String> {
-    release
+fn public_download_url(release: &GitHubRelease, download_url: &Url) -> Result<Url, String> {
+    let asset = release
         .assets
         .iter()
         .find(|asset| {
-            asset.name != MANIFEST_NAME
-                && (asset.browser_download_url == download_url.as_str()
-                    || asset_url(asset) == *download_url)
+            asset.name != MANIFEST_NAME && asset.browser_download_url == download_url.as_str()
         })
-        .map(asset_url)
-        .ok_or_else(|| "更新包必须属于当前私有仓库的同一个 Release，已拒绝下载".to_owned())
+        .ok_or_else(|| "更新包必须属于本仓库的同一个 Release，已拒绝下载".to_owned())?;
+    public_asset_url(release, asset)
 }
 
-async fn github_token() -> Result<String, String> {
-    for name in ["CC_SWITCH_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"] {
-        if let Ok(token) = std::env::var(name) {
-            let token = token.trim();
-            if !token.is_empty() {
-                return Ok(token.to_owned());
-            }
-        }
-    }
-
-    let mut command = tokio::process::Command::new("gh");
-    command
-        .args(["auth", "token", "--hostname", "github.com"])
-        .kill_on_drop(true);
-    #[cfg(target_os = "windows")]
-    command.creation_flags(0x08000000); // CREATE_NO_WINDOW
-
-    let output = tokio::time::timeout(Duration::from_secs(10), command.output()).await;
-    if let Ok(Ok(output)) = output {
-        if output.status.success() {
-            if let Ok(token) = String::from_utf8(output.stdout) {
-                let token = token.trim();
-                if !token.is_empty() {
-                    return Ok(token.to_owned());
-                }
-            }
-        }
-    }
-
-    // 不回传命令输出，避免凭据意外出现在日志或 WebView 中。
-    Err(format!(
-        "更新仓库 {REPOSITORY} 需要 GitHub 认证。请使用 gh auth login 登录有仓库读取权限的账号，或设置 CC_SWITCH_GITHUB_TOKEN 后重新启动应用。"
-    ))
-}
-
-fn github_headers(token: &str) -> Result<HeaderMap, String> {
-    let mut authorization = HeaderValue::from_str(&format!("Bearer {token}"))
-        .map_err(|_| "GitHub 访问令牌格式无效".to_owned())?;
-    authorization.set_sensitive(true);
+fn github_headers(token: Option<&str>) -> Result<HeaderMap, String> {
     let mut headers = HeaderMap::new();
-    headers.insert(AUTHORIZATION, authorization);
+    if let Some(token) = token.map(str::trim).filter(|value| !value.is_empty()) {
+        let mut authorization = HeaderValue::from_str(&format!("Bearer {token}"))
+            .map_err(|_| "GitHub Token 格式无效".to_owned())?;
+        authorization.set_sensitive(true);
+        headers.insert(AUTHORIZATION, authorization);
+    }
     headers.insert(
         ACCEPT,
         HeaderValue::from_static("application/vnd.github+json"),
@@ -160,11 +134,23 @@ fn github_headers(token: &str) -> Result<HeaderMap, String> {
     Ok(headers)
 }
 
-fn github_error(status: reqwest::StatusCode) -> String {
+fn github_error(status: reqwest::StatusCode, headers: &HeaderMap, authenticated: bool) -> String {
+    if matches!(status.as_u16(), 403 | 429)
+        && (headers
+            .get("x-ratelimit-remaining")
+            .is_some_and(|value| value == "0")
+            || status.as_u16() == 429)
+    {
+        return if authenticated {
+            "GitHub Token 请求额度已用完，请稍后重试".to_owned()
+        } else {
+            "GitHub 匿名请求已达到限额，请稍后重试，或在设置 → 关于配置 GitHub API Token".to_owned()
+        };
+    }
     match status.as_u16() {
-        401 => "GitHub 登录凭据无效或已过期，请重新登录或更新 CC_SWITCH_GITHUB_TOKEN".to_owned(),
-        403 => "GitHub 拒绝访问更新仓库，请检查仓库读取权限或稍后重试（可能已达到 API 请求限额）".to_owned(),
-        404 => format!("无法读取私有更新仓库 {REPOSITORY}，请确认 GitHub 账号或令牌具有该仓库的 Contents: read 权限"),
+        401 => "GitHub Token 无效或已过期，请在设置 → 关于更新或清空 Token".to_owned(),
+        403 => "GitHub 拒绝访问更新仓库，请检查 Token 权限或稍后重试".to_owned(),
+        404 => format!("未找到更新仓库 {REPOSITORY} 的发布信息，请稍后重试"),
         _ => format!("读取更新仓库失败（HTTP {status}）"),
     }
 }
@@ -176,7 +162,14 @@ pub async fn check(app: &AppHandle) -> Result<Option<Update>, String> {
 }
 
 async fn check_inner(app: &AppHandle) -> Result<Option<Update>, String> {
-    let mut headers = github_headers(&github_token().await?)?;
+    let settings = crate::settings::get_settings();
+    let headers = github_headers(
+        settings
+            .github_update_token
+            .as_ref()
+            .map(|token| token.0.as_str()),
+    )?;
+    let authenticated = headers.contains_key(AUTHORIZATION);
     let client = reqwest::Client::builder()
         .user_agent(concat!("cc-switch/", env!("CARGO_PKG_VERSION")))
         .default_headers(headers.clone())
@@ -197,7 +190,11 @@ async fn check_inner(app: &AppHandle) -> Result<Option<Update>, String> {
             .await
             .map_err(|error| format!("连接更新仓库失败: {error}"))?;
         if !response.status().is_success() {
-            return Err(github_error(response.status()));
+            return Err(github_error(
+                response.status(),
+                response.headers(),
+                authenticated,
+            ));
         }
         let batch: Vec<GitHubRelease> = response
             .json()
@@ -220,16 +217,15 @@ async fn check_inner(app: &AppHandle) -> Result<Option<Update>, String> {
         .find(|asset| asset.name == MANIFEST_NAME)
         .expect("latest_release 已检查更新清单存在");
 
-    // 私有仓库的清单和安装包都通过 Release Assets API 下载。
-    headers.insert(ACCEPT, HeaderValue::from_static("application/octet-stream"));
+    // 清单和安装包均使用公开直链，Token 只用于前面的 GitHub API 请求。
     let builder = app
         .updater_builder()
-        .headers(headers)
-        .endpoints(vec![asset_url(manifest)])
+        .headers(HeaderMap::new())
+        .endpoints(vec![public_asset_url(release, manifest)?])
         .map_err(|error| format!("设置更新源失败: {error}"))?
         .version_comparator(|current, release| release.version.cmp_precedence(&current).is_gt())
         .timeout(CHECK_TIMEOUT);
-    // MSI 更新不得自动重启系统；私有更新源与认证保持不变。
+    // MSI 更新不得自动重启系统。
     #[cfg(target_os = "windows")]
     let builder = builder.installer_arg("REBOOT=ReallySuppress");
     let updater = builder
@@ -244,8 +240,8 @@ async fn check_inner(app: &AppHandle) -> Result<Option<Update>, String> {
         return Err("发布版本与更新清单的版本号不一致，已拒绝安装".to_owned());
     }
 
-    // 不将认证头发送给清单内任意 URL；只接受本 Release 的资产。
-    update.download_url = authenticated_download_url(release, &update.download_url)?;
+    // 只接受本 Release 的公开附件地址，签名校验仍由 Tauri 执行。
+    update.download_url = public_download_url(release, &update.download_url)?;
     update.timeout = Some(Duration::from_secs(600));
     Ok(Some(update))
 }
@@ -260,14 +256,12 @@ mod tests {
             draft: false,
             assets: vec![
                 GitHubAsset {
-                    id: 10,
                     name: MANIFEST_NAME.to_owned(),
                     browser_download_url: format!(
                         "https://github.com/{REPOSITORY}/releases/download/{tag}/latest.json"
                     ),
                 },
                 GitHubAsset {
-                    id: 11,
                     name: "setup.exe".to_owned(),
                     browser_download_url: format!(
                         "https://github.com/{REPOSITORY}/releases/download/{tag}/setup.exe"
@@ -318,21 +312,31 @@ mod tests {
     }
 
     #[test]
-    fn private_download_uses_the_authenticated_asset_api() {
+    fn public_downloads_use_release_links_without_the_asset_api() {
         let release = release("v3.20.2-1");
         let download = Url::parse(&release.assets[1].browser_download_url).unwrap();
-        let expected = Url::parse(&format!(
-            "https://api.github.com/repos/{REPOSITORY}/releases/assets/11"
-        ))
-        .unwrap();
+        assert_eq!(public_download_url(&release, &download).unwrap(), download);
         assert_eq!(
-            authenticated_download_url(&release, &download).unwrap(),
-            expected
+            public_asset_url(&release, &release.assets[0])
+                .unwrap()
+                .as_str(),
+            "https://github.com/cloud-wyf/cc-switch/releases/download/v3.20.2-1/latest.json"
         );
-        assert_eq!(
-            authenticated_download_url(&release, &expected).unwrap(),
-            expected
-        );
+    }
+
+    #[test]
+    fn refuses_malformed_or_foreign_public_asset_addresses() {
+        for url in [
+            "http://github.com/cloud-wyf/cc-switch/releases/download/v3.20.2-1/latest.json",
+            "https://other.example/cloud-wyf/cc-switch/releases/download/v3.20.2-1/latest.json",
+            "https://user@github.com/cloud-wyf/cc-switch/releases/download/v3.20.2-1/latest.json",
+            "https://github.com/cloud-wyf/cc-switch/releases/download/v3.20.2-2/latest.json",
+            "https://github.com/cloud-wyf/cc-switch/releases/download/v3.20.2-1/latest.json?token=example",
+        ] {
+            let mut release = release("v3.20.2-1");
+            release.assets[0].browser_download_url = url.to_owned();
+            assert!(public_asset_url(&release, &release.assets[0]).is_err());
+        }
     }
 
     #[test]
@@ -343,7 +347,7 @@ mod tests {
             "https://example.com/setup.exe",
             "https://api.github.com/repos/cloud-wyf/cc-switch/releases/assets/99",
         ] {
-            assert!(authenticated_download_url(&release, &Url::parse(url).unwrap()).is_err());
+            assert!(public_download_url(&release, &Url::parse(url).unwrap()).is_err());
         }
     }
 
@@ -362,10 +366,29 @@ mod tests {
 
     #[test]
     fn authentication_headers_are_sensitive_and_malformed_tokens_are_redacted() {
-        let headers = github_headers("test-token").unwrap();
+        let headers = github_headers(Some("  test-token  ")).unwrap();
         assert!(headers[AUTHORIZATION].is_sensitive());
-        let error = github_headers("private-token\ninvalid").unwrap_err();
+        let error = github_headers(Some("private-token\ninvalid")).unwrap_err();
         assert!(!error.contains("private-token"));
-        assert!(github_error(reqwest::StatusCode::NOT_FOUND).contains("Contents: read"));
+        assert_eq!(headers[AUTHORIZATION], "Bearer test-token");
+        for token in [None, Some(""), Some("  ")] {
+            assert!(!github_headers(token).unwrap().contains_key(AUTHORIZATION));
+        }
+    }
+
+    #[test]
+    fn rate_limit_errors_distinguish_anonymous_and_user_token_requests() {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-ratelimit-remaining", HeaderValue::from_static("0"));
+        let anonymous = github_error(reqwest::StatusCode::FORBIDDEN, &headers, false);
+        assert!(anonymous.contains("匿名"));
+        assert!(anonymous.contains("设置 → 关于"));
+        let authenticated = github_error(reqwest::StatusCode::FORBIDDEN, &headers, true);
+        assert!(authenticated.contains("Token 请求额度"));
+        assert!(!authenticated.contains("匿名"));
+        assert!(
+            github_error(reqwest::StatusCode::UNAUTHORIZED, &HeaderMap::new(), true)
+                .contains("更新或清空 Token")
+        );
     }
 }

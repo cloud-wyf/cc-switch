@@ -16,5 +16,20 @@
       "current": "Geçerli",
       "providers": "Sağlayıcılar ({{count}})"
     }
+  },
+  "settings": {
+    "githubUpdateToken": {
+      "title": "GitHub API Token (isteğe bağlı)",
+      "hint": "Güncelleme denetimlerinde kullanılır. Boş bırakırsanız anonim erişim, eklerseniz kendi API kotanız kullanılır. Yalnızca bu cihazda saklanır. Kurulum dosyaları her zaman açık bağlantılardan indirilir.",
+      "placeholder": "Anonim istekler için boş bırakın",
+      "replacePlaceholder": "Token kayıtlı; değiştirmek için yeni token girin",
+      "authenticated": "Token kayıtlı: denetimler kişisel API kotanızı kullanır",
+      "anonymous": "Token yok: anonim güncelleme denetimleri",
+      "saved": "Güncelleme token ayarları kaydedildi",
+      "saveFailed": "Token kaydedilemedi. Biçimini denetleyip yeniden deneyin.",
+      "loadFailed": "Token yapılandırma durumu okunamadı",
+      "show": "Girilen tokenı göster",
+      "hide": "Girilen tokenı gizle"
+    }
   }
 }

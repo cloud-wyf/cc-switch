@@ -1,0 +1,26 @@
+{
+  "version": "4.0.28-3",
+  "items": [
+    {
+      "type": "new",
+      "zh": "更新检查支持匿名访问，可选填 GitHub Token",
+      "zh-TW": "更新檢查支援匿名存取，可選填 GitHub Token",
+      "en": "Update checks now work anonymously, with an optional GitHub token.",
+      "ja": "更新確認を匿名で利用でき、GitHub Token の任意設定にも対応"
+    },
+    {
+      "type": "improve",
+      "zh": "更新包改用公开直链下载，继续验证安装包签名",
+      "zh-TW": "更新包改用公開連結下載，繼續驗證安裝包簽章",
+      "en": "Updates use public download links while keeping installer signature verification.",
+      "ja": "更新は公開リンクから取得し、インストーラーの署名検証を継続"
+    },
+    {
+      "type": "improve",
+      "zh": "新版安装包由 GitHub Windows 环境编译发布",
+      "zh-TW": "新版安裝包由 GitHub Windows 環境編譯發布",
+      "en": "New installers are built and published by GitHub's Windows runners.",
+      "ja": "新しいインストーラーを GitHub の Windows 環境でビルドして公開"
+    }
+  ]
+}

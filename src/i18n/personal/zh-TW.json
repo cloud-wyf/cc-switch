@@ -200,5 +200,20 @@
     "checking": "正在檢查…",
     "validate": "檢查語法",
     "valid": "語法檢查通過（未執行腳本）"
+  },
+  "settings": {
+    "githubUpdateToken": {
+      "title": "GitHub API Token（選填）",
+      "hint": "用於更新檢查。未設定時匿名存取；設定後使用自己的 API 額度。僅儲存在本機，安裝包一律透過公開連結下載。",
+      "placeholder": "留空使用匿名請求",
+      "replacePlaceholder": "已設定，輸入新 Token 可替換",
+      "authenticated": "已設定 Token：使用個人 API 額度檢查更新",
+      "anonymous": "未設定 Token：匿名檢查更新",
+      "saved": "更新 Token 設定已儲存",
+      "saveFailed": "儲存更新 Token 失敗，請檢查格式後重試",
+      "loadFailed": "讀取 Token 設定狀態失敗",
+      "show": "顯示輸入的 Token",
+      "hide": "隱藏輸入的 Token"
+    }
   }
 }

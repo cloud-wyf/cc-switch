@@ -1,16 +1,16 @@
 # CC Switch 项目约定
 
 - 使用简体中文沟通。先读后改，遵循 KISS、DRY、YAGNI，保留用户已有修改；验证范围与变更相匹配。
-- 本项目为个人自用版，发布仓库固定为私有 `cloud-wyf/cc-switch`；`farion1231/cc-switch` 只作为上游源码来源。
-- 保留自用代理脚本、详细请求日志、私有更新源、应用标识及签名公钥；数据库迁移沿用自用历史，不直接覆盖成上游版本号。
+- 本项目为个人自用版，发布仓库固定为公开 `cloud-wyf/cc-switch`；`farion1231/cc-switch` 只作为上游源码来源。
+- 保留自用代理脚本、详细请求日志、自用更新源、应用标识及签名公钥；数据库迁移沿用自用历史，不直接覆盖成上游版本号。
 
 ## “发布”的固定含义
 
-用户要求“发布”“发版”“发布当前修改”或“打包并发布”时，读取并执行项目技能 [.agents/skills/cc-switch-release/SKILL.md](.agents/skills/cc-switch-release/SKILL.md)，完整流程见 [本机发布规范](docs/guides/local-release.md)。
+用户要求“发布”“发版”“发布当前修改”或“打包并发布”时，读取并执行项目技能 [.agents/skills/cc-switch-release/SKILL.md](.agents/skills/cc-switch-release/SKILL.md)，完整流程见 [Windows 发布规范](docs/guides/local-release.md)。
 
-用户已约定：这样的发布指令是对本次必要操作的明确授权，包括整理版本与说明、提交本次修改、正常推送 `origin/main` 和版本 Tag、取消本次同版本的云端发布任务、本机编译签名、上传并发布私有 Release。无需对这些步骤逐项重复确认。范围不清、需改写历史或存在规范列明的阻塞时，先完成可独立执行的准备，再说明具体问题。
+用户已约定：这样的发布指令是对本次必要操作的明确授权，包括整理版本与说明、提交本次修改、正常推送 `origin/main` 和版本 Tag、触发或复用本次同版本的 GitHub Actions 任务、云端编译签名、上传并发布 Release。无需对这些步骤逐项重复确认。范围不清、需改写历史或存在规范列明的阻塞时，先完成可独立执行的准备，再说明具体问题。
 
-默认始终使用 **本机 Windows x64 构建**，不根据 GitHub 额度自动改为云端。自然语言“发布”对应 `pnpm release:local`；现有 CLI `pnpm release` 仍是可选的云端优先模式，只在用户明确要求时使用。
+默认使用 **GitHub Actions 标准 Windows x64 Runner 构建**。自然语言“发布”和 `pnpm release` 均选择 GitHub 构建；`pnpm release:local` 仅在用户明确要求本机发布时使用。云端失败不自动改成本机发布。
 
 仅修改、检查代码，或要求总结/调整发布规范，不执行提交、推送、Tag、Release 发布或安装；按变更范围进行编译和测试。不自动创建/切换分支，不强推、不重置工作区、不覆盖已发布 Tag/附件，不操作日常配置数据库。
 

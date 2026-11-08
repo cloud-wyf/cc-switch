@@ -150,6 +150,21 @@ export function assertDraftRelease(release, tag, commit) {
   );
 }
 
+export function assertRepositoryWriteAccess(
+  repository,
+  environment = process.env,
+) {
+  // Actions 的安装令牌可能不返回 permissions；实际写权限由工作流和 GitHub API 强制执行。
+  const workflowToken =
+    environment.GITHUB_ACTIONS === "true" &&
+    environment.GITHUB_REPOSITORY === RELEASE_REPOSITORY;
+  const canPush = repository.permissions?.push;
+  assert(
+    canPush === true || (canPush === undefined && workflowToken),
+    "当前 GitHub 凭据没有发布仓库的写入权限",
+  );
+}
+
 export function createReleaseContext(tag) {
   const info = readReleaseInfo(PROJECT_ROOT, tag);
   const github = createGitHubClient();
@@ -161,10 +176,7 @@ export function createReleaseContext(tag) {
     );
   }
   const repository = github.request(github.base);
-  assert(
-    repository.permissions?.push,
-    "当前 GitHub 凭据没有发布仓库的写入权限",
-  );
+  assertRepositoryWriteAccess(repository);
   const readSource = () => ({
     dirty: command("git", ["status", "--porcelain"]),
     head: command("git", ["rev-parse", "HEAD"]),
@@ -225,7 +237,10 @@ export function signingEnvironment() {
     process.env.TAURI_SIGNING_PRIVATE_KEY ??
     path.join(os.homedir(), ".tauri", "cc-switch-updater.key");
   if (!process.env.TAURI_SIGNING_PRIVATE_KEY) {
-    assert(existsSync(privateKey), "找不到本机更新签名私钥，请按 README 配置");
+    assert(
+      existsSync(privateKey),
+      "找不到本机更新签名私钥，请按 docs/guides/local-release.md 配置",
+    );
   }
   return {
     ...process.env,

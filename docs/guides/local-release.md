@@ -1,6 +1,6 @@
-# CC Switch 本机发布规范
+# CC Switch Windows 发布规范
 
-本规范适用于个人自用仓库 `cloud-wyf/cc-switch`。目标是将本次修改形成可追溯的源码提交，在本机 Windows x64 构建签名安装包，发布到同一私有仓库，并验证已安装应用能够获取正确的更新制品。
+本规范适用于个人自用仓库 `cloud-wyf/cc-switch`。目标是将本次修改形成可追溯的源码提交，通过 GitHub Actions 标准 Windows x64 Runner 构建签名安装包，发布到同一公开仓库，并验证已安装应用能够获取正确的更新制品。
 
 ## 触发与完成标准
 
@@ -8,28 +8,30 @@
 
 ```text
 检查变更 → 确定版本和发布说明 → 验证 → 提交源码
-→ 推送 main 和 Tag → 排除同版本云端任务
-→ 本机编译与签名 → 上传草稿附件 → 发布 Release → 下载核验
+→ 推送 main 和 Tag → 复用或触发同版本 GitHub Actions
+→ GitHub 编译与签名 → 上传草稿附件 → 发布 Release → 下载核验
 ```
 
 这些指令已包含必要提交、推送、Tag 和 Release 操作的确认，不再逐项询问。发布前简述将发布的变更、版本及仓库即可继续。用户明确限定“只提交”“只打包”“暂不发布”时，按限定执行；仅讨论或编写本规范不启动发布。
 
-**默认始终本机构建，与 GitHub 剩余额度无关。** 不自动安装或启动新版，不修改日常配置数据库。发布成功必须同时满足：远程 `main`/Tag 与本次提交一致，Release 非草稿，六个附件完整且已核验。只推代码不等于应用已更新。
+**默认使用 GitHub 构建；公开仓库的标准 `windows-2022` Runner 免费。** 云端失败不自动转本机。不自动安装或启动新版，不修改日常配置数据库。发布成功必须同时满足：远程 `main`/Tag 与本次提交一致，Release 非草稿，六个附件完整且已核验。只推代码不等于应用已更新。
 
 ## 固定约定
 
-| 项目     | 约定                                                                               |
-| -------- | ---------------------------------------------------------------------------------- |
-| 发布远程 | `origin` → 私有 `cloud-wyf/cc-switch`；HTTPS/SSH 均须核对仓库身份                  |
-| 上游     | `farion1231/cc-switch`，仅用于另行授权的源码同步                                   |
-| 分支     | 已有 `main`，不为发布创建或自动切换分支                                            |
-| 构建目标 | `x86_64-pc-windows-msvc`，MSI、NSIS EXE、便携 ZIP                                  |
-| 工具链   | 以 `.node-version`、`rust-toolchain.toml`、`package.json` 的 `packageManager` 为准 |
-| 私钥     | 默认 `~/.tauri/cc-switch-updater.key`，沿用已有密钥；也支持进程级签名环境变量      |
-| 发布命令 | `pnpm release:local --tag <本次Tag>`                                               |
-| 本机记录 | Git 忽略的 `release/<Tag>/`，日志和校验记录可放其 `validation/` 子目录             |
+| 项目     | 约定                                                                                      |
+| -------- | ----------------------------------------------------------------------------------------- |
+| 发布远程 | `origin` → 公开 `cloud-wyf/cc-switch`；HTTPS/SSH 均须核对仓库身份                         |
+| 上游     | `farion1231/cc-switch`，仅用于另行授权的源码同步                                          |
+| 分支     | 已有 `main`，不为发布创建或自动切换分支                                                   |
+| 构建目标 | `x86_64-pc-windows-msvc`，MSI、NSIS EXE、便携 ZIP                                         |
+| 工具链   | 以 `.node-version`、`rust-toolchain.toml`、`package.json` 的 `packageManager` 为准        |
+| 私钥     | Actions Secret `TAURI_SIGNING_PRIVATE_KEY`；本机备用沿用 `~/.tauri/cc-switch-updater.key` |
+| 发布命令 | `pnpm release --tag <本次Tag>`                                                            |
+| 本机记录 | Git 忽略的 `release/<Tag>/`，日志和校验记录可放其 `validation/` 子目录                    |
 
-`pnpm release` 和 `pnpm release:local` 默认仅在本机发布。云端构建必须显式选择 `pnpm release:github` 或 `pnpm release --mode auto`；后者云端优先，可能等待运行器，最长 90 分钟。
+`pnpm release` 与 `pnpm release:github` 均只使用 GitHub。`pnpm release:local` 只用于用户明确指定的本机发布；`--mode auto` 保留为显式可选模式，仅在确认额度阻塞时回退。普通 CI 和发布任务上限均为 120 分钟，CLI 等待上限为 150 分钟（包含排队）；等待超时不启动第二个发布者。
+
+云端使用已有 `TAURI_SIGNING_PRIVATE_KEY`，有密码时配置 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`；不得更换签名身份。发布工作流显式声明 `contents: write`，在编译前执行版本、类型、格式和发布脚本回归检查。普通 CI 继续执行全量前端、Clippy 和后端测试；发布任务通过不代表独立 CI 也通过。
 
 ## 1. 检查源码与远程
 
@@ -49,12 +51,12 @@ git rev-list --left-right --count origin/main...HEAD
 - 阅读本次修改和会话范围；保留原有修改、新文件及删除。不要直接 `git add .`，不要把本机配置、私钥、令牌、验证输出或无关修改带入提交。
 - 若当前不是 `main`、`origin` 身份不符、存在未解冲突或远程有本地没有的提交，先处理具体阻塞，不强推、不自动重置或切分支。不要在脏工作区直接 pull。
 - 检查是否存在 `MERGE_HEAD`。合并已验证、冲突已解决时，发布提交应保留两个父提交；不要用压平历史的方式假装同步完成。
-- `gh` 必须登录有本私有仓库写权限的账号。使用 `gh api`，不打印访问令牌。签名私钥可用且公钥匹配；不能为解决缺失密钥而另生成一把。
+- `gh` 必须登录有本仓库写权限的账号。使用 `gh api`，不打印访问令牌。签名私钥可用且公钥匹配；不能为解决缺失密钥而另生成一把。
 - 先读取目标版本的本地/远程 Tag 和 GitHub Release 状态；404 之外的权限、网络错误不能当作“版本不存在”。
 
 ## 2. 确定版本与发布说明
 
-自用版本遵循 README 中的 SemVer 规则：基于上游 `4.0.2` 的修订使用 `4.0.3-1`、`4.0.3-2` 等。若当前发布版本为 `4.0.3-1`，有新修改时下一个通常为 `4.0.3-2`；必须检查实际 Tag/Release，不能硬编码或重复占用已有版本。
+应用版本遵循 SemVer，四段版本号不可用。自用修订使用下一补丁版本的数字预发布号，序号从 1 递增；例如 `4.0.27 < 4.0.28-1 < 4.0.28-2 < 4.0.28`。发布说明记录实际上游基线。基于上游 `4.0.2` 的修订使用 `4.0.3-1`、`4.0.3-2` 等。若当前发布版本为 `4.0.3-1`，有新修改时下一个通常为 `4.0.3-2`；必须检查实际 Tag/Release，不能硬编码或重复占用已有版本。
 
 | 状态                                        | 处理                                              |
 | ------------------------------------------- | ------------------------------------------------- |
@@ -77,7 +79,7 @@ node "scripts/validate-release.mjs"
 
 | 变更范围                   | 必要验证                                                                                                                |
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| 前端/UI                    | `pnpm typecheck`、相关 Vitest 回归、修改文件的 Prettier 检查；最终 `release:local` 自动执行前端生产构建                 |
+| 前端/UI                    | `pnpm typecheck`、相关 Vitest 回归、修改文件的 Prettier 检查；最终发布任务自动执行前端生产构建                          |
 | 新增/修改应用内摘要        | `pnpm exec vitest run "tests/config/whatsNewEntries.test.ts" "tests/lib/whatsNew.test.ts"`                              |
 | 发布脚本、版本/更新链路    | `pnpm exec vitest run "tests/scripts/release.test.mjs" "tests/scripts/validate-release.test.mjs"`，以及受影响的更新测试 |
 | Rust 后端                  | Rust fmt、对应回归；涉及广泛接口或行为时运行 Windows x64 Clippy 和后端测试                                              |
@@ -110,26 +112,26 @@ git tag -a "$releaseTag" -m "CC Switch $releaseTag (Windows x64)"
 git push --atomic origin main "refs/tags/$releaseTag"
 ```
 
-每条命令检查退出码，失败不继续。推送后核对远程 `main`、Tag 解引用到的提交都等于 `$releaseHead`。只推本私有仓库和本次 Tag，不使用 `--force`、`--tags`、`reset --hard`。大量文件可使用 Git 的 `--pathspec-from-file`，避免 Windows 参数长度限制。
+每条命令检查退出码，失败不继续。推送后核对远程 `main`、Tag 解引用到的提交都等于 `$releaseHead`。只推本仓库和本次 Tag，不使用 `--force`、`--tags`、`reset --hard`。大量文件可使用 Git 的 `--pathspec-from-file`，避免 Windows 参数长度限制。
 
 ## 5. 确保同版本只有一个发布者
 
-现有 `release.yml` 仍会被 `v*` Tag 推送触发。即使以前额度不足，本次也可能正常启动，不能靠等待其“自动失败”来规避并发。
+`release.yml` 会被 `v*` Tag 推送触发。默认复用对应 Tag/SHA 的活动任务，`pnpm release` 会等待其完成；没有活动任务时才手动触发。
 
 ```powershell
 gh run list --repo cloud-wyf/cc-switch --workflow release.yml --limit 100 --json databaseId,displayTitle,headBranch,headSha,event,status,conclusion,url
 ```
 
-精确匹配本次 Tag/SHA 的推送任务，或标题对应本 Tag 的手动任务（后者还须核对任务详情，不能仅凭默认分支 SHA 判断）。只取消匹配且尚未结束的任务，并轮询到 `completed`；不取消其他版本或普通 CI。已有结束的失败任务无需重跑。
+精确匹配本次 Tag/SHA 的推送任务，或标题对应本 Tag 的手动任务（后者还须核对任务详情，不能仅凭默认分支 SHA 判断）。默认不取消匹配的活动任务。只有用户明确改为本机发布时才取消同版本活动任务，并轮询到 `completed`；不取消其他版本或普通 CI。源码未变的失败云端任务可由 `pnpm release` 重新触发。
 
 若云端抢先发布了相同源码的版本，转入远程核验并说明实际构建来源，不覆盖它。若源码身份不同，保留现场并报告冲突。继续使用本机构建需要新的版本号。
 
-## 6. 准备草稿并本机发布
+## 6. 准备草稿并发布
 
-先运行只读预检，并显式选择本机模式：
+先运行只读云端预检（检查远程工作流，不要求本机具备 Rust 构建环境）：
 
 ```powershell
-pnpm release:check --mode local --tag "$releaseTag"
+pnpm release:check --tag "$releaseTag"
 ```
 
 无 Release 时，用已准备好的说明创建草稿，将 `--target` 固定为确切 SHA，不用分支名。数字预发布版本加 `--prerelease`；正式版本省略该参数。以下是自用数字预发布版的命令：
@@ -139,6 +141,25 @@ gh release create "$releaseTag" --repo cloud-wyf/cc-switch --verify-tag --target
 ```
 
 若草稿已存在，确认 `tag_name`、`target_commitish`、`draft` 和附件范围一致后复用；必要时仅更新草稿说明。不要重复创建。先写说明使 `latest.json` 一起带入本版说明，不在发布后单独改正文造成两处不一致。
+
+```powershell
+pnpm release --tag "$releaseTag"
+if ($LASTEXITCODE -ne 0) { throw "GitHub 发布失败或等待超时，请检查本次 Actions 任务" }
+```
+
+`pnpm release` 会复用 Tag 推送任务或触发新的手动任务，并等待 Release 完成。构建发生在 GitHub Runner 上；云端执行 `release:local` 表示使用该 Runner 的本地构建工具链，不会调用维护者电脑。任务仍在运行时不并行本机发布。
+
+### 明确指定本机发布时
+
+`release:local` 默认读取已有 `~/.tauri/cc-switch-updater.key`。仅用 `pnpm build` 打包而不上传时，需在当前进程显式提供私钥路径及其实际密码；无密码密钥使用空字符串：
+
+```powershell
+$env:TAURI_SIGNING_PRIVATE_KEY = "$env:USERPROFILE/.tauri/cc-switch-updater.key"
+$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ""
+pnpm build
+```
+
+先按第 5 节结束同版本云端任务，运行 `pnpm release:check --mode local --tag "$releaseTag"`，再执行：
 
 ```powershell
 $previousCargoJobs = $env:CARGO_BUILD_JOBS
@@ -167,25 +188,26 @@ Windows 发布构建保留 `opt-level = "s"`，但单独覆盖 Cargo 的 release
 
 不能只依据发布命令的最后一句成功提示。完成以下核验并记录到 `release/<Tag>/validation/`：
 
-1. 通过 `gh api` / `gh release view` 确认私有仓库、正确 Tag、`target_commitish = $releaseHead`、`draft = false`、预发布标记符合版本规则；重新核对远程 main/Tag 和本地干净状态。
+1. 通过 `gh api` / `gh release view` 确认 `cloud-wyf/cc-switch` 为公开仓库、正确 Tag、`target_commitish = $releaseHead`、`draft = false`、预发布标记符合版本规则；重新核对远程 main/Tag 和本地干净状态。
 2. 六个附件恰好齐全：`CC.Switch_<版本>_x64_en-US.msi`、其 `.sig`、`CC.Switch_<版本>_x64-setup.exe`、其 `.sig`、`cc-switch-<Tag>-x86_64-pc-windows-msvc-portable.zip`、`latest.json`。
-3. 用 `gh release download "$releaseTag" --repo cloud-wyf/cc-switch --dir <本次全新校验目录>` 重新下载；不覆盖其他版本的校验资料。每个文件的大小、SHA-256 与本机产物一致；GitHub 提供 `digest` 时也比对它。
+3. 用 `gh release download "$releaseTag" --repo cloud-wyf/cc-switch --dir <本次全新校验目录>` 重新下载；不覆盖其他版本的校验资料。每个文件的大小、SHA-256 与 GitHub 的附件元数据及 `digest` 一致；本机发布时还须与独立保存的构建产物比对。
 4. 使用 `scripts/windows-release.mjs` 导出的 `verifyUpdaterSignature`，以应用原公钥验证下载后的 MSI、NSIS 及对应签名。使用 `scripts/validate-release.mjs` 的 `validateManifest` 检查下载后的清单：仅有 `windows-x86_64`、`windows-x86_64-msi`、`windows-x86_64-nsis`，URL 指向本仓库本次版本，签名与附件相同，默认入口等于 MSI 入口，`notes` 与 Release 说明一致。
-5. 上传使用的五个本机制品以 `release/<Tag>/build-cache/build.json` 及同目录副本为准，更新清单位于 `release/<Tag>/latest.json`。首次构建的 MSI/NSIS 也位于 `src-tauri/target/x86_64-pc-windows-msvc/release/bundle/`，文件名中的空格上传时变为点。核对 ZIP 包含本次 `cc-switch.exe` 与空的 `portable.ini`。首次构建还应确认最终程序内嵌本次前端入口；复用缓存时不能与已被其他构建覆盖的 `target` 或 `dist` 作比较，应使用匹配的构建记录和副本。
+5. GitHub 构建时核对 Release 任务成功、任务检查的 Tag 对应本次 SHA，ZIP 包含本次 `cc-switch.exe` 与空的 `portable.ini`，并确认程序内嵌本次前端入口。本机发布时，上传使用的五个制品以 `release/<Tag>/build-cache/build.json` 及同目录副本为准，更新清单位于 `release/<Tag>/latest.json`。首次构建的 MSI/NSIS 也位于 `src-tauri/target/x86_64-pc-windows-msvc/release/bundle/`，文件名中的空格上传时变为点。核对 ZIP 包含本次 `cc-switch.exe` 与空的 `portable.ini`。首次构建还应确认最终程序内嵌本次前端入口；复用缓存时不能与已被其他构建覆盖的 `target` 或 `dist` 作比较，应使用匹配的构建记录和副本。
 
-本项目更新器按 SemVer 检测自用预发布版，不依赖 GitHub 的“Latest”标记；不要为了显示 Latest 而将数字预发布版假标为稳定版。用户的 GitHub 登录仍需有私有仓库读取权限。
+本项目更新器按 SemVer 检测自用预发布版，不依赖 GitHub 的“Latest”标记；不要为了显示 Latest 而将数字预发布版假标为稳定版。公开 Release 可直接下载。新版更新器默认匿名检查，可在「设置 → 关于」配置可选 GitHub API Token；Token 只用于 API 请求，清单与安装包走公开直链，签名验证保持不变。旧安装版需按原认证方式升级一次，或手动下载安装新版；本次设置不会修改已安装旧程序。
 
 最终答复提供：Release 链接和版本、源码提交、Windows 安装形式、远程哈希/签名/清单核验结果、实际验证限制。明确本机是否已安装；本流程默认只发布，不安装。
 
 ## 失败处理
 
-| 失败位置         | 恢复方式                                                                                                         |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------- |
-| 测试或预检失败   | 修复实际问题并复查；版本/提交尚未固定时继续完善，不绕过检查                                                      |
-| 推送被拒绝       | 保留本地提交与 Tag，重新读取远程状态；不强推，不回滚其他人的历史                                                 |
-| 本机构建失败     | 保留日志和缓存；检查工具链/签名配置。若需修改已打 Tag 的源码，换新修订号重新走验证和提交                         |
-| 上传或网络中断   | 保留同源码草稿和 `build-cache`，重试 `release:local`；先验签复用本机制品，跳过重复编译，再跳过相同哈希的远程附件 |
-| 已发布后校验失败 | 先排除下载错误；不要覆盖已发布附件。确认制品或源码问题后修复并发布新的修订号                                     |
-| 认证或密钥不可用 | 在缺少权限/正确密钥的步骤停止，说明缺什么；不输出凭据、不替换签名身份                                            |
+| 失败位置         | 恢复方式                                                                                                                                                      |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 测试或预检失败   | 修复实际问题并复查；版本/提交尚未固定时继续完善，不绕过检查                                                                                                   |
+| 推送被拒绝       | 保留本地提交与 Tag，重新读取远程状态；不强推，不回滚其他人的历史                                                                                              |
+| 云端构建失败     | 保留 Actions 日志和同源码草稿，修复后重试 `pnpm release`；若打 Tag 后修改了源码，必须使用新的修订号，不自动转本机                                             |
+| 本机构建失败     | 保留日志和缓存；检查工具链/签名配置。若需修改已打 Tag 的源码，换新修订号重新走验证和提交                                                                      |
+| 上传或网络中断   | 云端核对任务和草稿后重试 `pnpm release`；本机保留同源码草稿和 `build-cache`，重试 `release:local`；先验签复用本机制品，跳过重复编译，再跳过相同哈希的远程附件 |
+| 已发布后校验失败 | 先排除下载错误；不要覆盖已发布附件。确认制品或源码问题后修复并发布新的修订号                                                                                  |
+| 认证或密钥不可用 | 在缺少权限/正确密钥的步骤停止，说明缺什么；不输出凭据、不替换签名身份                                                                                         |
 
 瞬时网络问题可在重新核对状态后有限重试；同类失败重复出现时保留现场并报告，不无限重建、反复创建草稿或猜测状态。后续“继续发布”先识别已完成阶段，再按源码和版本身份恢复。

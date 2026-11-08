@@ -19,6 +19,7 @@ import {
 import {
   assertDraftAssets,
   assertDraftRelease,
+  assertRepositoryWriteAccess,
   assertReleaseSource,
   collectWindowsArtifacts,
   prepareWindowsArtifacts,
@@ -39,9 +40,45 @@ const quota = {
 };
 
 describe("release mode defaults", () => {
-  it("uses local builds unless a cloud mode is explicitly selected", () => {
-    expect(parseReleaseOptions([]).values.mode).toBe("local");
+  it("uses GitHub builds unless another mode is explicitly selected", () => {
+    expect(parseReleaseOptions([]).values.mode).toBe("github");
+    expect(parseReleaseOptions(["--mode", "local"]).values.mode).toBe("local");
     expect(parseReleaseOptions(["--mode", "auto"]).values.mode).toBe("auto");
+  });
+});
+
+describe("release repository permissions", () => {
+  const workflow = {
+    GITHUB_ACTIONS: "true",
+    GITHUB_REPOSITORY: "cloud-wyf/cc-switch",
+  };
+
+  it("accepts an Actions installation token without a permissions field", () => {
+    expect(() => assertRepositoryWriteAccess({}, workflow)).not.toThrow();
+  });
+
+  it("still rejects an explicit denial in Actions", () => {
+    expect(() =>
+      assertRepositoryWriteAccess({ permissions: { push: false } }, workflow),
+    ).toThrow(/写入权限/);
+  });
+
+  it("requires confirmed write access outside this repository's workflow", () => {
+    for (const environment of [
+      {},
+      { ...workflow, GITHUB_ACTIONS: "false" },
+      { ...workflow, GITHUB_REPOSITORY: "other/repository" },
+    ]) {
+      expect(() => assertRepositoryWriteAccess({}, environment)).toThrow(
+        /写入权限/,
+      );
+    }
+    expect(() =>
+      assertRepositoryWriteAccess({ permissions: { push: true } }, {}),
+    ).not.toThrow();
+    expect(() =>
+      assertRepositoryWriteAccess({ permissions: { push: false } }, {}),
+    ).toThrow(/写入权限/);
   });
 });
 

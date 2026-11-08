@@ -28,7 +28,7 @@ jobs:
   windows-x64:
     name: Build and publish Windows x64
     runs-on: windows-2022
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v6
         with:
@@ -48,6 +48,16 @@ jobs:
           workspaces: src-tauri -> target
           key: windows-x64-release
           cache-on-failure: true
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Validate release versions
+        run: node scripts/validate-release.mjs
+      - name: TypeScript type check
+        run: pnpm typecheck
+      - name: Check formatting
+        run: pnpm format:check
+      - name: Release regression tests
+        run: pnpm exec vitest run tests/scripts/release.test.mjs tests/scripts/validate-release.test.mjs tests/scripts/generate-updater-manifest.test.mjs
       - name: Build, verify signatures, and publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -56,3 +66,12 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         shell: pwsh
         run: pnpm release:local --tag "$env:RELEASE_TAG"
+      - name: Save cloud build verification record
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64-build-${{ inputs.tag || github.ref_name }}
+          path: |
+            release/${{ inputs.tag || github.ref_name }}/build-cache/build.json
+            dist/index.html
+          retention-days: 7
+          if-no-files-found: warn

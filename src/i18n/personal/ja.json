@@ -199,5 +199,20 @@
     "checking": "検証中…",
     "validate": "構文を検証",
     "valid": "構文に問題はありません（スクリプトは未実行）"
+  },
+  "settings": {
+    "githubUpdateToken": {
+      "title": "GitHub API Token（任意）",
+      "hint": "更新確認に使用します。未設定なら匿名でアクセスし、設定すると自分の API 枠を使用します。この端末にのみ保存し、インストーラーは常に公開リンクから取得します。",
+      "placeholder": "未設定の場合は匿名でアクセス",
+      "replacePlaceholder": "設定済み。新しい Token を入力すると置き換えます",
+      "authenticated": "Token 設定済み：個人の API 枠で更新を確認",
+      "anonymous": "Token 未設定：匿名で更新を確認",
+      "saved": "更新 Token の設定を保存しました",
+      "saveFailed": "更新 Token を保存できませんでした。形式を確認して再試行してください。",
+      "loadFailed": "Token の設定状態を読み込めませんでした",
+      "show": "入力した Token を表示",
+      "hide": "入力した Token を隠す"
+    }
   }
 }

@@ -199,5 +199,20 @@
     "checking": "Checking…",
     "validate": "Check syntax",
     "valid": "Syntax valid (script not executed)"
+  },
+  "settings": {
+    "githubUpdateToken": {
+      "title": "GitHub API Token (optional)",
+      "hint": "Used for update checks. Leave unset for anonymous access, or add your token to use your API allowance. Stored only on this device. Installers always use public download links.",
+      "placeholder": "Leave unset for anonymous requests",
+      "replacePlaceholder": "Token configured; enter a new token to replace it",
+      "authenticated": "Token configured: update checks use your API allowance",
+      "anonymous": "No token configured: anonymous update checks",
+      "saved": "Update token settings saved",
+      "saveFailed": "Failed to save the update token. Check its format and retry.",
+      "loadFailed": "Failed to read token configuration status",
+      "show": "Show entered token",
+      "hide": "Hide entered token"
+    }
   }
 }

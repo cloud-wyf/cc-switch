@@ -23,6 +23,8 @@ vi.mock("@/lib/api", () => ({
     checkUpdates: vi.fn().mockResolvedValue(undefined),
     installUpdateAndRestart: vi.fn().mockResolvedValue(false),
     openPortableUpdateDownload: vi.fn().mockResolvedValue(undefined),
+    hasGitHubUpdateToken: vi.fn().mockResolvedValue(false),
+    setGitHubUpdateToken: vi.fn().mockResolvedValue(true),
   },
 }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -50,7 +52,7 @@ describe("AboutSection application updates", () => {
     expect(settingsApi.checkUpdates).not.toHaveBeenCalled();
   });
 
-  it("opens the private portable artifact for the available version", async () => {
+  it("opens the portable artifact for the available version", async () => {
     render(<AboutSection isPortable />);
     fireEvent.click(screen.getByRole("button", { name: "settings.updateTo" }));
     await waitFor(() =>
@@ -62,9 +64,11 @@ describe("AboutSection application updates", () => {
     expect(settingsApi.installUpdateAndRestart).not.toHaveBeenCalled();
   });
 
-  it("shows private-repository authentication errors during manual checks", async () => {
+  it("shows anonymous rate-limit errors during manual checks", async () => {
     updateState.hasUpdate = false;
-    updateState.checkUpdate.mockRejectedValue("请使用 gh auth login 登录");
+    updateState.checkUpdate.mockRejectedValue(
+      "匿名请求已达到限额，请配置 GitHub API Token",
+    );
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
     render(<AboutSection isPortable={false} />);
     fireEvent.click(
@@ -72,7 +76,7 @@ describe("AboutSection application updates", () => {
     );
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith("settings.checkUpdateFailed", {
-        description: "请使用 gh auth login 登录",
+        description: "匿名请求已达到限额，请配置 GitHub API Token",
         closeButton: true,
       }),
     );

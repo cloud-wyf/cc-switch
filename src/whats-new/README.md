@@ -2,7 +2,7 @@
 
 用户升级后第一次打开 CC Switch，会弹一个窗口，列出从上次看过的版本到当前版本之间每一版的几条摘要。数据就是这个目录下的文件，构建时打进安装包（`src/lib/whatsNew.ts`），弹窗不联网。
 
-自用修订（如 `4.0.3-1`）的「详情」打开私有仓库对应的 GitHub Release；保留的上游版本摘要仍打开官网 `https://ccswitch.io/<zh|en|ja>/changelog/<version>`。自用版的升级说明见 `docs/guides/v4-local-upgrade.md`。
+自用修订（如 `4.0.3-1`）的「详情」打开自用仓库对应的 GitHub Release；保留的上游版本摘要仍打开官网 `https://ccswitch.io/<zh|en|ja>/changelog/<version>`。自用版的升级说明见 `docs/guides/v4-local-upgrade.md`。
 
 ## 每个版本一个文件
 

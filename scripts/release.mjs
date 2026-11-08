@@ -71,7 +71,7 @@ export async function waitForCloudRun({
   pause = sleep,
   now = Date.now,
   log = console.log,
-  timeoutMs = 90 * 60 * 1000,
+  timeoutMs = 150 * 60 * 1000,
 }) {
   const started = now();
   let lastStatus = "";
@@ -222,7 +222,7 @@ export function parseReleaseOptions(args = process.argv.slice(2)) {
   return parseArgs({
     args,
     options: {
-      mode: { type: "string", default: "local" },
+      mode: { type: "string", default: "github" },
       tag: { type: "string" },
       "dry-run": { type: "boolean", default: false },
       rebuild: { type: "boolean", default: false },
@@ -236,9 +236,9 @@ async function main() {
   if (values.help) {
     console.log(
       "pnpm release [--tag v版本号] [--mode auto|github|local] [--dry-run] [--rebuild]\n" +
-        "默认使用本机；需要云端时显式指定 --mode github 或 --mode auto（云端优先，最多等待 90 分钟）。\n" +
+        "默认使用 GitHub 构建，最多等待 150 分钟；本机构建需显式指定 --mode local。\n" +
         "本机默认复用同源码的已验签制品；--rebuild 强制本机重新构建，仍不覆盖已发布版本。\n" +
-        "运行前必须提交发布源码、推送对应 Tag，并将 Actions 超额预算设为 0。",
+        "运行前必须提交发布源码、推送对应 Tag；GitHub Actions 需配置已有更新签名私钥。",
     );
     return;
   }
