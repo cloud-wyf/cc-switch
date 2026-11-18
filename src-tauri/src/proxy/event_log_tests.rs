@@ -1,4 +1,5 @@
 use super::*;
+use crate::app_config::AppType;
 use crate::provider::ProviderMeta;
 use crate::proxy::{server::ProxyServer, ProxyConfig};
 use axum::{
@@ -111,8 +112,9 @@ fn provider(id: &str, upstream: &str, script: Option<&str>, enabled: bool) -> Pr
 
 async fn proxy(db: Arc<Database>, provider: &Provider) -> (ProxyServer, String) {
     require_isolated_home();
-    db.save_provider("codex", provider).unwrap();
-    db.set_current_provider("codex", &provider.id).unwrap();
+    db.save_provider(&AppType::Codex, provider).unwrap();
+    db.set_current_provider(&AppType::Codex, &provider.id)
+        .unwrap();
     let proxy = ProxyServer::new(
         ProxyConfig {
             listen_port: 0,
@@ -342,10 +344,10 @@ async fn failover_records_each_provider_and_its_own_script_flag() {
     let mut second = provider("second", &good, None, false);
     second.sort_index = Some(1);
     let (proxy, url) = proxy(db.clone(), &first).await;
-    db.save_provider("codex", &second).unwrap();
-    db.add_to_failover_queue("codex", "first").unwrap();
-    db.add_to_failover_queue("codex", "second").unwrap();
-    let mut config = db.get_proxy_config_for_app("codex").await.unwrap();
+    db.save_provider(&AppType::Codex, &second).unwrap();
+    db.add_to_failover_queue(&AppType::Codex, "first").unwrap();
+    db.add_to_failover_queue(&AppType::Codex, "second").unwrap();
+    let mut config = db.get_proxy_config_for_app(&AppType::Codex).await.unwrap();
     config.auto_failover_enabled = true;
     config.max_retries = 1;
     db.update_proxy_config_for_app(config).await.unwrap();
@@ -660,9 +662,132 @@ async fn sse_first_chunk_does_not_wait_for_stream_end_and_disconnect_is_logged()
     let events = wait_rows(&db, 1).await;
     assert_eq!(events[0]["finish_reason"], "cancelled");
     assert_eq!(events[0]["client_body"]["complete"], false);
+    assert_eq!(events[0]["client_body"]["sse"]["status"], "unknown");
     assert!(events[0]["total_bytes"].as_u64().unwrap() > 0);
     proxy.stop().await.unwrap();
     server.abort();
+}
+
+#[tokio::test]
+async fn sse_sample_outcome_is_independent_of_body_storage_and_transport_error() {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "content-type",
+        "text/event-stream; charset=utf-8".parse().unwrap(),
+    );
+    for error in [None, Some("connection reset by peer".to_string())] {
+        let response = ResponseSample::new(200, &headers, 0);
+        let inner = Body::from_stream(futures::stream::iter([
+            Ok::<_, std::io::Error>(Bytes::from_static(b"data: {\"type\":\"response.completed\",\"response\":{\"status\":\"completed\"}}\n\n")),
+        ]).chain(futures::stream::iter(error.clone().map(|message|
+            Err(std::io::Error::other(message))))));
+        let mut body = ObservedBody::wrap(inner, response.body.clone(), None);
+        while let Some(frame) = body.frame().await {
+            if frame.is_err() {
+                break;
+            }
+        }
+        let sample = response.body.json();
+        assert_eq!(sample["encoding"], "omitted");
+        assert_eq!(sample["sse"]["status"], "completed");
+        assert_eq!(sample["complete"], error.is_none());
+        assert_eq!(response.body.error(), error);
+    }
+    let request = Sample::new(0);
+    request.push(
+        b"data: {\"type\":\"response.completed\",\"response\":{\"status\":\"completed\"}}\n\n",
+    );
+    assert!(
+        request.json().get("sse").is_none(),
+        "request bytes are not SSE result evidence"
+    );
+}
+
+#[tokio::test]
+async fn sse_terminal_outcome_survives_body_limit_and_client_close_before_http_eof() {
+    for (event_type, status, expected) in [
+        ("response.completed", "completed", "completed"),
+        ("response.failed", "failed", "failed"),
+        ("response.incomplete", "incomplete", "incomplete"),
+    ] {
+        // 完成事件在正文保存上限之外；上游随后一直等待，模拟 Codex 按 SSE 事件结束读取。
+        let prefix = format!(
+            "event: response.output_text.delta\r\ndata: {}\r\n\r\n",
+            json!({"type":"response.output_text.delta","delta":"x".repeat(70_000)})
+        );
+        let terminal = format!(
+            "event: {event_type}\r\ndata: {}\r\n\r\n",
+            json!({"type":event_type,"response":{"status":status,
+                "error":if expected == "failed" { json!({"code":"server_error"}) } else { Value::Null },
+                "incomplete_details":if expected == "incomplete" { json!({"reason":"max_output_tokens"}) } else { Value::Null }}})
+        );
+        let payload = Bytes::from(format!("{prefix}{terminal}"));
+        let app = Router::new().route(
+            "/v1/responses",
+            post(move || {
+                let payload = payload.clone();
+                async move {
+                    let stream =
+                        futures::stream::once(async move { Ok::<_, std::io::Error>(payload) })
+                            .chain(futures::stream::pending());
+                    Response::builder()
+                        .header("content-type", "text/event-stream")
+                        .body(Body::from_stream(stream))
+                        .unwrap()
+                }
+            }),
+        );
+        let (upstream, server) = mock_server(app).await;
+        let db = Arc::new(Database::memory().unwrap());
+        let (proxy, url) = proxy(db.clone(), &provider("terminal", &upstream, None, false)).await;
+        let response = reqwest::Client::builder()
+            .no_proxy()
+            .build()
+            .unwrap()
+            .post(format!("{url}/v1/responses"))
+            .json(&json!({"model":"original-model","input":"hello","stream":true}))
+            .send()
+            .await
+            .unwrap();
+        let mut stream = response.bytes_stream();
+        let mut received = crate::proxy::sse::SseBuffer::new();
+        tokio::time::timeout(Duration::from_secs(3), async {
+            loop {
+                received.push_bytes(&stream.next().await.unwrap().unwrap());
+                while let Some(block) = received.next_block() {
+                    for line in block.lines() {
+                        if let Some(data) = crate::proxy::sse::strip_sse_field(line, "data") {
+                            if serde_json::from_str::<Value>(data).unwrap()["type"] == event_type {
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+        })
+        .await
+        .unwrap();
+        assert!(rows(&db).is_empty(), "HTTP stream has not ended");
+        drop(stream);
+        let events = wait_rows(&db, 1).await;
+        let event = &events[0];
+        assert_eq!(event["finish_reason"], "cancelled");
+        for column in ["resp_body", "client_body"] {
+            assert_eq!(event[column]["complete"], false);
+            assert_eq!(event[column]["truncated"], true);
+            assert_eq!(event[column]["sse"]["status"], expected);
+            assert_eq!(event[column]["sse"]["event"], event_type);
+        }
+        let page = db.list_proxy_events(&Default::default()).unwrap();
+        assert_eq!(page.items[0]["client_sse_status"], expected);
+        let detail = db
+            .get_proxy_event(event["id"].as_i64().unwrap())
+            .unwrap()
+            .unwrap();
+        assert_eq!(detail["client_sse_status"], expected);
+        proxy.stop().await.unwrap();
+        server.abort();
+    }
 }
 
 fn fixture_event(id: &str, created_at: i64) -> Value {

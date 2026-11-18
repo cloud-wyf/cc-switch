@@ -54,6 +54,21 @@ SSE 按读取进度采样，不为了日志提前读完或缓存完整响应。�
 | `upstream_header_ms`、`upstream_duration_ms` | 此次上游调用等待响应头的时间、读取或取消时的总耗时；尚未结束时总耗时可能为空                      |
 | `finish_reason`                              | 客户端响应传输的结束原因：`completed`、`cancelled` 或 `stream_error`；HTTP 是否成功仍以状态码判断 |
 
+### SSE 业务结果与 HTTP 结束状态
+
+对于 `text/event-stream` 响应，日志旁路观察完整的 Responses SSE 事件，将业务结果单独保存在 `resp_body.sse` 和 `client_body.sse`：
+
+- `status=completed`：观察到 `response.completed`，其响应状态为 `completed` 且没有错误。
+- `status=failed`：观察到 `response.failed`、SSE `error` 或完成事件中的非空错误。
+- `status=incomplete`：观察到 `response.incomplete`，并记录 `incomplete_details`。
+- `status=unknown`：没有观察到可确认的结束事件；不能据此推断模型成功或失败。
+
+该摘要不受正文保存上限影响，`logBodyLimit=0` 时也会记录。它只观察已转发的字节，不提前读取响应或等待 HTTP EOF；单个事件观察上限为 1 MiB，超过上限的事件跳过后继续识别后续事件，因此被跳过的结束事件不会被猜测为成功。仅在 HTTP 正常结束时处理没有空行分隔的最后一条完整 JSON 事件，取消时不将残缺事件当成结束证据。
+
+Codex 收到 `response.completed` 后可能停止读取，HTTP EOF 尚未到达时代理仍会如实记录 `finish_reason=cancelled`、正文 `complete=false`。列表显示“模型已完成，客户端随后关闭”，详情分别显示 SSE 业务结果、HTTP 结束状态和原始传输说明。真正的 I/O 错误仍显示为错误；失败或不完整的 SSE 事件也不会因 HTTP 200 而显示模型成功。
+
+列表接口的 `client_sse_status` 是从客户端正文摘要提取的标量，不加载完整报文。已有日志不回填结果，缺少摘要时保留原始 HTTP 状态；其他 SSE 协议未识别到上述事件时显示结果未确认。
+
 例如普通请求经过 `return next()` 后，`script_used=1`，但 `request_changed=0`、`route_changed=0`。Codex 标题被转到 DeepSeek 时，三项通常均为 `1`，`fwd_url` 和 `model` 显示实际目的地。供应商 A 失败后转到供应商 B，会记录两个 `attempt`，每个尝试独立标记该供应商是否使用脚本。
 
 ## 报文格式
@@ -74,6 +89,7 @@ SSE 按读取进度采样，不为了日志提前读完或缓存完整响应。�
 
 - `size` 是实际观察到的原始字节数；中断时只能代表已经读取的部分。
 - `truncated` 表示达到保存上限，`complete` 表示是否读到正常结尾，两者独立。
+- `sse` 仅用于 SSE 响应；其业务结果与 HTTP 的 `complete`、`finish_reason` 独立。`event` 保存实际结束事件名，`error` 和 `incomplete_details` 保存失败或不完整的原因。
 - `encoding` 支持 `json`、`text`、`base64`、`empty`、`omitted`、`forwarded`、`delta`、`same_as`。
 - 完整读取后，只有正文长度及完整内容摘要一致，客户端正文才用 `forwarded` 表示复用对应的 `resp_body`。
 - 脚本输入和转发请求的正文默认用 `delta` 保存：`data.set` 是相对原始请求新增或修改的顶层字段及完整值，`data.unset` 是被移除的字段名，`size` 仍是实际字节数。差异超过保存上限时退回保存前缀。原始请求本身完整时，查看器会把差异合并成生效正文显示。

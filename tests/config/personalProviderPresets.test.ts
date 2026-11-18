@@ -12,11 +12,15 @@ import {
   kimiProviderPresets,
   ompProviderPresets,
   dshProviderPresets,
+  copilotProviderPresets,
+  workbuddyProviderPresets,
   universalProviderPresets,
 } from "@/config/personalProviderPresets";
 import { describe, expect, it } from "vitest";
 import { codexProviderPresets as upstreamCodex } from "@/config/codexProviderPresets";
 import { providerPresets as upstreamClaude } from "@/config/claudeProviderPresets";
+import { copilotProviderPresets as upstreamCopilot } from "@/config/copilotProviderPresets";
+import { workbuddyProviderPresets as upstreamWorkBuddy } from "@/config/workbuddyProviderPresets";
 
 const retained = [
   "Kimi",
@@ -39,6 +43,8 @@ const catalogs = {
   kimi: kimiProviderPresets,
   omp: ompProviderPresets,
   dsh: dshProviderPresets,
+  copilot: copilotProviderPresets,
+  workbuddy: workbuddyProviderPresets,
 };
 
 describe("个人版预设约束", () => {
@@ -72,6 +78,12 @@ describe("个人版预设约束", () => {
       kimi: retained,
       omp: retained,
       dsh: retained,
+      copilot: retained.filter((name) =>
+        upstreamCopilot.some((p) => p.name === name),
+      ),
+      workbuddy: retained.filter((name) =>
+        upstreamWorkBuddy.some((p) => p.name === name),
+      ),
     };
     for (const [app, presets] of Object.entries(catalogs)) {
       expect(
@@ -83,6 +95,18 @@ describe("个人版预设约束", () => {
       "NewAPI",
       "自定义网关",
     ]);
+  });
+
+  it("新增客户端只展示协议可用的个人预设并继承上游配置", () => {
+    for (const [personal, upstream] of [
+      [copilotProviderPresets, upstreamCopilot],
+      [workbuddyProviderPresets, upstreamWorkBuddy],
+    ] as const) {
+      for (const preset of personal) {
+        const source = upstream.find((item) => item.name === preset.name)!;
+        expect(preset.settingsConfig).toEqual(source.settingsConfig);
+      }
+    }
   });
 
   it("保留官方网站和兼容字段，但不恢复推广链接", () => {

@@ -1,16 +1,3 @@
-export interface ProxyConfig {
-  listen_address: string;
-  listen_port: number;
-  max_retries: number;
-  request_timeout: number;
-  enable_logging: boolean;
-  live_takeover_active?: boolean;
-  // 超时配置
-  streaming_first_byte_timeout: number;
-  streaming_idle_timeout: number;
-  non_streaming_timeout: number;
-}
-
 export interface ProxyStatus {
   running: boolean;
   address: string;
@@ -47,9 +34,6 @@ export interface ProxyTakeoverStatus {
   codex: boolean;
   gemini: boolean;
   grokbuild: boolean;
-  opencode: boolean;
-  openclaw: boolean;
-  hermes: boolean;
 }
 
 /** Applied under the backend switch lock, not inferred from a possibly stale UI mode. */
@@ -177,51 +161,6 @@ export interface ProviderHealth {
   updated_at: string;
 }
 
-// 熔断器相关类型
-export interface CircuitBreakerConfig {
-  failureThreshold: number;
-  successThreshold: number;
-  timeoutSeconds: number;
-  errorRateThreshold: number;
-  minRequests: number;
-}
-
-export type CircuitState = "closed" | "open" | "half_open";
-
-export interface CircuitBreakerStats {
-  state: CircuitState;
-  consecutiveFailures: number;
-  consecutiveSuccesses: number;
-  totalRequests: number;
-  failedRequests: number;
-}
-
-// 供应商健康状态枚举
-export enum ProviderHealthStatus {
-  Healthy = "healthy",
-  Degraded = "degraded",
-  Failed = "failed",
-  Unknown = "unknown",
-}
-
-// 扩展 ProviderHealth 以包含前端计算的状态
-export interface ProviderHealthWithStatus extends ProviderHealth {
-  status: ProviderHealthStatus;
-  circuitState?: CircuitState;
-}
-
-export interface ProxyUsageRecord {
-  provider_id: string;
-  app_type: string;
-  endpoint: string;
-  request_tokens: number | null;
-  response_tokens: number | null;
-  status_code: number;
-  latency_ms: number;
-  error: string | null;
-  timestamp: string;
-}
-
 // 故障转移队列条目
 export interface FailoverQueueItem {
   providerId: string;
@@ -320,6 +259,8 @@ export interface ProxyEventSummary {
   upstream_header_ms: number | null;
   upstream_duration_ms: number | null;
   finish_reason: string;
+  client_sse_status?: ProxyEventSseOutcome["status"] | null;
+  stream_error?: string | null;
   error: string | null;
   fwd_url: string | null;
   kind: ProxyEventKind | null;
@@ -337,6 +278,13 @@ export interface ProxyEventPage {
 
 // 正文包装：json/text/base64 直接带内容；delta 相对 orig_body 的顶层差异；
 // same_as 引用 script_body；forwarded 引用 resp_body。
+export interface ProxyEventSseOutcome {
+  status: "completed" | "failed" | "incomplete" | "unknown";
+  event?: string;
+  error?: unknown;
+  incomplete_details?: unknown;
+}
+
 export interface ProxyEventBody {
   encoding:
     | "json"
@@ -350,6 +298,7 @@ export interface ProxyEventBody {
   size?: number;
   truncated?: boolean;
   complete?: boolean;
+  sse?: ProxyEventSseOutcome;
   data?: unknown;
   base?: string;
   ref?: string;
@@ -357,7 +306,6 @@ export interface ProxyEventBody {
 
 export interface ProxyEventDetail extends ProxyEventSummary {
   fwd_method?: string | null;
-  stream_error?: string | null;
   rewritten?: string | null;
   mods?: Record<string, unknown> | null;
   orig_headers?: Record<string, unknown> | null;

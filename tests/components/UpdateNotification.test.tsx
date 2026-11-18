@@ -3,7 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UpdateProvider, useUpdate } from "@/contexts/UpdateContext";
 import { checkForUpdate } from "@/lib/updater";
 
-vi.mock("@/lib/updater", () => ({ checkForUpdate: vi.fn() }));
+vi.mock("@/lib/updater", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/updater")>()),
+  checkForUpdate: vi.fn(),
+}));
 
 let state: ReturnType<typeof useUpdate>;
 function Probe() {

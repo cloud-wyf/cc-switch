@@ -112,6 +112,27 @@
         "next": "Next page",
         "refresh": "Refresh",
         "loadFailed": "Failed to load detailed request logs",
+        "outcome": {
+          "completed": "Model response completed",
+          "completedBeforeClose": "Model completed; client then closed",
+          "failed": "Model response failed",
+          "incomplete": "Model output incomplete",
+          "unknown": "No SSE terminal event observed",
+          "cancelled": "Connection closed before completion was confirmed",
+          "streamError": "Response stream error",
+          "httpCompleted": "HTTP transfer completed"
+        },
+        "sse": {
+          "completed": "Model response completed",
+          "failed": "Model response failed",
+          "incomplete": "Model output incomplete",
+          "unknown": "No terminal event observed"
+        },
+        "transport": {
+          "completed": "HTTP end reached",
+          "cancelled": "Closed before HTTP end",
+          "stream_error": "HTTP stream error"
+        },
         "detail": {
           "title": "Request detail #{{id}}",
           "notFound": "Record not found or already purged",
@@ -119,7 +140,11 @@
           "requestId": "Request ID",
           "sessionId": "Session",
           "attempt": "Attempt / upstream call",
-          "finishReason": "Finish reason",
+          "finishReason": "HTTP end status",
+          "sseResult": "SSE outcome",
+          "sseDetails": "SSE terminal details",
+          "transportNote": "Client transfer note",
+          "upstreamTransportNote": "Upstream transfer note",
           "error": "Error",
           "streamError": "Stream error",
           "timing": "Timing",
@@ -139,8 +164,8 @@
           "forwarded": "Identical to the upstream response",
           "omitted": "Body not stored per settings ({{size}})",
           "empty": "No body",
-          "truncated": "Truncated, actual size {{size}}",
-          "incomplete": "Not fully read",
+          "truncated": "Only the body prefix is saved; {{size}} observed",
+          "incomplete": "HTTP body end not reached",
           "base64": "Binary content ({{size}}) shown as Base64",
           "unavailable": "Cannot reconstruct, showing the raw record",
           "noChanges": "No changes",

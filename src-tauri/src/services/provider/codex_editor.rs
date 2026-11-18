@@ -88,7 +88,10 @@ pub(crate) fn reconcile_current_disk(state: &AppState) -> Result<(), AppError> {
     let path = get_codex_config_path();
     let pre = read_current(&path)?;
     let actual = parse(&path, pre.as_deref())?;
-    let old_common = state.db.get_config_snippet("codex")?.unwrap_or_default();
+    let old_common = state
+        .db
+        .get_config_snippet(&AppType::Codex)?
+        .unwrap_or_default();
     let update = codex_layers::reconcile_disk(&old_common, &provider.settings_config, &actual)?;
     if !update.changed {
         return Ok(());
@@ -103,15 +106,15 @@ pub(crate) fn reconcile_current_disk(state: &AppState) -> Result<(), AppError> {
     let common_changed = update.common_config != old_common;
     if common_changed {
         state.db.set_config_snippet(
-            "codex",
+            &AppType::Codex,
             (!update.common_config.trim().is_empty()).then_some(update.common_config.clone()),
         )?;
     }
     if provider.settings_config != old_settings {
-        if let Err(error) = state.db.save_provider("codex", &provider) {
+        if let Err(error) = state.db.save_provider(&AppType::Codex, &provider) {
             if common_changed {
                 if let Err(rollback) = state.db.set_config_snippet(
-                    "codex",
+                    &AppType::Codex,
                     (!old_common.trim().is_empty()).then_some(old_common),
                 ) {
                     log::error!("恢复 Codex 公共配置失败: {rollback}");

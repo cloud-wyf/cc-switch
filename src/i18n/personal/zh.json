@@ -113,6 +113,27 @@
         "next": "下一页",
         "refresh": "刷新",
         "loadFailed": "读取详细请求日志失败",
+        "outcome": {
+          "completed": "模型响应已完成",
+          "completedBeforeClose": "模型已完成，客户端随后关闭",
+          "failed": "模型响应失败",
+          "incomplete": "模型输出不完整",
+          "unknown": "未观察到 SSE 结束事件",
+          "cancelled": "未确认完成时连接关闭",
+          "streamError": "响应流错误",
+          "httpCompleted": "HTTP 传输完成"
+        },
+        "sse": {
+          "completed": "模型响应已完成",
+          "failed": "模型响应失败",
+          "incomplete": "模型输出不完整",
+          "unknown": "未观察到结束事件"
+        },
+        "transport": {
+          "completed": "已读到 HTTP 结尾",
+          "cancelled": "HTTP 未读到结尾后关闭",
+          "stream_error": "HTTP 流错误"
+        },
         "detail": {
           "title": "请求详情 #{{id}}",
           "notFound": "记录不存在或已被清理",
@@ -120,7 +141,11 @@
           "requestId": "请求追踪 ID",
           "sessionId": "会话",
           "attempt": "尝试 / 上游调用序号",
-          "finishReason": "结束原因",
+          "finishReason": "HTTP 结束状态",
+          "sseResult": "SSE 业务结果",
+          "sseDetails": "SSE 结束信息",
+          "transportNote": "客户端传输说明",
+          "upstreamTransportNote": "上游传输说明",
           "error": "错误",
           "streamError": "响应流错误",
           "timing": "耗时",
@@ -140,8 +165,8 @@
           "forwarded": "与上游响应完全相同",
           "omitted": "按配置未保存正文（{{size}}）",
           "empty": "无正文",
-          "truncated": "已截断，实际 {{size}}",
-          "incomplete": "未读取完整",
+          "truncated": "仅保存正文前缀，已观察到 {{size}}",
+          "incomplete": "HTTP 正文未读到结尾",
           "base64": "二进制内容（{{size}}），以 Base64 显示",
           "unavailable": "无法还原，显示原始记录",
           "noChanges": "无变更",

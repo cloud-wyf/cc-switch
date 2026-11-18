@@ -38,7 +38,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useProxyEvents } from "@/lib/query/proxy";
-import { formatDuration } from "@/lib/proxyEvents";
+import { formatDuration, getProxyEventOutcome } from "@/lib/proxyEvents";
 import type {
   ProxyEventKind,
   ProxyEventQuery,
@@ -46,13 +46,14 @@ import type {
   ProxyEventStatusFilter,
   ProxyEventSummary,
 } from "@/types/proxy";
-import { getAppLabel, PROXY_APP_IDS } from "@/config/appConfig";
+import { getAppLabel } from "@/config/appConfig";
+import { APP_IDS_WITH } from "@/config/appSpecs";
 import { cn } from "@/lib/utils";
 import { ProxyEventDetail } from "./ProxyEventDetail";
 
 const PAGE_SIZE = 50;
 const FILTERS_STORAGE_KEY = "cc-switch.proxyEventLog.filters";
-const APP_OPTIONS: string[] = [...PROXY_APP_IDS, "claude-desktop"];
+const APP_OPTIONS: string[] = [...APP_IDS_WITH.localProxy, "claude-desktop"];
 const KIND_OPTIONS: ProxyEventKind[] = [
   "chat",
   "count_tokens",
@@ -182,6 +183,22 @@ export function ProxyEventLogPage() {
         )}
       </div>
     </>
+  );
+}
+
+function EventResult({ event }: { event: ProxyEventSummary }) {
+  const { t } = useTranslation();
+  const outcome = getProxyEventOutcome(event);
+  return (
+    <span
+      className={
+        outcome.isError
+          ? "text-red-600 dark:text-red-400"
+          : "text-muted-foreground"
+      }
+    >
+      {outcome.error || t(`proxy.eventLog.viewer.outcome.${outcome.key}`)}
+    </span>
   );
 }
 
@@ -602,17 +619,9 @@ export function ProxyEventLogList({
                     </TableCell>
                     <TableCell
                       className="max-w-[320px] truncate text-xs"
-                      title={event.error ?? undefined}
+                      title={event.error ?? event.stream_error ?? undefined}
                     >
-                      {event.error ? (
-                        <span className="text-red-600 dark:text-red-400">
-                          {event.error}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">
-                          {event.finish_reason}
-                        </span>
-                      )}
+                      <EventResult event={event} />
                     </TableCell>
                   </TableRow>
                 ))

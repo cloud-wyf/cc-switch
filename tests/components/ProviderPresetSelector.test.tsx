@@ -1,3 +1,4 @@
+import { workbuddyOfficialPreset } from "@/config/workbuddyProviderPresets";
 import { providerPresets } from "@/config/personalProviderPresets";
 import { useState } from "react";
 import { render, screen, waitFor, within } from "@testing-library/react";
@@ -480,6 +481,30 @@ describe("ProviderPresetSelector", () => {
         within(host).getByRole("button", { name: "dsh.account.presetName" }),
       );
     expect(onPresetChange).toHaveBeenCalledWith(DSH_ACCOUNT_PRESET_ID);
+  });
+
+  it("shows the WorkBuddy account subtitle for the WorkBuddy official preset", async () => {
+    render(
+      <TwoSteps
+        appId="workbuddy"
+        onPresetChange={vi.fn()}
+        presetEntries={[
+          { id: "workbuddy-official", preset: workbuddyOfficialPreset },
+        ]}
+      />,
+    );
+    const host = await screen.findByTestId("host");
+    expect(
+      within(host).getByText("providerPreset.loginWith.workbuddy"),
+    ).toBeInTheDocument();
+    expect(
+      within(host).queryByText("providerPreset.loginWith.claude"),
+    ).not.toBeInTheDocument();
+    for (const locale of [zh, zhTW, en, ja, tr]) {
+      expect(
+        (locale.providerPreset.loginWith as Record<string, string>).workbuddy,
+      ).toContain("WorkBuddy");
+    }
   });
 
   it("filters by category and keeps the search text when clicking around", async () => {

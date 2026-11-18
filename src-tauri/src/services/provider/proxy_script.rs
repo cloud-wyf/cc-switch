@@ -50,7 +50,7 @@ pub(crate) async fn validate(app: &AppType, provider: &Provider) -> Result<(), S
     let Some(source) = provider.active_proxy_script() else {
         return Ok(());
     };
-    if !app.supports_local_proxy() && !matches!(app, AppType::ClaudeDesktop) {
+    if !app.spec().local_proxy && !matches!(app, AppType::ClaudeDesktop) {
         return Err(format!("{} 不支持本地代理脚本", app.as_str()));
     }
     if provider.category.as_deref() == Some("official")
@@ -74,7 +74,7 @@ pub(crate) async fn activate_current(
     }
     let provider = state
         .db
-        .get_provider_by_id(id, app.as_str())
+        .get_provider_by_id(id, app)
         .map_err(|error| error.to_string())?;
     if provider
         .as_ref()

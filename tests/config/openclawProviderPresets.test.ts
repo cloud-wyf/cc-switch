@@ -1,41 +1,55 @@
-import { openclawProviderPresets } from "@/config/personalProviderPresets";
 import { describe, expect, it } from "vitest";
-import { rebaseOpenClawSuggestedDefaults } from "@/config/openclawProviderPresets";
+import {
+  openclawProviderPresets,
+  rebaseOpenClawSuggestedDefaults,
+  savedOpenClawModelIds,
+} from "@/config/openclawProviderPresets";
 
-describe("OpenClaw provider defaults", () => {
-  it("uses separate namespaces for Kimi and its Coding Plan", () => {
-    const payAsYouGo = openclawProviderPresets.find(
-      (item) => item.name === "Kimi",
-    );
-    const codingPlan = openclawProviderPresets.find(
-      (item) => item.name === "Kimi For Coding",
+describe("rebaseOpenClawSuggestedDefaults", () => {
+  it("registers the models saved in the form, keeping preset aliases", () => {
+    const preset = openclawProviderPresets.find(
+      (item) => item.name === "OpenRouter",
     );
 
-    expect(payAsYouGo?.suggestedDefaults?.model?.primary).toMatch(/^kimi\//);
-    expect(codingPlan?.suggestedDefaults?.model?.primary).toBe(
-      "kimi-coding/kimi-for-coding",
+    const defaults = rebaseOpenClawSuggestedDefaults(
+      preset!.suggestedDefaults!,
+      "my-or",
+      ["anthropic/claude-sonnet-5.5", "stealth/ox-alpha"],
     );
-    expect(codingPlan?.suggestedDefaults?.modelCatalog).toHaveProperty(
-      "kimi-coding/kimi-for-coding",
+
+    expect(defaults.modelCatalog).toEqual({
+      "my-or/anthropic/claude-sonnet-5.5": { alias: "Sonnet" },
+      "my-or/stealth/ox-alpha": {},
+    });
+    expect(defaults.model).toEqual({
+      primary: "my-or/anthropic/claude-sonnet-5.5",
+      fallbacks: [],
+    });
+
+    const kept = rebaseOpenClawSuggestedDefaults(
+      preset!.suggestedDefaults!,
+      "my-or",
+      [
+        "stealth/ox-alpha",
+        "anthropic/claude-sonnet-5.5",
+        "anthropic/claude-opus-5.5",
+      ],
     );
+    expect(kept.model).toEqual({
+      primary: "my-or/anthropic/claude-opus-5.5",
+      fallbacks: ["my-or/anthropic/claude-sonnet-5.5"],
+    });
   });
+});
 
-  it("rebases OpenClaw defaults to the submitted provider key", () => {
-    const rebased = rebaseOpenClawSuggestedDefaults(
-      {
-        model: { primary: "deepseek/main", fallbacks: ["deepseek/backup"] },
-        modelCatalog: {
-          "deepseek/main": { alias: "Main" },
-          "deepseek/backup": { alias: "Backup" },
-        },
-      },
-      "my-deepseek",
-    );
-
-    expect(rebased.model?.primary).toBe("my-deepseek/main");
-    expect(rebased.model?.fallbacks).toEqual(["my-deepseek/backup"]);
-    expect(rebased.modelCatalog).toHaveProperty("my-deepseek/main");
-    expect(rebased.modelCatalog).toHaveProperty("my-deepseek/backup");
-    expect(rebased.modelCatalog).not.toHaveProperty("deepseek/main");
+describe("savedOpenClawModelIds", () => {
+  it("keeps only the non-empty model ids that were saved", () => {
+    expect(
+      savedOpenClawModelIds(
+        JSON.stringify({ models: [{ id: "a" }, { id: " " }, { name: "b" }] }),
+      ),
+    ).toEqual(["a"]);
+    expect(savedOpenClawModelIds("{}")).toEqual([]);
+    expect(savedOpenClawModelIds("null")).toEqual([]);
   });
 });

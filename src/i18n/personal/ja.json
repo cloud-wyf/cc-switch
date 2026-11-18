@@ -112,6 +112,27 @@
         "next": "次のページ",
         "refresh": "更新",
         "loadFailed": "詳細リクエストログを読み込めませんでした",
+        "outcome": {
+          "completed": "モデルの応答が完了",
+          "completedBeforeClose": "モデル完了後にクライアントが切断",
+          "failed": "モデルの応答が失敗",
+          "incomplete": "モデルの出力が未完了",
+          "unknown": "SSE 終了イベントが未確認",
+          "cancelled": "完了確認前に接続が切断",
+          "streamError": "応答ストリームエラー",
+          "httpCompleted": "HTTP 転送完了"
+        },
+        "sse": {
+          "completed": "モデルの応答が完了",
+          "failed": "モデルの応答が失敗",
+          "incomplete": "モデルの出力が未完了",
+          "unknown": "終了イベントが未確認"
+        },
+        "transport": {
+          "completed": "HTTP 終端まで読み取り済み",
+          "cancelled": "HTTP 終端の前に切断",
+          "stream_error": "HTTP ストリームエラー"
+        },
         "detail": {
           "title": "リクエスト詳細 #{{id}}",
           "notFound": "記録が存在しないか、既に削除されています",
@@ -119,7 +140,11 @@
           "requestId": "リクエスト ID",
           "sessionId": "セッション",
           "attempt": "試行 / 上流呼び出し",
-          "finishReason": "終了理由",
+          "finishReason": "HTTP 終了状態",
+          "sseResult": "SSE の結果",
+          "sseDetails": "SSE 終了情報",
+          "transportNote": "クライアント転送の補足",
+          "upstreamTransportNote": "上流転送の補足",
           "error": "エラー",
           "streamError": "ストリームエラー",
           "timing": "所要時間",
@@ -139,8 +164,8 @@
           "forwarded": "上流レスポンスと同一",
           "omitted": "設定により本文は保存されていません（{{size}}）",
           "empty": "本文なし",
-          "truncated": "切り詰められています。実際のサイズ {{size}}",
-          "incomplete": "最後まで読み取られていません",
+          "truncated": "本文の先頭のみ保存。観測済み {{size}}",
+          "incomplete": "HTTP 本文の終端に未到達",
           "base64": "バイナリ内容（{{size}}）を Base64 で表示",
           "unavailable": "復元できないため生の記録を表示",
           "noChanges": "変更なし",

@@ -1,4 +1,52 @@
-import type { ProxyEventBody, ProxyEventDetail } from "@/types/proxy";
+import type {
+  ProxyEventBody,
+  ProxyEventDetail,
+  ProxyEventSummary,
+} from "@/types/proxy";
+
+/** 只将已确认 SSE 完成后的正常释放作为说明；真实 I/O 错误仍显示为异常。 */
+export function getProxyEventOutcome(event: ProxyEventSummary) {
+  const upstreamError =
+    event.stream_error &&
+    event.stream_error !== "upstream body not fully consumed"
+      ? event.stream_error
+      : null;
+  const expectedClose =
+    event.finish_reason === "cancelled" &&
+    event.client_sse_status === "completed" &&
+    event.client_status !== null &&
+    event.client_status >= 200 &&
+    event.client_status < 300 &&
+    (!event.error || event.error === "body not fully consumed") &&
+    !upstreamError;
+  const sseFailed =
+    event.client_sse_status === "failed" ||
+    event.client_sse_status === "incomplete";
+  const error = expectedClose
+    ? null
+    : event.error === "body not fully consumed"
+      ? upstreamError || (sseFailed ? null : event.error)
+      : event.error || upstreamError;
+  const key = expectedClose
+    ? "completedBeforeClose"
+    : event.finish_reason === "stream_error"
+      ? "streamError"
+      : sseFailed
+        ? event.client_sse_status
+        : event.finish_reason === "cancelled"
+          ? "cancelled"
+          : event.client_sse_status || "httpCompleted";
+  return {
+    key,
+    error,
+    expectedClose,
+    isError:
+      Boolean(error) ||
+      sseFailed ||
+      event.finish_reason === "stream_error" ||
+      (event.finish_reason === "cancelled" && !expectedClose),
+  };
+}
 
 export type ResolvedBody =
   | { kind: "json"; data: unknown; note?: string }

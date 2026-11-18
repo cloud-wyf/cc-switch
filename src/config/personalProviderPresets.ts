@@ -14,6 +14,9 @@ import { kimiProviderPresets as upstreamKimi } from "./kimiProviderPresets";
 import { ompProviderPresets as upstreamOmp } from "./ompProviderPresets";
 import { dshProviderPresets as upstreamDsh } from "./dshProviderPresets";
 
+import { copilotProviderPresets as upstreamCopilot } from "./copilotProviderPresets";
+import { workbuddyProviderPresets as upstreamWorkBuddy } from "./workbuddyProviderPresets";
+
 const RETAINED = [
   "Kimi",
   "Kimi For Coding",
@@ -87,6 +90,19 @@ export const mcodeProviderPresets = retain(upstreamMcode, RETAINED);
 export const kimiProviderPresets = retain(upstreamKimi, RETAINED);
 export const ompProviderPresets = retain(upstreamOmp, RETAINED);
 export const dshProviderPresets = retain(upstreamDsh, RETAINED);
+
+export const copilotProviderPresets = retain(
+  upstreamCopilot,
+  RETAINED.filter((name) =>
+    upstreamCopilot.some((preset) => preset.name === name),
+  ),
+);
+export const workbuddyProviderPresets = retain(
+  upstreamWorkBuddy,
+  RETAINED.filter((name) =>
+    upstreamWorkBuddy.some((preset) => preset.name === name),
+  ),
+);
 
 const newApi = retain(upstreamUniversal, ["NewAPI"])[0];
 export const universalProviderPresets = [

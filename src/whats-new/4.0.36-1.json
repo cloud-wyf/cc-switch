@@ -1,0 +1,33 @@
+{
+  "version": "4.0.36-1",
+  "items": [
+    {
+      "type": "new",
+      "zh": "同步上游 4.0.35，新增 Copilot 和 WorkBuddy 支持",
+      "zh-TW": "同步上游 4.0.35，新增 Copilot 和 WorkBuddy 支援",
+      "en": "Merged upstream 4.0.35 with Copilot CLI and WorkBuddy support",
+      "ja": "上流 4.0.35 を統合し、Copilot と WorkBuddy に対応"
+    },
+    {
+      "type": "fix",
+      "zh": "详细日志区分模型已完成与客户端随后关闭",
+      "zh-TW": "詳細日誌區分模型已完成與用戶端隨後關閉",
+      "en": "Detailed logs distinguish model completion from a later client disconnect",
+      "ja": "詳細ログでモデルの完了とその後のクライアント切断を区別"
+    },
+    {
+      "type": "improve",
+      "zh": "正文截断后仍记录 SSE 完成、失败及不完整原因",
+      "zh-TW": "本文截斷後仍記錄 SSE 完成、失敗及不完整原因",
+      "en": "SSE completion and failure details remain available after stored body truncation",
+      "ja": "本文の保存上限を超えても SSE の完了・失敗・未完了の理由を記録"
+    },
+    {
+      "type": "new",
+      "zh": "支持后台下载更新和更多技能仓库托管站点",
+      "zh-TW": "支援背景下載更新和更多技能儲存庫託管站點",
+      "en": "Updates can download in the background, and skill repos support more hosting services",
+      "ja": "更新のバックグラウンド取得と複数のスキルリポジトリ管理サイトに対応"
+    }
+  ]
+}

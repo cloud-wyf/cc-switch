@@ -35,6 +35,10 @@ use std::{
 static SEQUENCE: AtomicU64 = AtomicU64::new(0);
 static RUN_AT: OnceLock<String> = OnceLock::new();
 
+#[path = "event_log_sse.rs"]
+mod sse_outcome;
+use sse_outcome::SseOutcomeTracker;
+
 /// 顶层字段名到其规范化 JSON 摘要；用完整正文比较字段变化，不受采样截断影响。
 type Fields = BTreeMap<String, [u8; 32]>;
 
@@ -102,6 +106,7 @@ struct SampleState {
     digest: Sha256,
     complete: bool,
     error: Option<String>,
+    sse: Option<SseOutcomeTracker>,
 }
 
 impl Sample {
@@ -113,6 +118,7 @@ impl Sample {
             digest: Sha256::new(),
             complete: false,
             error: None,
+            sse: None,
         })))
     }
 
@@ -125,12 +131,20 @@ impl Sample {
         state.prefix.extend_from_slice(&bytes[..available]);
         state.size = state.size.saturating_add(bytes.len() as u64);
         state.digest.update(bytes);
+        if let Some(sse) = &mut state.sse {
+            sse.push(bytes);
+        }
     }
 
     fn finish(&self, error: Option<String>) {
         let mut state = lock(&self.0);
         if state.complete || state.error.is_some() {
             return;
+        }
+        if error.is_none() {
+            if let Some(sse) = &mut state.sse {
+                sse.finish();
+            }
         }
         state.complete = error.is_none();
         state.error = error;
@@ -158,8 +172,12 @@ impl Sample {
         } else {
             ("base64", json!(STANDARD.encode(&state.prefix)))
         };
-        json!({"encoding":encoding,"size":state.size,"truncated":truncated,
-            "complete":state.complete,"data":data})
+        let mut result = json!({"encoding":encoding,"size":state.size,"truncated":truncated,
+            "complete":state.complete,"data":data});
+        if let Some(sse) = &state.sse {
+            result["sse"] = sse.json();
+        }
+        result
     }
 
     fn error(&self) -> Option<String> {
@@ -381,10 +399,25 @@ struct ResponseSample {
 
 impl ResponseSample {
     fn new(status: u16, headers: &HeaderMap, limit: usize) -> Self {
+        let body = Sample::new(limit);
+        let is_sse = headers
+            .get(http::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| {
+                value
+                    .split(';')
+                    .next()
+                    .unwrap_or("")
+                    .trim()
+                    .eq_ignore_ascii_case("text/event-stream")
+            });
+        if is_sse {
+            lock(&body.0).sse = Some(SseOutcomeTracker::default());
+        }
         Self {
             status,
             headers: headers_json(headers),
-            body: Sample::new(limit),
+            body,
         }
     }
 }

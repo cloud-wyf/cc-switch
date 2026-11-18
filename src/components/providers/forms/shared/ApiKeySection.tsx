@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import ApiKeyInput from "../ApiKeyInput";
 import type { ProviderCategory } from "@/types";
@@ -19,6 +20,7 @@ interface ApiKeySectionProps {
   };
   disabled?: boolean;
   required?: boolean;
+  hint?: ReactNode;
 }
 
 export function ApiKeySection({
@@ -32,6 +34,7 @@ export function ApiKeySection({
   placeholder,
   disabled,
   required = false,
+  hint,
 }: ApiKeySectionProps) {
   const { t } = useTranslation();
 
@@ -78,6 +81,7 @@ export function ApiKeySection({
           </a>
         ) : null
       }
+      hint={hint || undefined}
     />
   );
 }

@@ -113,6 +113,27 @@
         "next": "下一頁",
         "refresh": "重新整理",
         "loadFailed": "讀取詳細請求日誌失敗",
+        "outcome": {
+          "completed": "模型回應已完成",
+          "completedBeforeClose": "模型已完成，用戶端隨後關閉",
+          "failed": "模型回應失敗",
+          "incomplete": "模型輸出不完整",
+          "unknown": "未觀察到 SSE 結束事件",
+          "cancelled": "未確認完成時連線關閉",
+          "streamError": "回應串流錯誤",
+          "httpCompleted": "HTTP 傳輸完成"
+        },
+        "sse": {
+          "completed": "模型回應已完成",
+          "failed": "模型回應失敗",
+          "incomplete": "模型輸出不完整",
+          "unknown": "未觀察到結束事件"
+        },
+        "transport": {
+          "completed": "已讀到 HTTP 結尾",
+          "cancelled": "HTTP 未讀到結尾後關閉",
+          "stream_error": "HTTP 串流錯誤"
+        },
         "detail": {
           "title": "請求詳情 #{{id}}",
           "notFound": "記錄不存在或已被清理",
@@ -120,7 +141,11 @@
           "requestId": "請求追蹤 ID",
           "sessionId": "工作階段",
           "attempt": "嘗試 / 上游呼叫序號",
-          "finishReason": "結束原因",
+          "finishReason": "HTTP 結束狀態",
+          "sseResult": "SSE 業務結果",
+          "sseDetails": "SSE 結束資訊",
+          "transportNote": "用戶端傳輸說明",
+          "upstreamTransportNote": "上游傳輸說明",
           "error": "錯誤",
           "streamError": "回應串流錯誤",
           "timing": "耗時",
@@ -140,8 +165,8 @@
           "forwarded": "與上游回應完全相同",
           "omitted": "依設定未保存內文（{{size}}）",
           "empty": "無內文",
-          "truncated": "已截斷，實際 {{size}}",
-          "incomplete": "未讀取完整",
+          "truncated": "僅儲存正文前綴，已觀察到 {{size}}",
+          "incomplete": "HTTP 正文未讀到結尾",
           "base64": "二進位內容（{{size}}），以 Base64 顯示",
           "unavailable": "無法還原，顯示原始記錄",
           "noChanges": "無變更",

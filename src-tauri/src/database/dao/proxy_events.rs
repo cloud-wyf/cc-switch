@@ -18,7 +18,7 @@ pub(crate) const MAX_ROWS: u32 = 2000;
 const MAX_PAGE_SIZE: u32 = 200;
 const DEFAULT_PAGE_SIZE: u32 = 50;
 const COLUMNS: &str = "request_id,app_type,provider_id,session_id,attempt,forward_seq,script_enabled,script_used,request_changed,route_changed,target,upstream,run_at,seq,started_at,created_at,duration_ms,method,url,request_model,model,status,client_status,total_bytes,upstream_header_ms,upstream_duration_ms,stream_error,rewritten,error,finish_reason,mods,orig_headers,orig_body,script_url,script_headers,script_body,fwd_url,fwd_method,fwd_headers,fwd_body,resp_headers,resp_body,client_headers,client_body";
-const SUMMARY_COLUMNS: &str = "id,request_id,app_type,provider_id,session_id,attempt,forward_seq,script_enabled,script_used,request_changed,route_changed,target,started_at,created_at,duration_ms,method,url,request_model,model,status,client_status,total_bytes,upstream_header_ms,upstream_duration_ms,finish_reason,error,fwd_url,kind";
+const SUMMARY_COLUMNS: &str = "id,request_id,app_type,provider_id,session_id,attempt,forward_seq,script_enabled,script_used,request_changed,route_changed,target,started_at,created_at,duration_ms,method,url,request_model,model,status,client_status,total_bytes,upstream_header_ms,upstream_duration_ms,finish_reason,error,fwd_url,kind,stream_error,CASE WHEN json_valid(client_body) THEN json_extract(client_body, '$.sse.status') END AS client_sse_status";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -225,6 +225,14 @@ fn row_to_json(row: &rusqlite::Row<'_>, names: &[String]) -> rusqlite::Result<Va
             ValueRef::Blob(bytes) => json!(String::from_utf8_lossy(bytes)),
         };
         object.insert(name.clone(), value);
+    }
+    if let Some(body) = object.get("client_body") {
+        let status = body
+            .get("sse")
+            .and_then(|sse| sse.get("status"))
+            .cloned()
+            .unwrap_or(Value::Null);
+        object.insert("client_sse_status".into(), status);
     }
     Ok(Value::Object(object))
 }

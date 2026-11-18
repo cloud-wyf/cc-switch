@@ -6,6 +6,7 @@ import { useProxyEvent } from "@/lib/query/proxy";
 import {
   formatBytes,
   formatDuration,
+  getProxyEventOutcome,
   resolveBody,
   type ResolvedBody,
 } from "@/lib/proxyEvents";
@@ -73,6 +74,12 @@ function BodyNotes({ body }: { body: ProxyEventBody }) {
     );
   if (body.complete === false)
     notes.push(t("proxy.eventLog.viewer.detail.incomplete"));
+  if (body.sse)
+    notes.push(
+      t("proxy.eventLog.viewer.detail.sseResult") +
+        ": " +
+        t(`proxy.eventLog.viewer.sse.${body.sse.status}`),
+    );
   if (notes.length === 0) return null;
   return <p className="text-xs text-muted-foreground">{notes.join(" · ")}</p>;
 }
@@ -139,6 +146,13 @@ function BodyView({
     <div className="space-y-1">
       {content}
       <BodyNotes body={body} />
+      {body.sse &&
+        (body.sse.status === "failed" || body.sse.status === "incomplete") && (
+          <Block
+            title={t("proxy.eventLog.viewer.detail.sseDetails")}
+            text={pretty(body.sse)}
+          />
+        )}
     </div>
   );
 }
@@ -193,6 +207,9 @@ function Fact({ label, value }: { label: string; value: ReactNode }) {
 export function ProxyEventDetail({ id }: ProxyEventDetailProps) {
   const { t } = useTranslation();
   const { data: event, isPending, isError } = useProxyEvent(id);
+  const expectedClose = event
+    ? getProxyEventOutcome(event).expectedClose
+    : false;
 
   return (
     <div className="space-y-4" data-testid="proxy-event-detail">
@@ -279,7 +296,18 @@ export function ProxyEventDetail({ id }: ProxyEventDetailProps) {
               />
               <Fact
                 label={t("proxy.eventLog.viewer.detail.finishReason")}
-                value={event.finish_reason}
+                value={t(
+                  `proxy.eventLog.viewer.transport.${event.finish_reason}`,
+                  { defaultValue: event.finish_reason },
+                )}
+              />
+              <Fact
+                label={t("proxy.eventLog.viewer.detail.sseResult")}
+                value={
+                  event.client_sse_status
+                    ? t(`proxy.eventLog.viewer.sse.${event.client_sse_status}`)
+                    : null
+                }
               />
               <Fact
                 label={t("proxy.eventLog.viewer.columns.script")}
@@ -307,13 +335,21 @@ export function ProxyEventDetail({ id }: ProxyEventDetailProps) {
             </dl>
             {event.error && (
               <Block
-                title={t("proxy.eventLog.viewer.detail.error")}
+                title={t(
+                  expectedClose
+                    ? "proxy.eventLog.viewer.detail.transportNote"
+                    : "proxy.eventLog.viewer.detail.error",
+                )}
                 text={event.error}
               />
             )}
             {event.stream_error && (
               <Block
-                title={t("proxy.eventLog.viewer.detail.streamError")}
+                title={t(
+                  expectedClose
+                    ? "proxy.eventLog.viewer.detail.upstreamTransportNote"
+                    : "proxy.eventLog.viewer.detail.streamError",
+                )}
                 text={event.stream_error}
               />
             )}

@@ -24,8 +24,11 @@ export function mergePersonalTranslations(
 }
 
 export function withPersonalTranslations(
-  language: keyof typeof personalTranslations,
+  language: string,
   upstream: TranslationObject,
 ): TranslationObject {
-  return mergePersonalTranslations(upstream, personalTranslations[language]);
+  return mergePersonalTranslations(
+    upstream,
+    personalTranslations[language as keyof typeof personalTranslations] ?? en,
+  );
 }

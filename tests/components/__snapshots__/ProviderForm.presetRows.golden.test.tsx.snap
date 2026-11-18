@@ -175,7 +175,6 @@ exports[`ProviderForm 预设新增行金标 > codex > DeepSeek 1`] = `
       "config": "model_provider = "custom"
 model = "deepseek-flash"
 model_reasoning_effort = "high"
-disable_response_storage = true
 
 [model_providers.custom]
 name = "deepseek"
@@ -229,7 +228,6 @@ exports[`ProviderForm 预设新增行金标 > codex > MiniMax 1`] = `
       "config": "model_provider = "custom"
 model = "MiniMax-M3.1-Flash"
 model_reasoning_effort = "high"
-disable_response_storage = true
 
 [model_providers.custom]
 name = "minimax"
@@ -324,7 +322,6 @@ exports[`ProviderForm 预设新增行金标 > codex > Zhipu GLM 1`] = `
       "config": "model_provider = "custom"
 model = "glm-5.3"
 model_reasoning_effort = "high"
-disable_response_storage = true
 
 [model_providers.custom]
 name = "zhipu_glm"

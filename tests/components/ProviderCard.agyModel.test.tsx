@@ -23,10 +23,11 @@ vi.mock("@/components/AgyAccountQuotaFooter", () => ({
     <span data-testid="agy-account-quota">{accountId}</span>
   ),
 }));
-const platform = vi.hoisted(() => ({ mac: true }));
+const platform = vi.hoisted(() => ({ mac: true, windows: false }));
 vi.mock("@/lib/platform", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/platform")>()),
   isMac: () => platform.mac,
+  isWindows: () => platform.windows,
 }));
 vi.mock("@/lib/query/failover", () => ({
   useProviderHealth: () => ({ data: undefined }),
@@ -144,5 +145,15 @@ describe("ProviderCard Antigravity official quota", () => {
     expect(screen.getByTestId("subscription-quota")).toHaveTextContent("agy");
     expect(screen.queryByTestId("agy-account-quota")).not.toBeInTheDocument();
     platform.mac = true;
+  });
+
+  it("shows the bound account's quota on Windows", () => {
+    platform.mac = false;
+    platform.windows = true;
+    renderCard(bound);
+    expect(screen.getByTestId("agy-account-quota")).toHaveTextContent("sub-b");
+    expect(screen.queryByTestId("subscription-quota")).not.toBeInTheDocument();
+    platform.mac = true;
+    platform.windows = false;
   });
 });

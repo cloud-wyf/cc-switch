@@ -201,6 +201,142 @@ function renderViewer() {
 }
 
 describe("ProxyEventLogPage", () => {
+  it("shows SSE completion before client close without hiding transport evidence", async () => {
+    const event = summary(4, {
+      status: 200,
+      client_status: 200,
+      finish_reason: "cancelled",
+      client_sse_status: "completed",
+      error: "body not fully consumed",
+      stream_error: "upstream body not fully consumed",
+    });
+    server.use(
+      http.post("http://tauri.local/list_proxy_events", () =>
+        HttpResponse.json({
+          items: [event],
+          total: 1,
+          failed: 0,
+          scriptUsed: 0,
+          avgDurationMs: 103,
+          page: 0,
+          pageSize: 50,
+        }),
+      ),
+      http.post("http://tauri.local/get_proxy_event", () =>
+        HttpResponse.json({
+          ...event,
+          resp_body: {
+            encoding: "text",
+            size: 80000,
+            truncated: true,
+            complete: false,
+            data: "saved prefix",
+            sse: { status: "completed", event: "response.completed" },
+          },
+          client_body: {
+            encoding: "text",
+            size: 80000,
+            truncated: true,
+            complete: false,
+            data: "saved prefix",
+            sse: { status: "completed", event: "response.completed" },
+          },
+        }),
+      ),
+    );
+    renderViewer();
+    const row = await screen.findByTestId("proxy-event-row");
+    expect(row).toHaveTextContent(
+      "proxy.eventLog.viewer.outcome.completedBeforeClose",
+    );
+    expect(row).not.toHaveTextContent("body not fully consumed");
+    fireEvent.click(row);
+    const detail = await screen.findByTestId("proxy-event-detail");
+    await waitFor(() =>
+      expect(detail).toHaveTextContent("upstream body not fully consumed"),
+    );
+    expect(detail).toHaveTextContent(
+      "proxy.eventLog.viewer.detail.transportNote",
+    );
+    expect(
+      within(detail).getByText("proxy.eventLog.viewer.detail.finishReason")
+        .nextElementSibling,
+    ).toHaveTextContent(/^cancelled$/);
+    expect(detail).toHaveTextContent("proxy.eventLog.viewer.sse.completed");
+    expect(detail).toHaveTextContent("proxy.eventLog.viewer.detail.truncated");
+  });
+
+  it.each([
+    ["failed", "completed"],
+    ["incomplete", "completed"],
+    ["unknown", "completed"],
+    ["failed", "cancelled"],
+    ["incomplete", "cancelled"],
+  ])(
+    "does not treat SSE %s with HTTP %s as a successful model response",
+    async (status, finish) => {
+      server.use(
+        http.post("http://tauri.local/list_proxy_events", () =>
+          HttpResponse.json({
+            items: [
+              summary(4, {
+                status: 200,
+                client_status: 200,
+                error:
+                  finish === "cancelled" ? "body not fully consumed" : null,
+                finish_reason: finish,
+                client_sse_status: status,
+              }),
+            ],
+            total: 1,
+            failed: 0,
+            scriptUsed: 0,
+            avgDurationMs: 103,
+            page: 0,
+            pageSize: 50,
+          }),
+        ),
+      );
+      renderViewer();
+      const row = await screen.findByTestId("proxy-event-row");
+      expect(row).toHaveTextContent(`proxy.eventLog.viewer.outcome.${status}`);
+      expect(row).not.toHaveTextContent(
+        "proxy.eventLog.viewer.outcome.completed",
+      );
+    },
+  );
+
+  it("keeps a real upstream transport error visible even after SSE completion", async () => {
+    server.use(
+      http.post("http://tauri.local/list_proxy_events", () =>
+        HttpResponse.json({
+          items: [
+            summary(4, {
+              status: 200,
+              client_status: 200,
+              finish_reason: "cancelled",
+              client_sse_status: "completed",
+              error: "body not fully consumed",
+              stream_error: "connection reset by peer",
+            }),
+          ],
+          total: 1,
+          failed: 0,
+          scriptUsed: 0,
+          avgDurationMs: 103,
+          page: 0,
+          pageSize: 50,
+        }),
+      ),
+    );
+    renderViewer();
+    const row = await screen.findByTestId("proxy-event-row");
+    expect(row).toHaveTextContent("connection reset by peer");
+    expect(row).not.toHaveTextContent(
+      "proxy.eventLog.viewer.outcome.completedBeforeClose",
+    );
+  });
+
   it("lists events with a summary line and opens a detail with the effective forwarded body", async () => {
     const { container } = renderViewer();
     const rows = await screen.findAllByTestId("proxy-event-row");
